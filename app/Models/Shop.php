@@ -25,6 +25,16 @@ class Shop extends Model
     }
     public function investors()
     {
-        return $this->belongsToMany(Investor::class);
+        return $this->belongsToMany(Investor::class)->withPivot('persentase', 'nominal', 'sub_investors');
+    }
+
+    public function prices()
+    {
+        return $this->hasMany(Price::class);
+    }
+
+    public function kolektans()
+    {
+        return $this->hasMany(Kolektan::class);
     }
 }

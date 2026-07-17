@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('laba_bersihs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedDecimal('persen_alokasi_modal_dasar', 10, 2);
+            $table->foreignId('shop_id')->constrained();
+            $table->unsignedDecimal('persentase_alokasi_modal', 10, 2);
             $table->timestamps();
         });
     }

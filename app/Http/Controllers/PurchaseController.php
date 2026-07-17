@@ -23,7 +23,7 @@ class PurchaseController extends Controller
                 $shop_id = $request->input('shop_id', 1);
             }
 
-            $data = Purchase::where('shop_id', $shop_id)->with(['supplier'])->latest()->get();
+            $data = Purchase::where('shop_id', $shop_id)->with(['supplier', 'incomings'])->latest()->get();
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) {
@@ -37,7 +37,8 @@ class PurchaseController extends Controller
 
 
         $shops = Shop::all();
-        return view('purchase.index', compact('shops'));
+        $suppliers = Supplier::all();
+        return view('purchase.index', compact('shops', 'suppliers'));
     }
 
     /**
@@ -61,19 +62,55 @@ class PurchaseController extends Controller
         ];
 
         $validatedData = $request->validate([
-            'created_at' => 'required|date',
+            'purchase_date' => 'required|date',
             'supplier_id' => 'required|numeric',
             'no_so' => 'required|string',
-            'volume' => 'required|numeric',
-            'total_bayar' => 'required|numeric',
-
+            'no_lo' => 'required|string',
+            'trip' => 'nullable|string',
+            'jumlah_kl' => 'required|numeric',
+            'delivery_date' => 'nullable|date',
+            'total_nominal' => 'required|numeric',
+            'catatan_debit_credit' => 'nullable|numeric',
+            'persen_net' => 'required|numeric',
+            'persen_ppn' => 'required|numeric',
+            'persen_pph' => 'required|numeric',
+            'persen_pbbkb' => 'required|numeric',
         ], $customMessages);
 
-        $validatedData['shop_id'] = Auth::user()->admin->shop->id;
+        if (Auth::user()->role == 'super-admin' || Auth::user()->role == 'admin') {
+            $request->validate(['shop_id' => 'required|numeric']);
+            $validatedData['shop_id'] = $request->shop_id;
+        } else {
+            $validatedData['shop_id'] = Auth::user()->operator->shop_id ?? 1;
+        }
+
+        // Logic Perhitungan DO
+        $kl = floatval($request->jumlah_kl);
+        $volume_liter = $kl * 1000;
+        $total_nominal = floatval($request->total_nominal);
+        $catatan_debit_credit = floatval($request->catatan_debit_credit ?? 0);
+        
+        $total_kotor = $total_nominal - $catatan_debit_credit;
+        
+        // Simpan field baru
+        $validatedData['volume'] = $volume_liter;
+        $validatedData['total_bayar'] = $total_nominal; // Maintain total_bayar as total_nominal for legacy compatibility
+        $validatedData['catatan_debit_credit'] = $catatan_debit_credit;
+        $validatedData['total_kotor'] = $total_kotor;
+        $validatedData['total_nett'] = $total_kotor * (floatval($request->persen_net) / 100);
+        $validatedData['pajak_ppn'] = $total_kotor * (floatval($request->persen_ppn) / 100);
+        $validatedData['pajak_pph'] = $total_kotor * (floatval($request->persen_pph) / 100);
+        $validatedData['pajak_pbbkb'] = $total_kotor * (floatval($request->persen_pbbkb) / 100);
+        $validatedData['harga_satuan'] = $volume_liter > 0 ? ($total_kotor / $volume_liter) : 0;
+        
+        // Remove jumlah_kl because it's not in db
+        unset($validatedData['jumlah_kl']);
+
+        $validatedData['created_at'] = now();
 
         Purchase::create($validatedData);
 
-        return to_route('purchases.index')->with('success', 'Data pembelian berhasil disimpan.');
+        return to_route('purchases.index')->with('success', 'Data pembelian DO berhasil disimpan.');
     }
 
     /**
@@ -104,17 +141,49 @@ class PurchaseController extends Controller
         ];
 
         $validatedData = $request->validate([
-            'created_at' => 'required|date',
+            'purchase_date' => 'required|date',
             'supplier_id' => 'required|numeric',
             'no_so' => 'required|string',
-            'volume' => 'required|numeric',
-            'total_bayar' => 'required|numeric',
-
+            'no_lo' => 'required|string',
+            'trip' => 'nullable|string',
+            'jumlah_kl' => 'required|numeric',
+            'delivery_date' => 'nullable|date',
+            'total_nominal' => 'required|numeric',
+            'catatan_debit_credit' => 'nullable|numeric',
+            'persen_net' => 'required|numeric',
+            'persen_ppn' => 'required|numeric',
+            'persen_pph' => 'required|numeric',
+            'persen_pbbkb' => 'required|numeric',
         ], $customMessages);
+
+        if (Auth::user()->role == 'super-admin' || Auth::user()->role == 'admin') {
+            $request->validate(['shop_id' => 'required|numeric']);
+            $validatedData['shop_id'] = $request->shop_id;
+        }
+
+        // Logic Perhitungan DO
+        $kl = floatval($request->jumlah_kl);
+        $volume_liter = $kl * 1000;
+        $total_nominal = floatval($request->total_nominal);
+        $catatan_debit_credit = floatval($request->catatan_debit_credit ?? 0);
+        
+        $total_kotor = $total_nominal - $catatan_debit_credit;
+        
+        $validatedData['volume'] = $volume_liter;
+        $validatedData['total_bayar'] = $total_nominal;
+        $validatedData['catatan_debit_credit'] = $catatan_debit_credit;
+        $validatedData['total_kotor'] = $total_kotor;
+        $validatedData['total_nett'] = $total_kotor * (floatval($request->persen_net) / 100);
+        $validatedData['pajak_ppn'] = $total_kotor * (floatval($request->persen_ppn) / 100);
+        $validatedData['pajak_pph'] = $total_kotor * (floatval($request->persen_pph) / 100);
+        $validatedData['pajak_pbbkb'] = $total_kotor * (floatval($request->persen_pbbkb) / 100);
+        $validatedData['harga_satuan'] = $volume_liter > 0 ? ($total_kotor / $volume_liter) : 0;
+        
+        unset($validatedData['jumlah_kl']);
 
         $purchase->update($validatedData);
 
-        return to_route('purchases.index')->with('success', 'Data pembelian berhasil diubah.');
+        return to_route('purchases.index')->with('success', 'Data pembelian DO berhasil diubah.');
     }
 
     /**

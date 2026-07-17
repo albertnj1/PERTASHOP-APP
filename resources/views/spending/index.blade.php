@@ -39,6 +39,7 @@
                             @endif
 
                         </div>
+                        
                         @if (Auth::user()->role == 'operator' || Auth::user()->role == 'admin')
                             <button class="btn btn-primary btn-add"><i class="fa fa-plus mr-2"></i>Tambah
                                 Pengeluaran</button>
@@ -182,8 +183,14 @@
 
                     {
                         title: 'Operator',
-                        data: 'operator.user.name',
+                        data: 'operator',
                         name: 'operator.user.name',
+                        render: function(data, type, row) {
+                            if (data && data.user) {
+                                return data.user.name;
+                            }
+                            return '-';
+                        }
                     },
 
                     {

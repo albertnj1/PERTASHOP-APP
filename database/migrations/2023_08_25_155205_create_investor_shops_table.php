@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('investor_id')->constrained();
             $table->foreignId('shop_id')->constrained();
-            $table->unsignedDecimal('percentage', 5, 2);
+            $table->unsignedDecimal('persentase', 5, 2);
             $table->timestamps();
         });
     }

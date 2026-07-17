@@ -6,6 +6,7 @@ use App\Models\Shop;
 use App\Models\Incoming;
 use App\Models\Operator;
 use App\Models\Purchase;
+use App\Helpers\AstmTable53;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -28,7 +29,7 @@ class IncomingController extends Controller
                 $shop_id = $request->input('shop_id', 1);
             }
 
-            $data = Incoming::with(['purchase.supplier', 'operator.user'])->where('shop_id', $shop_id)->latest()->get();
+            $data = Incoming::with(['purchase.supplier', 'operator.user', 'shop'])->where('shop_id', $shop_id)->latest()->get();
 
             return Datatables::of($data)
                 ->addIndexColumn()
@@ -81,19 +82,53 @@ class IncomingController extends Controller
             'required' => ':attribute wajib diisi.',
         ];
         $validated = $request->validate([
+            'incoming_date' => 'required|date',
             'purchase_id' => 'required|numeric',
             'sopir' => 'required|string',
             'no_polisi' => 'required|string',
-            'volume' => 'required|numeric',
+            'asal_pengirim' => 'nullable|string',
+            'maos_volume' => 'nullable|numeric',
+            'maos_suhu' => 'nullable|numeric',
+            'maos_density' => 'nullable|numeric',
+            'jam_tiba' => 'nullable',
+            'jam_berangkat' => 'nullable',
+            'stock_terima_bbm' => 'nullable|numeric',
+            'dens_temp' => 'nullable|string',
             'stik_awal' => 'required|numeric',
             'stik_akhir' => 'required|numeric',
+            'penerimaan_real' => 'nullable|numeric',
+            'terima_volume' => 'nullable|numeric',
+            'terima_suhu' => 'nullable|numeric',
+            'terima_density' => 'nullable|numeric',
         ], $customMessages);
 
         $validated['created_at'] = Carbon::now()->format('Y-m-d H:i');
         $validated['shop_id'] = Auth::user()->operator->shop_id;
         $validated['operator_id'] = Auth::user()->operator->id;
 
-        Incoming::create($validated);
+        $penerimaan_real = $request->penerimaan_real;
+        $purchase = Purchase::find($request->purchase_id);
+        
+        // Ensure volume is set so the Purchase SO is marked as fully received and disappears from dropdown
+        if ($purchase) {
+            $validated['volume'] = $purchase->volume;
+        }
+
+        $incoming = Incoming::create($validated);
+
+        // Calculate losses/gain
+        if ($purchase && $penerimaan_real !== null) {
+            $incoming->losses_gain = $penerimaan_real - $purchase->volume;
+        }
+
+        // Calculate density at 15C and Pertamax validity
+        if ($request->terima_density !== null && $request->terima_suhu !== null) {
+            $density15c = AstmTable53::getDensity15C($request->terima_density, $request->terima_suhu);
+            $incoming->density_15c = $density15c;
+            $incoming->is_pertamax = ($request->terima_density >= 0.700 && $request->terima_density <= 0.759);
+        }
+
+        $incoming->save();
 
         return to_route('incomings.index')->with('success', 'Data penerimaan berhasil disimpan.');
     }
@@ -116,8 +151,7 @@ class IncomingController extends Controller
         $purchases = Purchase::with('supplier')->where('shop_id', $shop->id)->get()->filter(function ($value, int $key) use ($incoming) {
             return $value->sisa > 0 || $value->id == $incoming->purchase_id;
         });
-        $incoming = Incoming::where('operator_id', $operator->id)
-            ->whereDate('created_at', Carbon::now()->format('Y-m-d'))->first();
+
         return view('incoming.edit', compact('purchases', 'shop', 'incoming'));
     }
 
@@ -130,13 +164,43 @@ class IncomingController extends Controller
             'required' => ':attribute wajib diisi.',
         ];
         $validated = $request->validate([
+            'incoming_date' => 'required|date',
             'purchase_id' => 'required|numeric',
             'sopir' => 'required|string',
             'no_polisi' => 'required|string',
-            'volume' => 'required|numeric',
+            'asal_pengirim' => 'nullable|string',
+            'maos_volume' => 'nullable|numeric',
+            'maos_suhu' => 'nullable|numeric',
+            'maos_density' => 'nullable|numeric',
+            'jam_tiba' => 'nullable',
+            'jam_berangkat' => 'nullable',
+            'stock_terima_bbm' => 'nullable|numeric',
+            'dens_temp' => 'nullable|string',
             'stik_awal' => 'required|numeric',
             'stik_akhir' => 'required|numeric',
+            'penerimaan_real' => 'nullable|numeric',
+            'terima_volume' => 'nullable|numeric',
+            'terima_suhu' => 'nullable|numeric',
+            'terima_density' => 'nullable|numeric',
         ], $customMessages);
+
+        $penerimaan_real = $request->penerimaan_real;
+
+        // Calculate losses/gain & update volume to close SO
+        $purchase = Purchase::find($request->purchase_id);
+        if ($purchase) {
+            $validated['volume'] = $purchase->volume;
+            if ($penerimaan_real !== null) {
+                $validated['losses_gain'] = $penerimaan_real - $purchase->volume;
+            }
+        }
+
+        // Calculate density at 15C and Pertamax validity
+        if ($request->terima_density !== null && $request->terima_suhu !== null) {
+            $density15c = AstmTable53::getDensity15C($request->terima_density, $request->terima_suhu);
+            $validated['density_15c'] = $density15c;
+            $validated['is_pertamax'] = ($request->terima_density >= 0.700 && $request->terima_density <= 0.759);
+        }
 
         $incoming->update($validated);
 

@@ -168,7 +168,15 @@ class SaleController extends Controller
         }
 
 
-        $validatedData['price_id'] =  Price::latest()->first()->id;
+        $reportDate = isset($validatedData['created_at']) 
+            ? Carbon::parse($validatedData['created_at'])->format('Y-m-d H:i:s') 
+            : Carbon::now()->format('Y-m-d H:i:s');
+
+        $applicablePrice = Price::where('created_at', '<=', $reportDate)
+            ->latest()
+            ->first();
+
+        $validatedData['price_id'] = $applicablePrice ? $applicablePrice->id : Price::latest()->first()->id;
 
         Sale::create($validatedData);
 

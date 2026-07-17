@@ -64,7 +64,7 @@ class DatabaseSeeder extends Seeder
 
         $user3 = User::factory()->create(
             [
-                'name' => 'Caca',
+                'name' => 'Dwi Yuliarto',
                 'role' => 'admin',
                 'email' => 'admin@kalitapen.com'
             ]
@@ -97,6 +97,12 @@ class DatabaseSeeder extends Seeder
             'alamat' => 'Kel. Kemutug Lor Kec. Baturraden Kab. Banyumas',
         ]);
 
+        $sumingkir = Shop::factory()->for($SAL)->hasOperators(2)->create([
+            'nama' => 'Sumingkir',
+            'kode' => '4P.532.40',
+            'alamat' => 'Sumingkir',
+        ]);
+
         User::factory()->create([
             'name' => 'Febri Sutomo',
             'email' => 'super-admin@gmail.com',
@@ -127,19 +133,19 @@ class DatabaseSeeder extends Seeder
 
         #create investor for user with role investor
         $investor_koko = $koko->investor()->create([
-            'bank_rekening' => 'BCA',
+            'nama_bank' => 'BCA',
             'no_rekening' => '7510 6699 96',
             'atas_nama_rekening' => 'PT. TRIMITRA CIPTA KREASI',
             'no_hp' => '08123456789',
         ]);
         $investor_adlai = $adlai->investor()->create([
-            'bank_rekening' => 'Mandiri',
+            'nama_bank' => 'Mandiri',
             'no_rekening' => '13900 2109 0000',
             'atas_nama_rekening' => 'R. ADLAI BT KALAPAAKING',
             'no_hp' => '08123456789',
         ]);
         $investor_eko = $eko->investor()->create([
-            'bank_rekening' => 'BCA',
+            'nama_bank' => 'BCA',
             'no_rekening' => '4240 2645 82',
             'atas_nama_rekening' => 'EKO CAHYONO',
             'no_hp' => '08123456789',
@@ -147,16 +153,26 @@ class DatabaseSeeder extends Seeder
 
         #attach investor to shop
         #attach to shop kalitapen
-        $investor_koko->shops()->attach($kalitapen, ['percentage' => 75]);
-        $investor_adlai->shops()->attach($kalitapen, ['percentage' => 15]);
-        $investor_eko->shops()->attach($kalitapen, ['percentage' => 10]);
+        $investor_koko->shops()->attach($kalitapen, ['persentase' => 75]);
+        $investor_adlai->shops()->attach($kalitapen, ['persentase' => 15]);
+        $investor_eko->shops()->attach($kalitapen, ['persentase' => 10]);
         #attach to shop kalibenda
 
         Price::insert([
             [
+                'harga_beli' => 8173.50,
+                'harga_jual' => 9000,
+                'created_at' => "2021-01-01"
+            ],
+            [
+                'harga_beli' => 11682.30,
+                'harga_jual' => 12500,
+                'created_at' => "2021-04-01"
+            ],
+            [
                 'harga_beli' => 13687.50,
                 'harga_jual' => 14500,
-                'created_at' => "2022-04-01"
+                'created_at' => "2022-03-09"
             ],
             [
                 'harga_beli' => 13085.95,
@@ -182,6 +198,14 @@ class DatabaseSeeder extends Seeder
                 'harga_beli' => 11676.94,
                 'harga_jual' => 12500,
                 'created_at' => "2023-06-01"
+            ],
+            [
+                'harga_beli' => 12478.66,
+                'harga_jual' => 13300,
+                'created_at' => "2023-06-01"
+            ],
+            [
+                'harga_beli'
             ]
         ]);
 
@@ -212,6 +236,8 @@ class DatabaseSeeder extends Seeder
         ]);
 
         SpendingCategory::insert([
+            ['nama' => 'Gaji Operator'],
+            ['nama' => 'Gaji Admin'],
             ['nama' => 'Ongkos Bongkar'],
             ['nama' => 'Biaya Transfer'],
             ['nama' => 'Fotocopy & ATK'],
@@ -228,21 +254,21 @@ class DatabaseSeeder extends Seeder
                 'shop_id' => $kalitapen->id,
                 'operator_id' => 1,
                 'created_at' => now(),
-                'spending_category_id' => 1,
+                'spending_category_id' => 3,
                 'jumlah' => 10000
             ],
             [
                 'shop_id' => $kalitapen->id,
                 'operator_id' => 1,
                 'created_at' => now(),
-                'spending_category_id' => 3,
+                'spending_category_id' => 5,
                 'jumlah' => 1800
             ],
             [
                 'shop_id' => $kalitapen->id,
                 'operator_id' => 1,
                 'created_at' => now(),
-                'spending_category_id' => 4,
+                'spending_category_id' => 6,
                 'jumlah' => 105000
             ],
         ]);
@@ -262,6 +288,18 @@ class DatabaseSeeder extends Seeder
             'totalisator_akhir' => 120010,
             'operator_id' => 1,
             'shop_id' => $kalitapen->id
+        ]);
+
+        \App\Models\DepositDestination::firstOrCreate([
+            'name' => 'Sinergy'
+        ], [
+            'description' => 'Rekening Sinergy'
+        ]);
+
+        \App\Models\DepositDestination::firstOrCreate([
+            'name' => 'Pak Yusuf'
+        ], [
+            'description' => 'Setoran Pak Yusuf'
         ]);
     }
 }

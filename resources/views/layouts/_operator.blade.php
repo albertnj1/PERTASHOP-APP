@@ -4,9 +4,21 @@
         <div class="container-fluid">
             <a href="/" class="navbar-brand">
                 <img src="{{ asset('images/logo-pertashop.png') }}" alt="Logo"
-                    class="brand-image img-circle elevation-3" style="opacity: .8">
-                <span class="brand-text font-weight-light">PertashopApp</span>
+                    class="brand-image img-circle" style="opacity: .8">
             </a>
+
+            <div class="collapse navbar-collapse order-3" id="navbarCollapse">
+                <ul class="navbar-nav">
+         <!-- Nav Item - Laporan Harian (Upload) -->
+    <li class="nav-item">
+        <a class="nav-link" href="{{ route('daily-report-uploads.index') }}">
+            <i class="fas fa-fw fa-file-upload"></i>
+            <span>Upload Laporan Harian</span></a>
+    </li>
+
+                
+                </ul>
+            </div>
 
             <ul class="order-1 order-md-3 navbar-nav navbar-no-expand ml-auto">
 

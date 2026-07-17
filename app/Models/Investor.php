@@ -11,9 +11,11 @@ class Investor extends Model
 {
     use HasFactory;
 
+    protected $guarded = ['id'];
+
     public function shops()
     {
-        return $this->belongsToMany(Shop::class);
+        return $this->belongsToMany(Shop::class)->withPivot('persentase', 'nominal', 'sub_investors');
     }
 
     public function user()

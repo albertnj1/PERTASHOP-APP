@@ -30,6 +30,13 @@ class SpendingController extends Controller
                 ->latest()
                 ->get();
 
+            if (Auth::user()->role == 'operator') {
+                $spendings = Spending::with(['category', 'operator.user'])->where('shop_id', $shop_id)
+                    ->where('operator_id', '!=', null)
+                    ->latest()
+                    ->get();
+            }
+
             return DataTables::of($spendings)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) use ($spendings) {
@@ -106,6 +113,9 @@ class SpendingController extends Controller
 
         $shops = Shop::all();
         $spendingCategories = SpendingCategory::all();
+        if (Auth::user()->role == 'operator') {
+            $spendingCategories = SpendingCategory::where('id', '>', 2)->get();
+        }
         return view('spending.index', compact('shops', 'spendingCategories'));
     }
 

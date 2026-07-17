@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('no_hp')->nullable();
             $table->string('no_rekening')->nullable();
             $table->string('atas_nama_rekening')->nullable();
-            $table->string('bank_rekening')->nullable();
+            $table->string('nama_bank')->nullable();
             $table->timestamps();
         });
     }

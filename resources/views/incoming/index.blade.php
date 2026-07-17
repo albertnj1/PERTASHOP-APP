@@ -121,8 +121,14 @@
 
                     {
                         title: 'Operator',
-                        data: 'operator.user.name',
-                        name: 'operator',
+                        data: 'operator',
+                        name: 'operator.user.name',
+                        render: function(data, type, row) {
+                            if (data && data.user) {
+                                return data.user.name;
+                            }
+                            return '-';
+                        }
                     },
 
                     {

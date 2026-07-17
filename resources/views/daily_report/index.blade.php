@@ -86,8 +86,14 @@
                     },
                     {
                         title: 'Operator',
-                        data: 'operator.user.name',
-                        name: 'operator',
+                        data: 'operator',
+                        name: 'operator.user.name',
+                        render: function(data, type, row) {
+                            if (data && data.user) {
+                                return data.user.name;
+                            }
+                            return '-';
+                        }
                     },
                     // {
                     //     title: 'Totalisator Awal',
@@ -108,11 +114,17 @@
                         title: 'Penerimaan (&ell;)',
                         data: 'penerimaan',
                         name: 'penerimaan',
+                        render: function(data, type) {
+                            return (type === 'display' && data) ? parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID') : data;
+                        }
                     },
                     {
                         title: 'Volume Penjualan (&ell;)',
                         data: 'volume_penjualan',
                         name: 'volume_penjualan',
+                        render: function(data, type) {
+                            return (type === 'display' && data) ? parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID') : data;
+                        }
                     },
                     {
                         title: 'Rupiah Penjualan',
@@ -120,7 +132,7 @@
                         name: 'rupiah_penjualan',
                         render: function(data, type) {
                             if (type === 'display') {
-                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${formatNumber(data)}</span></div>`
+                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID')}</span></div>`
                             }
                             return data;
                         }
@@ -140,11 +152,28 @@
                         title: 'Stok Akhir (&ell;)',
                         data: 'stok_akhir_aktual',
                         name: 'stok_akhir_aktual',
+                        render: function(data, type) {
+                            return (type === 'display' && data) ? parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID') : data;
+                        }
                     },
                     {
                         title: 'Losses / Gain (&ell;)',
                         data: 'losses_gain',
                         name: 'losses_gain',
+                        render: function(data, type) {
+                            if (type === 'display' && data !== null && data !== undefined) {
+                                let val = parseFloat(data);
+                                if (isNaN(val)) return data;
+                                let formatted = parseFloat(val.toFixed(3)).toLocaleString('id-ID');
+                                if (val < 0) {
+                                    return `<span style="color: #dc3545; font-weight: 700;">${formatted}</span>`;
+                                } else if (val > 0) {
+                                    return `<span style="color: #28a745; font-weight: 700;">+${formatted}</span>`;
+                                }
+                                return formatted;
+                            }
+                            return data;
+                        }
                     },
                     {
                         title: 'Pengeluaran',
@@ -152,7 +181,7 @@
                         name: 'pengeluaran',
                         render: function(data, type) {
                             if (type === 'display') {
-                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${formatNumber(data)}</span></div>`
+                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID')}</span></div>`
                             }
                             return data;
                         }
@@ -164,7 +193,7 @@
                         name: 'pendapatan',
                         render: function(data, type) {
                             if (type === 'display') {
-                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${formatNumber(data)}</span></div>`
+                                return `<div class="justify-content-between"><span class="mr-1">Rp</span><span>${parseFloat(Number(data).toFixed(3)).toLocaleString('id-ID')}</span></div>`
                             }
                             return data;
                         }
