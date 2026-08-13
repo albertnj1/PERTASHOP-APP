@@ -34,12 +34,11 @@ class BackdateExcelFileController extends Controller
     {
         $request->validate([
             'shop_id'     => 'required|string',
-            'bulan_tahun' => 'required|string',
+            'bulan_tahun' => 'nullable|string',
             'file_excel'  => 'required|file|mimes:xlsx,xls|max:20480',
             'keterangan'  => 'nullable|string|max:500',
         ], [
             'shop_id.required'     => 'Silakan pilih Pertashop atau opsi Otomatis Semua Pertashop.',
-            'bulan_tahun.required' => 'Silakan pilih Periode Bulan & Tahun.',
             'file_excel.required'  => 'Silakan pilih file Excel (.xlsx / .xls).',
             'file_excel.mimes'     => 'Format file harus berupa Excel (.xlsx atau .xls).',
             'file_excel.max'       => 'Ukuran file maksimal adalah 20 MB.',
@@ -50,38 +49,54 @@ class BackdateExcelFileController extends Controller
         $extension = $file->getClientOriginalExtension();
         $accessibleShops = $this->getAccessibleShops();
 
+        // Read Sheet Names Fast
+        $sheetNames = [];
+        try {
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file->getPathname());
+            if (method_exists($reader, 'setReadDataOnly')) {
+                $reader->setReadDataOnly(true);
+            }
+            $ss = $reader->load($file->getPathname());
+            foreach ($ss->getAllSheets() as $sh) {
+                $sheetNames[] = $sh->getTitle();
+            }
+        } catch (\Throwable $e) {
+            // Sheet reading fallback
+        }
+
+        // Auto-detect distinct periods from sheet names if bulan_tahun is empty
+        $detectedPeriods = [];
+        if (empty($request->bulan_tahun) && !empty($sheetNames)) {
+            foreach ($sheetNames as $sName) {
+                $p = \App\Services\BackdateExcelSummaryService::parsePeriodFromSheetName($sName);
+                if ($p !== 'Multi-Periode' && !in_array($p, $detectedPeriods)) {
+                    $detectedPeriods[] = $p;
+                }
+            }
+            rsort($detectedPeriods); // Sort newest to oldest
+        }
+
+        $periodsToSave = !empty($detectedPeriods) ? $detectedPeriods : [$request->bulan_tahun ?: $this->detectYearRangeFromFilename($originalFilename)];
+
         // 1. OPSI OTOMATIS BANYAK PERTASHOP (MULTI-SHEET MASTER FILE)
         if ($request->shop_id === 'auto_multi') {
-            $sheetNames = [];
-            try {
-                $ss = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
-                foreach ($ss->getAllSheets() as $sh) {
-                    $sheetNames[] = $sh->getTitle();
-                }
-            } catch (\Throwable $e) {
-                // If sheet reading fails, fallback to distributing to all accessible shops
-            }
-
             $matchedShops = collect();
+            $genericStopwords = ['ps', 'ps.', 'pertashop', 'desa', 'kec', 'kecamatan', 'kab', 'kabupaten', 'toko', 'outlet', 'gaji', 'penjualan', 'laporan', 'daily'];
 
             foreach ($accessibleShops as $shop) {
-                $shopNameClean = strtolower(trim($shop->nama));
-                $shopKodeClean = strtolower(str_replace('.', '', trim($shop->kode)));
-                $shopKeywords  = array_filter(explode(' ', $shopNameClean), fn($k) => strlen($k) > 2);
+                $shopAliases = \App\Services\BackdateExcelSummaryService::getShopAliases($shop);
+                $validShopAliases = array_filter($shopAliases, function($alias) use ($genericStopwords) {
+                    return strlen($alias) >= 2 && !in_array(strtolower($alias), $genericStopwords);
+                });
 
                 $isMatch = false;
-                if (empty($sheetNames)) {
-                    $isMatch = true; // Fallback: assign to all if sheet reading failed
-                } else {
+                if (!empty($sheetNames)) {
                     foreach ($sheetNames as $sName) {
                         $sNameLower = strtolower($sName);
-                        $sNameNoDot = str_replace('.', '', $sNameLower);
-                        if (str_contains($sNameLower, $shopNameClean) || ($shopKodeClean && str_contains($sNameNoDot, $shopKodeClean))) {
-                            $isMatch = true;
-                            break;
-                        }
-                        foreach ($shopKeywords as $kw) {
-                            if (str_contains($sNameLower, $kw)) {
+                        $sNameNoDot = str_replace(['.', ' ', '-'], '', $sNameLower);
+
+                        foreach ($validShopAliases as $alias) {
+                            if (str_contains($sNameLower, $alias) || str_contains($sNameNoDot, $alias)) {
                                 $isMatch = true;
                                 break 2;
                             }
@@ -89,68 +104,86 @@ class BackdateExcelFileController extends Controller
                     }
                 }
 
-                // Match found or master file distribution
                 if ($isMatch) {
                     $matchedShops->push($shop);
                     $folderPath = 'backdate_excel/pertashop_' . $shop->id;
-                    $savedFilename = $request->bulan_tahun . '_' . time() . '_' . $shop->id . '.' . $extension;
+                    $firstPeriod = $periodsToSave[0];
+                    $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '_' . $shop->id . '.' . $extension;
                     $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
 
-                    BackdateExcelFile::create([
-                        'shop_id'           => $shop->id,
-                        'bulan_tahun'       => $request->bulan_tahun,
-                        'original_filename' => $originalFilename,
-                        'file_path'         => $storedPath,
-                        'file_size'         => $file->getSize(),
-                        'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Master File Multi-Pertashop]',
-                        'user_id'           => Auth::id(),
-                    ]);
+                    foreach ($periodsToSave as $periodStr) {
+                        BackdateExcelFile::create([
+                            'shop_id'           => $shop->id,
+                            'bulan_tahun'       => $periodStr,
+                            'original_filename' => $originalFilename,
+                            'file_path'         => $storedPath,
+                            'file_size'         => $file->getSize(),
+                            'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
+                            'user_id'           => Auth::id(),
+                        ]);
+                    }
                 }
             }
 
-            // Fallback: If no specific sheet name matched, assign master file to all accessible shops
+            // Fallback if no specific shop matched
             if ($matchedShops->isEmpty()) {
                 foreach ($accessibleShops as $shop) {
                     $matchedShops->push($shop);
                     $folderPath = 'backdate_excel/pertashop_' . $shop->id;
-                    $savedFilename = $request->bulan_tahun . '_' . time() . '_' . $shop->id . '.' . $extension;
+                    $firstPeriod = $periodsToSave[0];
+                    $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '_' . $shop->id . '.' . $extension;
                     $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
 
-                    BackdateExcelFile::create([
-                        'shop_id'           => $shop->id,
-                        'bulan_tahun'       => $request->bulan_tahun,
-                        'original_filename' => $originalFilename,
-                        'file_path'         => $storedPath,
-                        'file_size'         => $file->getSize(),
-                        'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Master File Multi-Pertashop]',
-                        'user_id'           => Auth::id(),
-                    ]);
+                    foreach ($periodsToSave as $periodStr) {
+                        BackdateExcelFile::create([
+                            'shop_id'           => $shop->id,
+                            'bulan_tahun'       => $periodStr,
+                            'original_filename' => $originalFilename,
+                            'file_path'         => $storedPath,
+                            'file_size'         => $file->getSize(),
+                            'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
+                            'user_id'           => Auth::id(),
+                        ]);
+                    }
                 }
             }
 
             $shopNamesStr = $matchedShops->pluck('nama')->implode(', ');
             return redirect()->route('backdate-excel-files.index')
-                ->with('success', "File Excel Master '{$originalFilename}' ({$request->bulan_tahun}) berhasil diuraikan dan didistribusikan ke {$matchedShops->count()} Pertashop: {$shopNamesStr}.");
+                ->with('success', "File Excel Master '{$originalFilename}' berhasil diuraikan menjadi " . count($periodsToSave) . " periode bulan dan didistribusikan ke {$matchedShops->count()} Pertashop: {$shopNamesStr}.");
         }
 
         // 2. OPSI SINGLE PERTASHOP SPESIFIK
         $shop = Shop::findOrFail($request->shop_id);
         $folderPath = 'backdate_excel/pertashop_' . $shop->id;
-        $savedFilename = $request->bulan_tahun . '_' . time() . '.' . $extension;
+        $firstPeriod = $periodsToSave[0];
+        $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '.' . $extension;
         $storedPath = $file->storeAs($folderPath, $savedFilename, 'public');
 
-        BackdateExcelFile::create([
-            'shop_id'           => $shop->id,
-            'bulan_tahun'       => $request->bulan_tahun,
-            'original_filename' => $originalFilename,
-            'file_path'         => $storedPath,
-            'file_size'         => $file->getSize(),
-            'keterangan'        => $request->keterangan,
-            'user_id'           => Auth::id(),
-        ]);
+        foreach ($periodsToSave as $periodStr) {
+            BackdateExcelFile::create([
+                'shop_id'           => $shop->id,
+                'bulan_tahun'       => $periodStr,
+                'original_filename' => $originalFilename,
+                'file_path'         => $storedPath,
+                'file_size'         => $file->getSize(),
+                'keterangan'        => $request->keterangan,
+                'user_id'           => Auth::id(),
+            ]);
+        }
 
         return redirect()->route('backdate-excel-files.index')
-            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} ({$request->bulan_tahun}) berhasil disimpan ke arsip.");
+            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} berhasil diurai menjadi " . count($periodsToSave) . " periode bulanan dan disimpan ke arsip.");
+    }
+
+    private function detectYearRangeFromFilename(string $filename): string
+    {
+        if (preg_match('/(20\d{2}\s*[-_]\s*20\d{2})/i', $filename, $matches)) {
+            return 'Tahun ' . str_replace('_', '-', trim($matches[1]));
+        } elseif (preg_match('/(20\d{2})/i', $filename, $matches)) {
+            return 'Tahun ' . $matches[1];
+        }
+        return 'Multi-Periode';
     }
 
     /**
@@ -167,7 +200,7 @@ class BackdateExcelFileController extends Controller
         if (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
             $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
             $fileBase64 = base64_encode(Storage::disk('public')->get($backdateExcelFile->file_path));
-            $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop);
+            $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
         }
 
         return view('backdate_excel.show', compact('backdateExcelFile', 'fileBase64', 'summary'));

@@ -268,16 +268,16 @@ class DatabaseSeeder extends Seeder
                 'nama' => 'Sumingkir',
                 'corporation_id' => $corpKBM->id,
                 'alamat' => 'Sumingkir',
-                'total_investasi' => 30000000,
-                'modal_awal' => 30000000,
+                'total_investasi' => 300000000,
+                'modal_awal' => 300000000,
             ]
         );
-        $sumingkir->update(['total_investasi' => 30000000, 'modal_awal' => 30000000, 'corporation_id' => $corpKBM->id]);
+        $sumingkir->update(['total_investasi' => 300000000, 'modal_awal' => 300000000, 'corporation_id' => $corpKBM->id]);
         $syncShopInvestors($sumingkir, [
-            ['name' => 'Adlai Budiarto K.', 'persentase' => 45.00, 'nominal' => 13500000],
-            ['name' => 'CV Kina Berkah Mandiri', 'persentase' => 35.00, 'nominal' => 10500000],
-            ['name' => 'Dwiyuliarto', 'persentase' => 10.00, 'nominal' => 3000000],
-            ['name' => 'BumDes Sumingkir', 'persentase' => 10.00, 'nominal' => 3000000],
+            ['name' => 'Adlai Budiarto K.', 'persentase' => 45.00, 'nominal' => 135000000],
+            ['name' => 'CV Kina Berkah Mandiri', 'persentase' => 35.00, 'nominal' => 105000000],
+            ['name' => 'Dwiyuliarto', 'persentase' => 10.00, 'nominal' => 30000000],
+            ['name' => 'BumDes Sumingkir', 'persentase' => 10.00, 'nominal' => 30000000],
         ]);
         $syncShopOperators($sumingkir, ['Muhammad Nur Aziz', 'Ahmad Syarifudin']);
 

@@ -20,7 +20,7 @@ class BackdateExcelSummaryService
      * @param \App\Models\Shop|null $targetShop Toko target opsional untuk memilih sheet spesifik toko
      * @return array
      */
-    public static function extract(string $filePath, ?\App\Models\Shop $targetShop = null): array
+    public static function extract(string $filePath, ?\App\Models\Shop $targetShop = null, ?string $targetPeriod = null): array
     {
         $summary = [
             'totalisator_awal'       => 0,
@@ -55,7 +55,11 @@ class BackdateExcelSummaryService
         }
 
         try {
-            $ss = IOFactory::load($filePath);
+            $reader = IOFactory::createReaderForFile($filePath);
+            if (method_exists($reader, 'setReadDataOnly')) {
+                $reader->setReadDataOnly(true);
+            }
+            $ss = $reader->load($filePath);
 
             // 1. Cari Sheet Pembelian DO
             $doSheet = null;
@@ -90,10 +94,21 @@ class BackdateExcelSummaryService
                 }
             }
 
-            // 2. Cari Sheet BKH / Rekap Penjualan Harian (Gunakan Smart Matching jika $targetShop dioper)
+            // 2. Cari Sheet BKH / Rekap Penjualan Harian
             $bkhSheet = null;
+
+            // Priority 0: Match targetPeriod if specified (e.g. 2025-07, 2026-03)
+            if ($targetPeriod) {
+                foreach ($ss->getAllSheets() as $sh) {
+                    $p = self::parsePeriodFromSheetName($sh->getTitle());
+                    if ($p === $targetPeriod) {
+                        $bkhSheet = $sh;
+                        break;
+                    }
+                }
+            }
             
-            if ($targetShop) {
+            if (!$bkhSheet && $targetShop) {
                 $targetAliases = self::getShopAliases($targetShop);
 
                 // Priority 1: Match sheet title with target shop aliases (e.g. KMT, KLT, KLB, PGL, GML, SMK, name, code)
@@ -302,11 +317,138 @@ class BackdateExcelSummaryService
                 $summary['totalisator_akhir'] = $lastTotAkhir ?? 0;
                 $summary['stok_akhir']        = $lastStokAkhir ?? 0;
             }
+
+            // Hitung Profit Sharing Investor berdasarkan Laba Operasional & Investor Shop pivot
+            if ($targetShop) {
+                $targetShop->loadMissing('investors.user');
+                
+                $marginPerLiter = self::getMarginForPeriod($targetShop->id, $targetPeriod);
+                $labaKotor = $summary['jumlah_liter_terjual'] * $marginPerLiter;
+                $totalPengeluaran = $summary['total_pengeluaran']['total_rp'] + $summary['test_pump']['total_rp'];
+                $labaBersih = $labaKotor - $totalPengeluaran;
+                
+                $persenAlokasiModal = 10; // 10% Tahanan Modal Operasional
+                $alokasiModal = $labaBersih > 0 ? ($labaBersih * ($persenAlokasiModal / 100)) : 0;
+                $labaBersihDibagi = $labaBersih - $alokasiModal;
+
+                $investorDetails = [];
+                foreach ($targetShop->investors as $inv) {
+                    $persen = floatval($inv->pivot->persentase ?? 0);
+                    $nominalModal = floatval($inv->pivot->nominal ?? 0);
+                    $nominalShare = $labaBersihDibagi > 0 ? ($labaBersihDibagi * ($persen / 100)) : 0;
+
+                    $investorDetails[] = [
+                        'investor_id'   => $inv->id,
+                        'nama'          => !empty(trim((string)$inv->nama)) ? $inv->nama : ($inv->user->name ?? 'Investor #' . $inv->id),
+                        'persentase'    => $persen,
+                        'nominal_modal' => $nominalModal,
+                        'nominal_share' => $nominalShare,
+                    ];
+                }
+
+                $summary['profit_sharing'] = [
+                    'margin_per_liter'     => $marginPerLiter,
+                    'est_laba_kotor'       => $labaKotor,
+                    'total_pengeluaran'    => $totalPengeluaran,
+                    'laba_bersih'          => $labaBersih,
+                    'persen_alokasi_modal' => $persenAlokasiModal,
+                    'alokasi_modal'        => $alokasiModal,
+                    'laba_bersih_dibagi'   => $labaBersihDibagi,
+                    'investor_details'     => $investorDetails,
+                ];
+            }
+
         } catch (\Throwable $e) {
             Log::error("BackdateExcelSummaryService Error parsing {$filePath}: " . $e->getMessage());
         }
 
         return $summary;
+    }
+
+    /**
+     * Mengambil margin harga resmi (Harga Jual - Harga Beli) dari tabel prices sesuai periode & toko.
+     *
+     * @param int|null $shopId
+     * @param string|null $periodStr
+     * @return float
+     */
+    public static function getMarginForPeriod(?int $shopId, ?string $periodStr): float
+    {
+        $date = null;
+        if ($periodStr && preg_match('/^(\d{4})-(\d{2})$/', $periodStr, $m)) {
+            $date = \Illuminate\Support\Carbon::createFromDate(intval($m[1]), intval($m[2]), 15)->endOfDay();
+        } else {
+            $date = \Illuminate\Support\Carbon::now();
+        }
+
+        $query = \App\Models\Price::query();
+        if ($shopId) {
+            $query->where(function($q) use ($shopId) {
+                $q->where('shop_id', $shopId)->orWhereNull('shop_id');
+            });
+        }
+
+        $price = $query->where('effective_at', '<=', $date)
+            ->orderBy('effective_at', 'desc')
+            ->first();
+
+        if (!$price) {
+            $price = \App\Models\Price::orderBy('effective_at', 'desc')->first();
+        }
+
+        if ($price && $price->harga_jual > 0 && $price->harga_beli > 0) {
+            return round($price->harga_jual - $price->harga_beli, 2);
+        }
+
+        return 1000.0;
+    }
+
+    /**
+     * Mengekstrak periode YYYY-MM dari nama sheet (misal: jul25 -> 2025-07, Des25 -> 2025-12, Jan26 -> 2026-01).
+     *
+     * @param string $sheetName
+     * @param string|null $fallbackPeriod
+     * @return string
+     */
+    public static function parsePeriodFromSheetName(string $sheetName, ?string $fallbackPeriod = null): string
+    {
+        $s = strtolower(trim($sheetName));
+        
+        $monthMap = [
+            'jan' => '01', 'januari' => '01', 'january' => '01',
+            'feb' => '02', 'februari' => '02', 'february' => '02',
+            'mar' => '03', 'maret' => '03', 'march' => '03',
+            'apr' => '04', 'april' => '04',
+            'mei' => '05', 'may' => '05',
+            'jun' => '06', 'juni' => '06', 'june' => '06',
+            'jul' => '07', 'juli' => '07', 'july' => '07',
+            'ags' => '08', 'agust' => '08', 'agustus' => '08', 'aug' => '08', 'august' => '08',
+            'sep' => '09', 'sept' => '09', 'september' => '09',
+            'okt' => '10', 'oktober' => '10', 'oct' => '10', 'october' => '10',
+            'nov' => '11', 'november' => '11',
+            'des' => '12', 'desember' => '12', 'dec' => '12', 'december' => '12',
+        ];
+
+        $foundMonth = null;
+        foreach ($monthMap as $key => $num) {
+            if (preg_match('/' . $key . '/i', $s)) {
+                $foundMonth = $num;
+                break;
+            }
+        }
+
+        $foundYear = null;
+        if (preg_match('/20(2[0-9])\b/', $s, $m)) {
+            $foundYear = '20' . $m[1];
+        } elseif (preg_match('/(?<=\D|^)(2[0-9])\b/', $s, $m)) {
+            $foundYear = '20' . $m[1];
+        }
+
+        if ($foundMonth && $foundYear) {
+            return $foundYear . '-' . $foundMonth;
+        }
+
+        return $fallbackPeriod ?? 'Multi-Periode';
     }
 
     /**

@@ -70,8 +70,13 @@
 
         {{-- Periode Bulan & Tahun --}}
         <div class="col-md-3 mb-3">
-          <label for="bulan_tahun" class="form-label" style="font-weight: 600; font-size: 13px; color: #334155;">Periode Bulan &amp; Tahun</label>
-          <input type="month" name="bulan_tahun" id="bulan_tahun" class="form-control form-control-sm" value="{{ old('bulan_tahun') }}" required style="border-radius: 6px;">
+          <label for="bulan_tahun" class="form-label" style="font-weight: 600; font-size: 13px; color: #334155;">
+            Periode Bulan &amp; Tahun <span class="text-muted font-weight-normal" style="font-size: 11px;">(Opsional)</span>
+          </label>
+          <input type="month" name="bulan_tahun" id="bulan_tahun" class="form-control form-control-sm" value="{{ old('bulan_tahun') }}" style="border-radius: 6px;">
+          <small class="text-muted d-block mt-1" style="font-size: 11px;">
+            💡 Kosongkan jika file berisi multi-bulan / multi-tahun (misal: 2025-2026).
+          </small>
         </div>
 
         {{-- File Excel --}}

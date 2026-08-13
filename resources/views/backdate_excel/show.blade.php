@@ -634,6 +634,95 @@
           </div>
         </div>
 
+        {{-- Section 9: Rincian Pembagian Profit Sharing Investor --}}
+        @if(isset($sum['profit_sharing']))
+        @php $ps = $sum['profit_sharing']; @endphp
+        <div class="col-md-12 mb-4">
+          <div class="card shadow-sm border" style="border-radius: 12px; overflow: hidden; border-color: #cbd5e1 !important;">
+            <div class="card-header d-flex align-items-center justify-content-between py-2.5" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
+              <h6 class="mb-0 font-weight-bold" style="font-size: 14px; letter-spacing: 0.3px;">
+                <i class="fas fa-hand-holding-usd text-warning mr-2"></i> 9. Simulasi &amp; Rincian Pembagian Profit Sharing Investor ({{ $backdateExcelFile->shop->nama }})
+              </h6>
+              <span class="badge badge-warning text-dark font-weight-bold px-2.5 py-1" style="font-size: 11.5px; border-radius: 6px;">
+                Total Bagi Hasil: Rp {{ number_format($ps['laba_bersih_dibagi'], 0, ',', '.') }}
+              </span>
+            </div>
+
+            <div class="card-body p-3 bg-light">
+              
+              {{-- Financial Summary Breakdown Cards --}}
+              <div class="row mb-3">
+                <div class="col-md-3 mb-2">
+                  <div class="p-2.5 bg-white border rounded shadow-xs">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 10px;">Estimasi Laba Kotor (Margin Rp {{ number_format($ps['margin_per_liter'], 2, ',', '.') }}/L)</small>
+                    <span class="h6 font-weight-bold text-success mb-0">Rp {{ number_format($ps['est_laba_kotor'], 0, ',', '.') }}</span>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <div class="p-2.5 bg-white border rounded shadow-xs">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 10px;">Total Pengeluaran &amp; Test Pump</small>
+                    <span class="h6 font-weight-bold text-danger mb-0">Rp {{ number_format($ps['total_pengeluaran'], 0, ',', '.') }}</span>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <div class="p-2.5 bg-white border rounded shadow-xs">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 10px;">Cadangan Modal ({{ $ps['persen_alokasi_modal'] }}%)</small>
+                    <span class="h6 font-weight-bold text-info mb-0">Rp {{ number_format($ps['alokasi_modal'], 0, ',', '.') }}</span>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <div class="p-2.5 bg-white border rounded shadow-xs" style="border-left: 4px solid #10b981 !important;">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 10px;">Laba Bersih Siap Dibagi</small>
+                    <span class="h6 font-weight-bold text-dark mb-0">Rp {{ number_format($ps['laba_bersih_dibagi'], 0, ',', '.') }}</span>
+                  </div>
+                </div>
+              </div>
+
+              {{-- Investor Breakdown Table --}}
+              <div class="border rounded bg-white overflow-hidden" style="max-height: 350px; overflow-y: auto;">
+                <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12.5px;">
+                  <thead class="thead-dark" style="background-color: #1e293b; color: #f8fafc;">
+                    <tr>
+                      <th style="width: 45px;" class="text-center">No</th>
+                      <th>Nama Investor Pertashop</th>
+                      <th class="text-center" style="width: 130px;">Porsi Share (%)</th>
+                      <th class="text-right" style="width: 200px;">Modal Investasi Awal</th>
+                      <th class="text-right text-warning" style="width: 220px;">Hak Profit Sharing Bulan Ini</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @forelse($ps['investor_details'] as $idx => $inv)
+                      <tr>
+                        <td class="text-center font-weight-bold">{{ $idx + 1 }}</td>
+                        <td class="font-weight-bold text-dark">
+                          <i class="fas fa-user-circle text-primary mr-1"></i> {{ $inv['nama'] }}
+                        </td>
+                        <td class="text-center">
+                          <span class="badge badge-info px-2 py-1" style="font-size: 11.5px; border-radius: 4px;">
+                            {{ number_format($inv['persentase'], 2, ',', '.') }}%
+                          </span>
+                        </td>
+                        <td class="text-right font-weight-bold text-muted">
+                          Rp {{ number_format($inv['nominal_modal'], 0, ',', '.') }}
+                        </td>
+                        <td class="text-right font-weight-bold text-success" style="font-size: 13px;">
+                          Rp {{ number_format($inv['nominal_share'], 0, ',', '.') }}
+                        </td>
+                      </tr>
+                    @empty
+                      <tr>
+                        <td colspan="5" class="text-center text-muted py-3">Belum ada investor terdaftar untuk toko {{ $backdateExcelFile->shop->nama }}.</td>
+                      </tr>
+                    @endforelse
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        @endif
+
       </div>
 
     </div>
@@ -704,6 +793,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const currentShopAliases = @json($currentShopAliasesData);
     const allOtherShops = @json($allOtherShopsData);
+    const currentPeriod = @json($backdateExcelFile->bulan_tahun);
+
+    function parsePeriodFromSheet(sName) {
+        const s = sName.toLowerCase().trim();
+        const monthMap = {
+            'jan': '01', 'januari': '01', 'january': '01',
+            'feb': '02', 'februari': '02', 'february': '02',
+            'mar': '03', 'maret': '03', 'march': '03',
+            'apr': '04', 'april': '04',
+            'mei': '05', 'may': '05',
+            'jun': '06', 'juni': '06', 'june': '06',
+            'jul': '07', 'juli': '07', 'july': '07',
+            'ags': '08', 'agust': '08', 'agustus': '08', 'aug': '08',
+            'sep': '09', 'sept': '09', 'september': '09',
+            'okt': '10', 'oktober': '10', 'oct': '10',
+            'nov': '11', 'november': '11',
+            'des': '12', 'desember': '12', 'dec': '12'
+        };
+
+        let foundMonth = null;
+        for (const [key, num] of Object.entries(monthMap)) {
+            if (s.includes(key)) {
+                foundMonth = num;
+                break;
+            }
+        }
+
+        let foundYear = null;
+        let mYear = s.match(/20(2[0-9])\b/);
+        if (mYear) {
+            foundYear = '20' + mYear[1];
+        } else {
+            let mShortYear = s.match(/(?<=\D|^)(2[0-9])\b/);
+            if (mShortYear) {
+                foundYear = '20' + mShortYear[1];
+            }
+        }
+
+        if (foundMonth && foundYear) {
+            return foundYear + '-' + foundMonth;
+        }
+        return null;
+    }
 
     function isSheetForCurrentShop(sName) {
         const sLower = sName.toLowerCase();
@@ -775,16 +907,22 @@ document.addEventListener('DOMContentLoaded', function() {
         sheetsNavEl.appendChild(summaryBtn);
 
         // 2. TAB-TAB SHEET BAWAAN EXCEL
-        let otherShopsCount = 0;
+        let hiddenTabsCount = 0;
 
         workbook.SheetNames.forEach((sheetName) => {
-            const isOther = isSheetForOtherShop(sheetName);
-            if (isOther) otherShopsCount++;
+            const isOtherShop = isSheetForOtherShop(sheetName);
+            const sheetPeriod = parsePeriodFromSheet(sheetName);
+            
+            // If this record is for a specific month (e.g. 2025-07) and sheet belongs to another period (e.g. 2025-08 or 2026-01)
+            const isDifferentPeriod = (currentPeriod && currentPeriod.length === 7 && sheetPeriod && sheetPeriod !== currentPeriod);
+
+            const isHiddenByDefault = isOtherShop || isDifferentPeriod;
+            if (isHiddenByDefault) hiddenTabsCount++;
 
             const btn = document.createElement('button');
-            btn.className = isOther ? 'excel-tab-btn other-shop-tab' : 'excel-tab-btn';
-            if (isOther) {
-                btn.style.display = 'none'; // Sembunyikan sheet toko lain secara default
+            btn.className = isHiddenByDefault ? 'excel-tab-btn other-shop-tab hidden-sheet-tab' : 'excel-tab-btn';
+            if (isHiddenByDefault) {
+                btn.style.display = 'none'; // Sembunyikan sheet periode/toko lain secara default
             }
             btn.innerHTML = `<i class="fas fa-table"></i> ${sheetName}`;
             
@@ -804,23 +942,23 @@ document.addEventListener('DOMContentLoaded', function() {
             sheetsNavEl.appendChild(btn);
         });
 
-        // 3. TOMBOL TOGGLE UNTUK MENAMPILKAN / MENYEMBUNYIKAN SHEET TOKO LAIN
-        if (otherShopsCount > 0) {
+        // 3. TOMBOL TOGGLE UNTUK MENAMPILKAN / MENYEMBUNYIKAN SHEET PERIODE / TOKO LAIN
+        if (hiddenTabsCount > 0) {
             let showingAll = false;
             const toggleBtn = document.createElement('button');
             toggleBtn.className = 'toggle-all-sheets-btn';
-            toggleBtn.innerHTML = `<i class="fas fa-eye"></i> Tampilkan ${otherShopsCount} Sheet Toko Lain`;
+            toggleBtn.innerHTML = `<i class="fas fa-eye"></i> Tampilkan ${hiddenTabsCount} Sheet Periode / Toko Lain`;
 
             toggleBtn.addEventListener('click', function() {
                 showingAll = !showingAll;
-                const otherTabs = sheetsNavEl.querySelectorAll('.other-shop-tab');
-                otherTabs.forEach(tab => {
+                const hiddenTabs = sheetsNavEl.querySelectorAll('.hidden-sheet-tab');
+                hiddenTabs.forEach(tab => {
                     tab.style.display = showingAll ? 'inline-flex' : 'none';
                 });
                 this.className = showingAll ? 'toggle-all-sheets-btn active' : 'toggle-all-sheets-btn';
                 this.innerHTML = showingAll 
-                    ? '<i class="fas fa-eye-slash"></i> Sembunyikan Sheet Toko Lain' 
-                    : `<i class="fas fa-eye"></i> Tampilkan ${otherShopsCount} Sheet Toko Lain`;
+                    ? '<i class="fas fa-eye-slash"></i> Sembunyikan Sheet Periode Lain' 
+                    : `<i class="fas fa-eye"></i> Tampilkan ${hiddenTabsCount} Sheet Periode / Toko Lain`;
             });
 
             sheetsNavEl.appendChild(toggleBtn);
