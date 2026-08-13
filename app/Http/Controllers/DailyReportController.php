@@ -13,6 +13,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use App\Models\PriceAuditLog;
 use App\Models\Kolektan;
+use App\Models\ShiftSchedule;
+use App\Models\AuditLog;
+use Illuminate\Support\Facades\Cache;
 use Yajra\DataTables\Facades\DataTables;
 
 class DailyReportController extends Controller
@@ -28,15 +31,30 @@ class DailyReportController extends Controller
                 $shop_id = Auth::user()->admin->shop_id;
             } elseif (Auth::user()->role == 'operator') {
                 $shop_id = Auth::user()->operator->shop_id;
+            } elseif (Auth::user()->role == 'investor') {
+                $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
+                $shop_id = $request->input('shop_id');
+                if (!$shop_id || !in_array($shop_id, $investor_shops)) {
+                    $shop_id = reset($investor_shops) ?: 1;
+                }
             } else {
                 $shop_id = $request->input('shop_id', 1);
             }
 
-            $data = DailyReport::with(['operator.user', 'spendings', 'incomings', 'testPumps'])->where('shop_id', $shop_id)->latest()->get();
+            $data = DailyReport::with(['operator.user', 'spendings', 'incomings', 'testPumps'])
+                ->where('shop_id', $shop_id)
+                ->where(function($q) {
+                    $q->whereNull('sumber_data')->orWhere('sumber_data', 'input_manual');
+                })
+                ->latest()
+                ->get();
 
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) use ($data) {
+                    if ($row->sumber_data === 'import_excel_arsip') {
+                        return '<span class="badge badge-secondary" style="font-size: 11.5px; padding: 5px 10px;">Arsip</span>';
+                    }
 
                     if (Auth::user()->role == 'operator') {
                         $lastRow = $data->first(); // Mendapatkan data terakhir dari koleksi
@@ -82,14 +100,20 @@ class DailyReportController extends Controller
 
         // Resolve shop-specific active price based on dynamic shop_id and effective_at (with global fallback)
         $latest_price = Price::where('shop_id', $shop_id)
-            ->where('effective_at', '<=', Carbon::now())
-            ->orderBy('effective_at', 'desc')
+            ->where(function($q) {
+                $q->whereNull('effective_at')->orWhere('effective_at', '<=', Carbon::now());
+            })
+            ->orderByRaw('COALESCE(effective_at, created_at) DESC')
+            ->orderBy('id', 'desc')
             ->first();
 
         if (!$latest_price) {
             $latest_price = Price::whereNull('shop_id')
-                ->where('effective_at', '<=', Carbon::now())
-                ->orderBy('effective_at', 'desc')
+                ->where(function($q) {
+                    $q->whereNull('effective_at')->orWhere('effective_at', '<=', Carbon::now());
+                })
+                ->orderByRaw('COALESCE(effective_at, created_at) DESC')
+                ->orderBy('id', 'desc')
                 ->first();
         }
 
@@ -147,7 +171,7 @@ class DailyReportController extends Controller
                 return $p->sisa > 0;
             });
 
-        $kolektans = Kolektan::where('shop_id', $shop_id)->get();
+        $kolektans = Kolektan::where('shop_id', $shop_id)->orWhereNull('shop_id')->get();
 
         return view('daily_report.create', compact('harga', 'shop', 'totalisator_awal', 'stik_awal', 'belum_disetorkan', 'prices', 'todayPriceChanges', 'pendingPurchases', 'kolektans'));
     }
@@ -166,6 +190,7 @@ class DailyReportController extends Controller
             'totalisator_akhir' => 'required|numeric',
             'stik_awal' => 'required|numeric',
             'stik_akhir' => 'required|numeric',
+            'foto_stik' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
             'test_pump_volume' => 'nullable|numeric',
             'penerimaan_volume' => 'nullable|numeric',
             'setor_tunai' => 'nullable|numeric',
@@ -256,6 +281,10 @@ class DailyReportController extends Controller
         $validated['price_id'] = $applicablePrice->id;
         $validated['stok_awal'] = floatval($validated['stik_awal']) * Shop::find($shop_id)->skala;
 
+        if ($request->hasFile('foto_stik')) {
+            $validated['foto_stik'] = $request->file('foto_stik')->store('foto_stik', 'public');
+        }
+
         //create daily report
         $dailyReport = DailyReport::create($validated);
 
@@ -287,11 +316,14 @@ class DailyReportController extends Controller
             ]);
         }
 
-        // Auto-create Incomings if Operator checked pending SOs (legacy)
-        if ($request->has('received_purchases') && is_array($request->received_purchases)) {
-            foreach ($request->received_purchases as $purchase_id) {
+        // Auto-create Incomings if Operator checked pending SOs
+        if ($request->has('received_purchases_ids') && is_array($request->received_purchases_ids)) {
+            $received_volumes = $request->input('received_purchases_volumes', []);
+            foreach ($request->received_purchases_ids as $purchase_id) {
                 $purchase = \App\Models\Purchase::find($purchase_id);
-                if ($purchase && $purchase->sisa > 0) {
+                $vol = isset($received_volumes[$purchase_id]) ? floatval($received_volumes[$purchase_id]) : 0;
+                if ($purchase && $purchase->sisa > 0 && $vol > 0) {
+                    if ($vol > $purchase->sisa) $vol = $purchase->sisa; // Prevent over-receive
                     Incoming::create([
                         'daily_report_id' => $dailyReport->id,
                         'shop_id' => $shop_id,
@@ -300,10 +332,10 @@ class DailyReportController extends Controller
                         'incoming_date' => Carbon::parse($reportDate)->format('Y-m-d'),
                         'sopir' => '-',
                         'no_polisi' => '-',
-                        'volume' => $purchase->sisa,
+                        'volume' => $vol,
                         'stik_awal' => $request->input('stik_awal'),
                         'stik_akhir' => $request->input('stik_akhir'),
-                        'penerimaan_real' => $purchase->sisa,
+                        'penerimaan_real' => $vol,
                         'created_at' => Carbon::parse($reportDate)->format('Y-m-d H:i:s')
                     ]);
                 }
@@ -312,6 +344,20 @@ class DailyReportController extends Controller
 
         // Sync spendings
         $spendingsInput = $request->input('spendings', []);
+
+        // Compatibility for old cached forms that sent 3-9 instead of 1-7
+        if (isset($spendingsInput[8]) || isset($spendingsInput[9])) {
+            $mappedSpendings = [];
+            if (isset($spendingsInput[3])) $mappedSpendings[1] = $spendingsInput[3];
+            if (isset($spendingsInput[4])) $mappedSpendings[2] = $spendingsInput[4];
+            if (isset($spendingsInput[5])) $mappedSpendings[3] = $spendingsInput[5];
+            if (isset($spendingsInput[6])) $mappedSpendings[4] = $spendingsInput[6];
+            if (isset($spendingsInput[7])) $mappedSpendings[5] = $spendingsInput[7];
+            if (isset($spendingsInput[8])) $mappedSpendings[6] = $spendingsInput[8];
+            if (isset($spendingsInput[9])) $mappedSpendings[7] = $spendingsInput[9];
+            $spendingsInput = $mappedSpendings;
+        }
+
         foreach ($spendingsInput as $categoryId => $amount) {
             $amount = floatval(str_replace(',', '', $amount));
             if ($amount > 0) {
@@ -344,6 +390,17 @@ class DailyReportController extends Controller
         // Simpan data perubahan harga jika diinput oleh operator
         $this->processPriceChanges($dailyReport, $request);
 
+        // Auto-mark kehadiran: cari ShiftSchedule operator di tanggal laporan ini
+        // Jika ada jadwal yang di-assign ke operator ini, ubah statusnya menjadi 'hadir'
+        $reportDateOnly = \Carbon\Carbon::parse($reportDate)->toDateString();
+        ShiftSchedule::where('operator_id', $operator_id)
+            ->where('tanggal', $reportDateOnly)
+            ->where('status', 'dijadwalkan')
+            ->each(fn ($s) => $s->update(['status' => 'hadir']));
+
+        // Invalidate dashboard cache supaya stok & rekapitulasi langsung ter-update
+        $this->invalidateDashboardCache($shop_id);
+
         return to_route('daily-reports.index')->with('success', 'Data laporan harian berhasil disimpan.');
     }
 
@@ -352,7 +409,7 @@ class DailyReportController extends Controller
      */
     public function show(DailyReport $dailyReport)
     {
-        //
+        return redirect()->route('daily-reports.edit', $dailyReport->id);
     }
 
     /**
@@ -367,7 +424,7 @@ class DailyReportController extends Controller
             ->get()
             ->keyBy('spending_category_id');
 
-        $kolektans = Kolektan::where('shop_id', $dailyReport->shop_id)->get();
+        $kolektans = Kolektan::where('shop_id', $dailyReport->shop_id)->orWhereNull('shop_id')->get();
 
         return view('daily_report.edit', compact('dailyReport', 'prices', 'spendings', 'kolektans'));
     }
@@ -439,6 +496,13 @@ class DailyReportController extends Controller
 
         unset($validated['kolektan_pin']);
 
+        if ($request->hasFile('foto_stik')) {
+            if ($dailyReport->foto_stik) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($dailyReport->foto_stik);
+            }
+            $validated['foto_stik'] = $request->file('foto_stik')->store('foto_stik', 'public');
+        }
+
         //update daily report
         $dailyReport->update($validated);
 
@@ -475,6 +539,20 @@ class DailyReportController extends Controller
         // Update spendings
         Spending::where('daily_report_id', $dailyReport->id)->delete();
         $spendingsInput = $request->input('spendings', []);
+
+        // Compatibility for old cached forms that sent 3-9 instead of 1-7
+        if (isset($spendingsInput[8]) || isset($spendingsInput[9])) {
+            $mappedSpendings = [];
+            if (isset($spendingsInput[3])) $mappedSpendings[1] = $spendingsInput[3];
+            if (isset($spendingsInput[4])) $mappedSpendings[2] = $spendingsInput[4];
+            if (isset($spendingsInput[5])) $mappedSpendings[3] = $spendingsInput[5];
+            if (isset($spendingsInput[6])) $mappedSpendings[4] = $spendingsInput[6];
+            if (isset($spendingsInput[7])) $mappedSpendings[5] = $spendingsInput[7];
+            if (isset($spendingsInput[8])) $mappedSpendings[6] = $spendingsInput[8];
+            if (isset($spendingsInput[9])) $mappedSpendings[7] = $spendingsInput[9];
+            $spendingsInput = $mappedSpendings;
+        }
+
         foreach ($spendingsInput as $categoryId => $amount) {
             $amount = floatval(str_replace(',', '', $amount));
             if ($amount > 0) {
@@ -507,6 +585,12 @@ class DailyReportController extends Controller
         // Simpan data perubahan harga jika diinput oleh operator
         $this->processPriceChanges($dailyReport, $request);
 
+        // Invalidate dashboard cache
+        $this->invalidateDashboardCache($shop_id);
+
+        // Audit log
+        AuditLog::log('UPDATE', DailyReport::class, $dailyReport->id, 'Pengubahan Laporan Harian #' . $dailyReport->id);
+
         return to_route('daily-reports.index')->with('success', 'Data laporan harian berhasil diubah.');
     }
 
@@ -515,7 +599,14 @@ class DailyReportController extends Controller
      */
     public function destroy(DailyReport $dailyReport)
     {
+        $shopId = $dailyReport->shop_id;
+        $reportId = $dailyReport->id;
         $dailyReport->delete();
+        $this->invalidateDashboardCache($shopId);
+
+        // Audit log
+        AuditLog::log('DELETE', DailyReport::class, $reportId, 'Penghapusan Laporan Harian #' . $reportId);
+
         return response()->json([
             'message' => 'Data laporan harian telah dihapus.'
         ]);
@@ -640,6 +731,18 @@ class DailyReportController extends Controller
                     'totalisator_akhir' => $totalisator_akhir,
                 ]);
             }
+        }
+    }
+
+    /**
+     * Invalidate semua cache dashboard terkait shop tertentu.
+     * Dipanggil setelah setiap store/update/destroy agar dashboard tidak stale.
+     */
+    private function invalidateDashboardCache(int $shopId): void
+    {
+        foreach (['month', 'week', 'day'] as $filter) {
+            Cache::forget('dashboard_data_' . $shopId . '_' . $filter);
+            Cache::forget('dashboard_data_all_' . $filter);
         }
     }
 }

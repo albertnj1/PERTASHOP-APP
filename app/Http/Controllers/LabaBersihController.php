@@ -29,26 +29,38 @@ class LabaBersihController extends Controller
             ->whereYear('created_at', $year)->orderBy('spending_category_id')
             ->get()->groupBy('spending_category_id');
 
-        //spendings to array
-        $spendings = $spendings->map(function ($value, $key) {
-            $category = SpendingCategory::find($key)->nama;
-            return ['pengeluaran' => $category, 'jumlah' => $value->sum('jumlah')];
-        });
+        $categories = SpendingCategory::all()->keyBy('id');
 
+        //spendings to array
+        $spendings = $spendings->map(function ($value, $key) use ($categories) {
+            $category = $categories->has($key) ? $categories[$key]->nama : 'Lainnya';
+            return ['pengeluaran' => $category, 'jumlah' => $value->sum('jumlah')];
+        })->values();
+
+        // Tambahkan Beban dari Laba Kotor
+        if (isset($summary['beban_losses_rp']) && $summary['beban_losses_rp'] > 0) {
+            $spendings->push(['pengeluaran' => 'Beban Losses Fisik BBM', 'jumlah' => $summary['beban_losses_rp']]);
+        }
+        if (isset($summary['beban_test_pump_rp']) && $summary['beban_test_pump_rp'] > 0) {
+            $spendings->push(['pengeluaran' => 'Beban Test Pump', 'jumlah' => $summary['beban_test_pump_rp']]);
+        }
+        if (isset($summary['beban_keluar_lain_rp']) && $summary['beban_keluar_lain_rp'] > 0) {
+            $spendings->push(['pengeluaran' => 'Beban BBM Keluar Lain', 'jumlah' => $summary['beban_keluar_lain_rp']]);
+        }
 
         $laba_bersih = LabaBersih::where('shop_id', $shop_id)->whereYear('created_at', $year)->whereMonth('created_at', $month)->first();
 
         $persentase_alokasi_modal = $laba_bersih ? $laba_bersih->persentase_alokasi_modal : 10;
 
         $total_biaya = $spendings->sum('jumlah');
-        $laba_bersih = $laba_kotor - $total_biaya;
-        $alokasi_modal = $persentase_alokasi_modal / 100 * $laba_bersih;
-        $laba_bersih_dibagi = $laba_bersih - $alokasi_modal;
+        $laba_bersih_val = $laba_kotor - $total_biaya;
+        $alokasi_modal = $persentase_alokasi_modal / 100 * $laba_bersih_val;
+        $laba_bersih_dibagi = $laba_bersih_val - $alokasi_modal;
 
         return [
             'laba_kotor' => $laba_kotor,
             'total_biaya' => $total_biaya,
-            'laba_bersih' => $laba_bersih,
+            'laba_bersih' => $laba_bersih_val,
             'persentase_alokasi_modal' => $persentase_alokasi_modal,
             'alokasi_modal' => $alokasi_modal,
             'laba_bersih_dibagi' => $laba_bersih_dibagi,
@@ -62,27 +74,35 @@ class LabaBersihController extends Controller
         if ($request->ajax()) {
             $shop_id = $request->input('shop_id', 1);
 
-            $sales = DailyReport::where('shop_id', $shop_id)->get()->groupBy(function ($item) {
-                return $item->created_at->format('Y-m');
+            $salesQuery = \Illuminate\Support\Facades\DB::table('daily_reports')
+                ->where('shop_id', $shop_id)
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan")
+                ->groupBy('bulan');
+
+            $dt = DataTables::of($salesQuery)->addIndexColumn();
+
+            $columnsToIgnore = ['laba_kotor', 'total_biaya', 'laba_bersih', 'persentase_alokasi_modal', 'alokasi_modal', 'laba_bersih_dibagi'];
+            foreach ($columnsToIgnore as $col) {
+                $dt->filterColumn($col, function($query, $keyword) {});
+                $dt->orderColumn($col, function($query, $order) {});
+            }
+
+            $dt->orderColumn('DT_RowIndex', function($query, $order) {
+                $query->orderBy('bulan', $order);
             });
 
-            $data = $sales->map(function ($value, $key) use ($shop_id) {
+            $response = $dt->make(true)->getData(true);
 
-                $report = self::getLabaBersih($shop_id, $key);
-                $report['shop_id'] = $shop_id;
-                $report['bulan'] = $key;
+            foreach ($response['data'] as &$row) {
+                $report = self::getLabaBersih($shop_id, $row['bulan']);
+                foreach ($report as $key => $value) {
+                    $row[$key] = $value;
+                }
+                $row['shop_id'] = $shop_id;
+                $row['action'] = '<a href="' . route('laba-bersih.edit', ['shop_id' => $shop_id, 'year_month' => $row['bulan']]) . '" class="btn btn-sm btn-info" title="Detail"><i class="fa fa-list mr-1"></i> Detail</a>';
+            }
 
-                return $report;
-            });
-
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    $button = '<a href="' . route('laba-bersih.edit', ['shop_id' => $row['shop_id'], 'year_month' => $row['bulan']]) . '" class="btn btn-sm btn-info" title="Detail"><i class="fa fa-list mr-1"></i> Detail</a>';
-                    return $button;
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            return response()->json($response);
         }
 
         $shops = Shop::all();

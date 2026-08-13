@@ -8,7 +8,8 @@
                 <h1>Detail Investor</h1>
             </div>
             <div class="col-sm-6 text-right">
-                <a href="{{ route('investors.edit', $investor->id) }}" class="btn btn-info"><i class="fas fa-edit"></i> Edit</a>
+                <a href="{{ route('investors.export-pdf', $investor->id) }}" class="btn btn-danger mr-1"><i class="fas fa-file-pdf"></i> Unduh PDF</a>
+                <a href="{{ route('investors.edit', $investor->id) }}" class="btn btn-info mr-1"><i class="fas fa-edit"></i> Edit</a>
                 <button class="btn btn-danger btn-delete" data-id="{{ $investor->id }}"><i class="fas fa-trash"></i> Hapus</button>
                 <a href="{{ route('investors.index') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
             </div>
@@ -30,12 +31,17 @@
                         </div>
 
                         <h3 class="profile-username text-center">{{ $investor->user->name }}</h3>
-                        <p class="text-muted text-center">{{ $investor->user->email }}</p>
+                        <p class="text-muted text-center">{{ $investor->nama_lengkap_gelar }}</p>
 
                         <ul class="list-group list-group-unbordered mb-3">
                             <li class="list-group-item">
-                                <b>No. HP</b> <a class="float-right">{{ $investor->user->no_hp ?? '-' }}</a>
+                                <b>No. HP</b> <a class="float-right">{{ $investor->no_hp ?? '-' }}</a>
                             </li>
+                            @if($investor->nik)
+                            <li class="list-group-item">
+                                <b>NIK</b> <a class="float-right">{{ $investor->nik }}</a>
+                            </li>
+                            @endif
                             <li class="list-group-item">
                                 <b>Bank</b> <a class="float-right">{{ $investor->nama_bank }}</a>
                             </li>
@@ -46,8 +52,13 @@
                                 <b>Atas Nama</b> <a class="float-right">{{ $investor->atas_nama_rekening }}</a>
                             </li>
                             <li class="list-group-item" style="background-color: #f1f5f9;">
-                                <b style="font-size: 16px;">Nominal Investasi</b> <a class="float-right" style="font-size: 16px; font-weight: bold; color: #2C4643;">Rp. {{ number_format($totalInvestasi, 0, ',', '.') }}</a>
+                                <b style="font-size: 16px;">Total Nilai Saham</b> <a class="float-right" style="font-size: 16px; font-weight: bold; color: #2C4643;">Rp. {{ number_format($totalInvestasi, 0, ',', '.') }}</a>
                             </li>
+                            @if(Auth::user()->role === 'super-admin')
+                            <li class="list-group-item">
+                                <b>Email Login (Sistem)</b> <a class="float-right">{{ $investor->user->email ?? '' }}</a>
+                            </li>
+                            @endif
                         </ul>
                     </div>
                 </div>
@@ -55,8 +66,11 @@
             
             <div class="col-md-8">
                 <div class="card">
-                    <div class="card-header" style="background-color: #2C4643; color: #fff;">
-                        <h3 class="card-title" style="color: #fff !important;"><i class="fas fa-store mr-2"></i> Portofolio Investasi Pertashop</h3>
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2C4643; color: #fff;">
+                        <h3 class="card-title m-0" style="color: #fff !important;"><i class="fas fa-store mr-2"></i> Portofolio Investasi Pertashop</h3>
+                        <button type="button" class="btn btn-sm btn-light" data-toggle="modal" data-target="#modal-tambah-investasi">
+                            <i class="fas fa-plus"></i> Tambah Investasi
+                        </button>
                     </div>
                     <div class="card-body table-responsive p-0">
                         <table class="table table-hover text-nowrap">
@@ -103,6 +117,48 @@
         </div>
     </div>
 </section>
+
+<!-- Modal Tambah Investasi -->
+<div class="modal fade" id="modal-tambah-investasi" tabindex="-1" role="dialog" aria-labelledby="modalTambahInvestasiLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <form action="{{ route('investors.add-investment', $investor->id) }}" method="POST">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTambahInvestasiLabel">Tambah Investasi Pertashop</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="shop_id">Pertashop</label>
+                        <select name="shop_id" id="shop_id" class="form-control" required>
+                            <option value="">-- Pilih Pertashop --</option>
+                            @foreach($shops as $shop)
+                                <option value="{{ $shop->id }}">{{ $shop->kode }} - {{ $shop->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="nominal">Nominal Investasi (Rupiah)</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">Rp</span>
+                            </div>
+                            <input type="number" name="nominal" id="nominal" class="form-control" required min="1">
+                        </div>
+                        <small class="text-muted">Persentase saham akan dihitung otomatis: (Nominal / Modal Tetap Pertashop) * 100.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Investasi</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('script')

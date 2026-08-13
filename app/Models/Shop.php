@@ -37,4 +37,9 @@ class Shop extends Model
     {
         return $this->hasMany(Kolektan::class);
     }
+
+    public function backdateExcelFiles()
+    {
+        return $this->hasMany(BackdateExcelFile::class);
+    }
 }

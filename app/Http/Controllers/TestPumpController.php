@@ -32,6 +32,8 @@ class TestPumpController extends Controller
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) use ($data) {
+                    if (Auth::user()->role == 'investor') return '';
+
                     if (Auth::user()->role == 'operator') {
                         $lastRow = $data->first(); // Mendapatkan data terakhir dari koleksi
                         $button = '';

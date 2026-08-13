@@ -113,6 +113,7 @@
                             </div>
                         </div>
 
+                        @if(Auth::user()->role !== 'operator')
                         <div class="form-group row">
                             <label for="harga_beli" class="col-sm-4 col-form-label">Harga Beli Baru</label>
                             <div class="col-sm-8">
@@ -121,16 +122,14 @@
                                         <span class="input-group-text">Rp</span>
                                     </div>
                                     <input type="number" class="form-control @error('harga_beli') is-invalid @enderror"
-                                        id="harga_beli" name="harga_beli" value="{{ old('harga_beli') }}" {{ Auth::user()->role == 'operator' ? 'readonly' : 'required' }}>
+                                        id="harga_beli" name="harga_beli" value="{{ old('harga_beli') }}" required>
                                 </div>
-                                @if(Auth::user()->role == 'operator')
-                                    <small class="text-muted">Operator tidak perlu mengubah harga beli (otomatis mengikuti sebelumnya atau diset Admin).</small>
-                                @endif
                                 @error('harga_beli')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
                             </div>
                         </div>
+                        @endif
 
                         <div class="form-group row">
                             <label for="harga_jual" class="col-sm-4 col-form-label">Harga Jual</label>

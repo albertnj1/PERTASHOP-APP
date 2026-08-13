@@ -23,9 +23,11 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Daftar Kolektan</h3>
+                    @if(Auth::user()->role !== 'investor')
                     <a href="{{ route('kolektans.create') }}" class="btn btn-primary btn-sm">
                         <i class="fa fa-plus"></i> Tambah Kolektan
                     </a>
+                    @endif
                 </div>
             </div>
             <div class="card-body">

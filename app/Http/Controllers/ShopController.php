@@ -6,6 +6,7 @@ use App\Models\Shop;
 use App\Models\Corporation;
 use App\Models\Investor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
 class ShopController extends Controller
@@ -15,6 +16,13 @@ class ShopController extends Controller
      */
     public function index(Request $request)
     {
+        if (Auth::user()->role == 'investor') {
+            $shops = Auth::user()->investor 
+                ? Auth::user()->investor->shops()->with('investors.user')->get() 
+                : collect();
+            return view('shop.investor_index', compact('shops'));
+        }
+
         if ($request->ajax()) {
 
             $data = Shop::all();

@@ -1,24 +1,9 @@
-@extends('layouts.app')
+@extends('layouts._new_admin')
+
+@section('title', 'Rekapitulasi Nilai Modal')
 
 @section('content')
-<section class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1>Rekapitulasi Nilai Modal</h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="/">Home</a></li>
-                    <li class="breadcrumb-item active">Rekapitulasi Modal</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-</section>
-
-<section class="content">
-    <div class="container-fluid">
+    <div class="metrics-card">
         @if (session('success'))
             <div class="alert alert-success alert-dismissible">
                 <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
@@ -34,28 +19,23 @@
             </div>
         @endif
 
-        <div class="card card-primary card-outline">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <form method="GET" action="{{ route('capital-recaps.index') }}" class="form-inline">
-                        <div class="form-group mr-2">
-                            <label class="mr-2">Pertashop: </label>
-                            <select name="shop_id" class="form-control" onchange="this.form.submit()">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <form method="GET" action="{{ route('capital-recaps.index') }}" class="form-inline" style="display: flex; align-items: center; gap: 12px;">
+                <label style="margin: 0; font-weight: 500;">Pertashop:</label>
+                <select name="shop_id" class="form-control" onchange="this.form.submit()" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1); outline: none; background: #fff; cursor: pointer;">
                                 <option value="">-- Semua Pertashop --</option>
                                 @foreach($shops as $shop)
                                     <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>{{ $shop->nama }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                    </form>
-                    <a href="{{ route('monthly-reports.create') }}" class="btn btn-success">
-                        <i class="fa fa-file-excel mr-2"></i> Upload dari Laporan Bulanan
-                    </a>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;">
-                    <table class="table table-bordered table-striped" style="white-space: nowrap; font-size: 13px; width: 100%;">
+                </select>
+            </form>
+            <a href="{{ route('capital-recaps.import') }}" class="btn btn-success" style="background: var(--success); border-color: var(--success); border-radius: 20px; padding: 8px 16px;">
+                <i class="fa fa-file-excel mr-2"></i> Import dari Excel (Multi-Sheet)
+            </a>
+        </div>
+        <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;">
+            <table class="table table-bordered table-striped" style="white-space: nowrap; font-size: 13px; width: 100%;">
                         <thead>
                             <tr class="text-center">
                                 <th>Pertashop</th>
@@ -146,9 +126,6 @@
                         @endif
                     </table>
                 </div>
-            </div>
         </div>
     </div>
-</section>
-
 @endsection

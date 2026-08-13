@@ -20,31 +20,84 @@ class ModalController extends Controller
         if ($request->ajax()) {
             $shop_id = $request->input('shop_id', 1);
 
-            $sales = DailyReport::where('shop_id', $shop_id)->get()->groupBy(function ($item) {
-                return $item->created_at->format('Y-m');
+            $salesQuery = \Illuminate\Support\Facades\DB::table('daily_reports')
+                ->where('shop_id', $shop_id)
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan")
+                ->groupBy('bulan');
+
+            $dt = DataTables::of($salesQuery)->addIndexColumn();
+
+            $columnsToIgnore = ['modal_akhir', 'ekuitas_aktual', 'selisih', 'status_balance'];
+            foreach ($columnsToIgnore as $col) {
+                $dt->filterColumn($col, function($query, $keyword) {});
+                $dt->orderColumn($col, function($query, $order) {});
+            }
+
+            $dt->orderColumn('DT_RowIndex', function($query, $order) {
+                $query->orderBy('bulan', $order);
             });
 
-            $data = $sales->map(function ($value, $key) use ($shop_id) {
-                return [
-                    'shop_id' => $shop_id,
-                    'bulan' => $key,
-                    'modal_awal' => 0,
-                    'rugi' => 0,
-                    'pajak_bank' => 0,
-                    'alokasi_keuntungan' => 0,
-                    'bunga_bank' => 0,
-                    'modal_akhir' => 0,
-                ];
-            });
+            $response = $dt->make(true)->getData(true);
 
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    $button = '<a href="' . route('modal.edit', ['shop_id' => $row['shop_id'], 'year_month' => $row['bulan']]) . '" class="btn btn-sm btn-info" title="Detail"><i class="fa fa-list mr-1"></i> Detail</a>';
-                    return $button;
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            foreach ($response['data'] as &$row) {
+                list($year, $month) = explode('-', $row['bulan']);
+                $recap = \App\Models\CapitalRecap::where('shop_id', $shop_id)
+                         ->where('tahun', $year)
+                         ->where('bulan', $month)->first();
+                         
+                $row['modal_akhir'] = $recap ? $recap->posisi_akhir_modal : 0;
+                
+                // ASET
+                $summary = \App\Http\Controllers\LabaKotorController::getSummary($shop_id, $row['bulan']);
+                $sisa_stok_aktual_rp = $summary['sisa_stok_akhir_rp'] ?? 0;
+                
+                $reports = \App\Models\DailyReport::where('shop_id', $shop_id)
+                            ->whereYear('created_at', $year)
+                            ->whereMonth('created_at', $month)->get();
+                $kas_tangan = $reports->groupBy('operator_id')->map(function($item) { return $item->last(); })->sum('belum_disetorkan');
+                
+                $endOfMonth = Carbon::create($year, $month)->endOfMonth();
+                
+                $piutang = \Illuminate\Support\Facades\DB::table('receivables')
+                            ->where('shop_id', $shop_id)
+                            ->where('tanggal', '<=', $endOfMonth)
+                            ->selectRaw('SUM(jumlah_piutang - jumlah_dibayar) as total')->first()->total ?? 0;
+                            
+                $operator_ids = \App\Models\Operator::where('shop_id', $shop_id)->pluck('id');
+                $kasbon = \Illuminate\Support\Facades\DB::table('employee_loans')
+                            ->whereIn('operator_id', $operator_ids)
+                            ->where('tanggal', '<=', $endOfMonth)
+                            ->sum('jumlah');
+                            
+                // KEWAJIBAN
+                $purchases = \App\Models\Purchase::where('shop_id', $shop_id)
+                            ->where('created_at', '<=', $endOfMonth)
+                            ->get();
+                $hutang_do = 0;
+                foreach ($purchases as $p) {
+                    $paid = \Illuminate\Support\Facades\DB::table('purchase_payments')->where('purchase_id', $p->id)->where('tanggal_bayar', '<=', $endOfMonth)->sum('jumlah_bayar');
+                    $hutang_do += ($p->total_bayar - $paid);
+                }
+                            
+                $tabungan = \Illuminate\Support\Facades\DB::table('employee_savings')
+                            ->whereIn('operator_id', $operator_ids)
+                            ->where('tanggal', '<=', $endOfMonth)
+                            ->selectRaw("SUM(CASE WHEN jenis = 'setoran' THEN jumlah ELSE -jumlah END) as total")->first()->total ?? 0;
+                            
+                $row['ekuitas_aktual'] = ($kas_tangan + $sisa_stok_aktual_rp + $piutang + $kasbon) - ($hutang_do + $tabungan);
+                $row['selisih'] = $row['ekuitas_aktual'] - $row['modal_akhir'];
+                
+                if (round($row['selisih'], 2) == 0) {
+                    $row['status_balance'] = '<span class="badge badge-success">BALANCE</span>';
+                } else {
+                    $row['status_balance'] = '<span class="badge badge-danger">TIDAK BALANCE</span>';
+                }
+
+                $row['shop_id'] = $shop_id;
+                $row['action'] = '<a href="' . route('modal.edit', ['shop_id' => $shop_id, 'year_month' => $row['bulan']]) . '" class="btn btn-sm btn-info" title="Detail"><i class="fa fa-list mr-1"></i> Detail</a>';
+            }
+
+            return response()->json($response);
         }
 
         $shops = Shop::all();

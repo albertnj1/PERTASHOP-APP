@@ -10,6 +10,7 @@ use App\Helpers\AstmTable53;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Yajra\DataTables\Facades\DataTables;
 
 class IncomingController extends Controller
@@ -25,6 +26,12 @@ class IncomingController extends Controller
                 $shop_id = Auth::user()->admin->shop_id;
             } elseif (Auth::user()->role == 'operator') {
                 $shop_id = Auth::user()->operator->shop_id;
+            } elseif (Auth::user()->role == 'investor') {
+                $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
+                $shop_id = $request->input('shop_id');
+                if (!$shop_id || !in_array($shop_id, $investor_shops)) {
+                    $shop_id = reset($investor_shops) ?: 1;
+                }
             } else {
                 $shop_id = $request->input('shop_id', 1);
             }
@@ -34,6 +41,8 @@ class IncomingController extends Controller
             return Datatables::of($data)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) use ($data) {
+                    if (Auth::user()->role == 'investor') return '';
+
                     if (Auth::user()->role == 'operator') {
                         $lastRow = $data->first(); // Mendapatkan data terakhir dari koleksi
                         $button = '';
@@ -53,8 +62,10 @@ class IncomingController extends Controller
                 ->make(true);
         }
 
-
         $shops = Shop::all();
+        if (Auth::user()->role == 'investor') {
+            $shops = Auth::user()->investor?->shops ?? Shop::all();
+        }
         return view('incoming.index', compact('shops'));
     }
 
@@ -130,6 +141,9 @@ class IncomingController extends Controller
 
         $incoming->save();
 
+        // Invalidate dashboard cache agar data stok langsung ter-update
+        $this->invalidateDashboardCache($validated['shop_id']);
+
         return to_route('incomings.index')->with('success', 'Data penerimaan berhasil disimpan.');
     }
 
@@ -204,6 +218,9 @@ class IncomingController extends Controller
 
         $incoming->update($validated);
 
+        // Invalidate dashboard cache agar data stok langsung ter-update
+        $this->invalidateDashboardCache($incoming->shop_id);
+
         return to_route('incomings.index')->with('success', 'Data penerimaan berhasil diubah.');
     }
 
@@ -212,10 +229,23 @@ class IncomingController extends Controller
      */
     public function destroy(Incoming $incoming)
     {
+        $shopId = $incoming->shop_id;
         $incoming->delete();
+        $this->invalidateDashboardCache($shopId);
 
         return response()->json([
             'message' => 'Data penerimaan telah dihapus.'
         ]);
+    }
+
+    /**
+     * Invalidate semua cache dashboard terkait shop tertentu.
+     */
+    private function invalidateDashboardCache(int $shopId): void
+    {
+        foreach (['month', 'week', 'day'] as $filter) {
+            Cache::forget('dashboard_data_' . $shopId . '_' . $filter);
+            Cache::forget('dashboard_data_all_' . $filter);
+        }
     }
 }

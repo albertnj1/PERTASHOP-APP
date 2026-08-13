@@ -26,8 +26,10 @@
                         <div class="card-title">
                             Pertashop
                         </div>
+                        @if(Auth::user()->role !== 'investor')
                         <a href="{{ route('shops.create') }}" class="btn btn-primary"><i class="fa fa-plus mr-2"></i>Tambah
                             Pertashop</a>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">

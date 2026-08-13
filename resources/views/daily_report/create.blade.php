@@ -25,10 +25,14 @@
                 <div class="card-header">
                     <div class=" d-flex justify-content-between align-items-center">
                         <h3 class="card-title">Laporan Harian</h3>
+                        <div>
+                            <span id="draft-indicator" class="badge badge-secondary" style="display:none;">💾 Draft tersimpan</span>
+                            <button type="button" id="btn-clear-draft" class="btn btn-xs btn-outline-danger ml-2" style="display:none;" onclick="clearDraft()">🗑 Hapus Draft</button>
+                        </div>
                     </div>
 
                 </div>
-                <form id="insertForm" action="{{ route('daily-reports.store') }}" method="POST" class="needs-validation"
+                <form id="insertForm" action="{{ route('daily-reports.store') }}" method="POST" enctype="multipart/form-data" class="needs-validation"
                     novalidate>
                     @csrf
                     <div class="card-body">
@@ -47,11 +51,16 @@
                         <div class="form-group row">
                             <label class="col-sm-4 col-form-label">Perubahan Harga BBM</label>
                             <div class="col-sm-8">
-                                <div class="card card-warning card-outline">
-                                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                                        <h3 class="card-title text-sm m-0 text-dark">Data Perubahan Harga Hari Ini</h3>
+                                <div class="card card-warning card-outline mb-0">
+                                    <div class="card-header py-2 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="toggleHargaSection()">
+                                        <h3 class="card-title text-sm m-0 text-dark">Data Perubahan Harga Hari Ini
+                                            @if(isset($todayPriceChanges) && $todayPriceChanges->count() > 0)
+                                                <span class="badge badge-warning ml-2">{{ $todayPriceChanges->count() }} perubahan</span>
+                                            @endif
+                                        </h3>
+                                        <span id="harga-section-toggle-icon">{{ (isset($todayPriceChanges) && $todayPriceChanges->count() > 0) ? '▲' : '▼' }}</span>
                                     </div>
-                                    <div class="card-body p-3">
+                                    <div class="card-body p-3" id="harga-section-body" style="display:{{ (isset($todayPriceChanges) && $todayPriceChanges->count() > 0) ? 'block' : 'none' }};">
                                         @if(isset($todayPriceChanges) && $todayPriceChanges->count() > 0)
                                             <div class="alert alert-info py-2 px-3 mb-3">
                                                 <i class="fas fa-info-circle mr-1"></i> 
@@ -91,7 +100,7 @@
                             <label for="totalisator_akhir" class="col-sm-4 col-form-label">Totalisator Akhir</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
-                                    <input type="number" step="0.001"
+                                    <input type="number" step="0.001" inputmode="decimal"
                                         class="form-control @error('totalisator_akhir') is-invalid @enderror"
                                         id="totalisator_akhir" name="totalisator_akhir"
                                         value="{{ old('totalisator_akhir') }}" required>
@@ -109,7 +118,7 @@
                             <label for="test_pump" class="col-sm-4 col-form-label">Test Pump</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
-                                    <input type="number" step="0.001" class="form-control" id="test_pump" name="test_pump_volume"
+                                    <input type="number" step="0.001" inputmode="decimal" class="form-control" id="test_pump" name="test_pump_volume"
                                         value="{{ old('test_pump_volume', 0) }}">
                                     <div class="input-group-append">
                                         <span class="input-group-text">&ell;</span>
@@ -122,7 +131,7 @@
                             <label for="volume_penjualan" class="col-sm-4 col-form-label">Volume Penjualan</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
-                                    <input type="number" step="0.001" class="form-control" id="volume_penjualan" name="volume_penjualan"
+                                    <input type="number" step="0.001" inputmode="decimal" class="form-control" id="volume_penjualan" name="volume_penjualan"
                                         value="{{ old('volume_penjualan') }}" readonly>
                                     <div class="input-group-append">
                                         <span class="input-group-text">&ell;</span>
@@ -187,7 +196,7 @@
                             <label for="penerimaan" class="col-sm-4 col-form-label">Penerimaan</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
-                                    <input type="number" step="0.01" class="form-control" id="penerimaan" name="penerimaan_volume"
+                                    <input type="number" step="0.01" inputmode="decimal" class="form-control" id="penerimaan" name="penerimaan_volume"
                                         value="{{ old('penerimaan_volume', 0) }}">
                                     <div class="input-group-append">
                                         <span class="input-group-text">&ell;</span>
@@ -197,14 +206,22 @@
                                     <div class="alert alert-info py-2 mt-2 mb-0">
                                         <strong>📝 Ada Pembelian (SO) yang belum diterima!</strong><br>
                                         @foreach($pendingPurchases as $p)
-                                            <div class="form-check mt-1">
-                                                <input class="form-check-input pending-so-check" type="checkbox" name="received_purchases[]" value="{{ $p->id }}" data-volume="{{ $p->sisa }}" id="so_{{ $p->id }}">
-                                                <label class="form-check-label" style="font-size: 0.9rem;" for="so_{{ $p->id }}">
-                                                    SO: <strong>{{ $p->no_so }}</strong> - Volume: {{ number_format($p->sisa, 0, ',', '.') }} L
-                                                </label>
+                                            <div class="d-flex align-items-center mt-2">
+                                                <div class="form-check mr-3">
+                                                    <input class="form-check-input pending-so-check" type="checkbox" name="received_purchases_ids[]" value="{{ $p->id }}" data-target="#vol_{{ $p->id }}" id="so_{{ $p->id }}">
+                                                    <label class="form-check-label" style="font-size: 0.9rem;" for="so_{{ $p->id }}">
+                                                        SO: <strong>{{ $p->no_so }}</strong> (Sisa: {{ number_format($p->sisa, 0, ',', '.') }} L)
+                                                    </label>
+                                                </div>
+                                                <div class="input-group input-group-sm" style="width: 150px; display: none;" id="wrap_vol_{{ $p->id }}">
+                                                    <input type="number" step="0.01" class="form-control so-volume-input" name="received_purchases_volumes[{{ $p->id }}]" id="vol_{{ $p->id }}" value="{{ $p->sisa }}" max="{{ $p->sisa }}" placeholder="Volume Diterima">
+                                                    <div class="input-group-append">
+                                                        <span class="input-group-text">&ell;</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         @endforeach
-                                        <small class="text-muted d-block mt-2">Centang SO di atas jika BBM sudah sampai hari ini. Volume penerimaan akan otomatis ditambahkan ke total.</small>
+                                        <small class="text-muted d-block mt-2">Centang SO lalu sesuaikan volumenya (misal dari 6.000 L, baru diterima 2.000 L). Total penerimaan di atas otomatis menyesuaikan.</small>
                                     </div>
                                 @endif
                             </div>
@@ -218,31 +235,31 @@
                                         <div class="row">
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Ongkos Bongkar</label>
-                                                <input type="number" name="spendings[3]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[1]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Biaya Transfer</label>
-                                                <input type="number" name="spendings[4]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[2]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Fotocopy & ATK</label>
-                                                <input type="number" name="spendings[5]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[3]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Listrik</label>
-                                                <input type="number" name="spendings[6]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[4]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Air Bersih</label>
-                                                <input type="number" name="spendings[7]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[5]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Cashback</label>
-                                                <input type="number" name="spendings[8]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[6]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Internet</label>
-                                                <input type="number" name="spendings[9]" class="form-control form-control-sm spending-input" value="0">
+                                                <input type="number" name="spendings[7]" class="form-control form-control-sm spending-input" value="0">
                                             </div>
                                             <div class="col-md-12 mb-2">
                                                 <label class="text-xs">Lain-lain</label>
@@ -278,13 +295,25 @@
                             <label for="stik_akhir" class="col-sm-4 col-form-label">Stik Akhir</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
-                                    <input type="number" class="form-control @error('stik_akhir') is-invalid @enderror"
+                                    <input type="number" step="0.01" inputmode="decimal" class="form-control @error('stik_akhir') is-invalid @enderror"
                                         id="stik_akhir" name="stik_akhir" value="{{ old('stik_akhir') }}">
                                     <div class="input-group-append">
                                         <span class="input-group-text">cm</span>
                                     </div>
                                 </div>
                                 @error('stik_akhir')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="foto_stik" class="col-sm-4 col-form-label">Foto Bukti Stik Tangki</label>
+                            <div class="col-sm-8">
+                                <input type="file" class="form-control-file @error('foto_stik') is-invalid @enderror"
+                                    id="foto_stik" name="foto_stik" accept="image/*" capture="environment">
+                                <small class="text-muted">📷 Ambil foto stik dari kamera HP atau upload file sebagai bukti fisik.</small>
+                                @error('foto_stik')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -451,6 +480,34 @@
             </div>
         </div>
 
+        {{-- ======== PANEL PREVIEW RINGKASAN REAL-TIME ======== --}}
+        <div class="card card-success card-outline mt-3" id="preview-panel" style="position:sticky;bottom:20px;z-index:100;">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Ringkasan Sementara <small class="text-muted" style="font-size:0.7rem;">(diperbarui otomatis)</small></h5>
+                <button type="button" class="btn btn-xs btn-outline-secondary" onclick="$('#preview-body').toggle()">Perkecil</button>
+            </div>
+            <div class="card-body py-2" id="preview-body">
+                <div class="row text-center">
+                    <div class="col-6 col-md-3 mb-2">
+                        <div class="text-muted" style="font-size:0.7rem;">Volume Terjual</div>
+                        <div class="font-weight-bold" id="prev-volume">—</div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-2">
+                        <div class="text-muted" style="font-size:0.7rem;">Pendapatan</div>
+                        <div class="font-weight-bold text-success" id="prev-pendapatan">—</div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-2">
+                        <div class="text-muted" style="font-size:0.7rem;">Losses/Gain</div>
+                        <div class="font-weight-bold" id="prev-losses">—</div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-2">
+                        <div class="text-muted" style="font-size:0.7rem;">Belum Disetor</div>
+                        <div class="font-weight-bold text-danger" id="prev-belum-setor">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </section>
 @endsection
 
@@ -605,18 +662,33 @@
             function updatePenerimaan() {
                 let extra = 0;
                 $('.pending-so-check:checked').each(function() {
-                    extra += parseFloat($(this).data('volume')) || 0;
+                    const targetId = $(this).data('target');
+                    const vol = parseFloat($(targetId).val()) || 0;
+                    extra += vol;
                 });
                 $('#penerimaan').val(basePenerimaan + extra);
                 updateTotals();
             }
 
             $('.pending-so-check').on('change', function() {
+                const wrapId = '#wrap_' + $(this).data('target').substring(1);
+                if ($(this).is(':checked')) {
+                    $(wrapId).show();
+                } else {
+                    $(wrapId).hide();
+                }
+                updatePenerimaan();
+            });
+
+            $('.so-volume-input').on('input', function() {
                 updatePenerimaan();
             });
 
             $('#totalisator_akhir, #stik_akhir, #test_pump, #penerimaan').on('input', function() {
                 updateTotals();
+                // Update basePenerimaan if user manually changes Penerimaan input
+                // without using the SO checkboxes. We'll track it, but it gets tricky.
+                // Usually they either use SO checkboxes or manual input.
             });
 
             $(document).on('input', '.spending-input, .setoran-input', function() {
@@ -625,6 +697,133 @@
 
             // Trigger initial calculation
             updateTotals();
+
+            // ============================================================
+            // TOGGLE SECTION PERUBAHAN HARGA
+            // ============================================================
+            window.toggleHargaSection = function() {
+                const body = document.getElementById('harga-section-body');
+                const icon = document.getElementById('harga-section-toggle-icon');
+                if (body.style.display === 'none') {
+                    body.style.display = 'block';
+                    icon.textContent = '▲';
+                } else {
+                    body.style.display = 'none';
+                    icon.textContent = '▼';
+                }
+            };
+
+            // ============================================================
+            // PREVIEW PANEL UPDATE
+            // ============================================================
+            function updatePreviewPanel(volumePenjualan, pendapatan, lossesGain, belumDisetor) {
+                const fmt = (n) => n.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 3});
+                const fmtRp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+
+                document.getElementById('prev-volume').textContent = fmt(volumePenjualan) + ' ℓ';
+                document.getElementById('prev-pendapatan').textContent = fmtRp(pendapatan);
+
+                const lossEl = document.getElementById('prev-losses');
+                lossEl.textContent = fmt(lossesGain) + ' ℓ';
+                lossEl.className = 'font-weight-bold ' + (lossesGain < -5 ? 'text-danger' : lossesGain > 5 ? 'text-warning' : 'text-success');
+
+                document.getElementById('prev-belum-setor').textContent = fmtRp(belumDisetor);
+            }
+
+            // Patch updateTotals to also update preview panel
+            const origUpdateTotals = updateTotals;
+            updateTotals = function() {
+                origUpdateTotals();
+                const vp = parseFloat($('#volume_penjualan').val()) || 0;
+                const pd = parseFloat($('#pendapatan').val()) || 0;
+                const lg = parseFloat($('#losses_gain').val()) || 0;
+                const bs = parseFloat($('#belum_disetorkan').val()) || 0;
+                updatePreviewPanel(vp, pd, lg, bs);
+                saveDraft();
+            };
+
+            // ============================================================
+            // AUTO-SAVE DRAFT ke localStorage
+            // ============================================================
+            const DRAFT_KEY = 'daily_report_draft_{{ Auth::user()->operator->shop_id ?? 0 }}_{{ Auth::user()->id }}';
+
+            function saveDraft() {
+                const data = {};
+                document.querySelectorAll('#insertForm input:not([type=hidden]), #insertForm select, #insertForm textarea').forEach(el => {
+                    if (el.name && !el.readOnly && el.type !== 'submit') {
+                        data[el.name] = el.value;
+                    }
+                });
+                data['_saved_at'] = new Date().toISOString();
+                localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+                document.getElementById('draft-indicator').style.display = 'inline-block';
+                document.getElementById('btn-clear-draft').style.display = 'inline-block';
+            }
+
+            window.clearDraft = function() {
+                localStorage.removeItem(DRAFT_KEY);
+                document.getElementById('draft-indicator').style.display = 'none';
+                document.getElementById('btn-clear-draft').style.display = 'none';
+            };
+
+            // Restore draft jika ada
+            (function() {
+                const raw = localStorage.getItem(DRAFT_KEY);
+                if (!raw) return;
+                const draft = JSON.parse(raw);
+                const savedAt = draft['_saved_at'] ? new Date(draft['_saved_at']).toLocaleString('id-ID') : '?';
+                if (confirm('Ditemukan draft yang belum dikirim (disimpan: ' + savedAt + '). Pulihkan data draft?')) {
+                    Object.entries(draft).forEach(([name, val]) => {
+                        if (name === '_saved_at') return;
+                        const el = document.querySelector('#insertForm [name="' + name + '"]');
+                        if (el && !el.readOnly) el.value = val;
+                    });
+                    updateTotals();
+                    document.getElementById('draft-indicator').style.display = 'inline-block';
+                    document.getElementById('btn-clear-draft').style.display = 'inline-block';
+                } else {
+                    clearDraft();
+                }
+            })();
+
+            // Clear draft saat berhasil submit
+            document.getElementById('insertForm').addEventListener('submit', function(e) {
+                // ============================================================
+                // SWEETALERT KONFIRMASI LOSSES/GAIN TIDAK WAJAR
+                // ============================================================
+                const lossesGain = parseFloat($('#losses_gain').val()) || 0;
+                const THRESHOLD = 50; // Liter
+
+                if (Math.abs(lossesGain) > THRESHOLD) {
+                    e.preventDefault();
+                    const arah = lossesGain < 0 ? 'Losses' : 'Gain';
+                    const warnMsg = `${arah} terdeteksi: ${Math.abs(lossesGain).toFixed(3)} Liter.\n\nNilai ini melebihi batas wajar (${THRESHOLD} L).\nApakah data sudah benar?`;
+
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: '⚠️ ' + arah + ' Tidak Wajar!',
+                            html: `<p>${arah} terdeteksi: <strong>${Math.abs(lossesGain).toFixed(3)} Liter</strong>.</p><p>Nilai ini melebihi batas wajar (${THRESHOLD} L). Apakah data sudah benar?</p>`,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Ya, Lanjutkan Submit',
+                            cancelButtonText: 'Periksa Lagi',
+                            confirmButtonColor: '#e74c3c',
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                clearDraft();
+                                document.getElementById('insertForm').submit();
+                            }
+                        });
+                    } else {
+                        if (confirm(warnMsg)) {
+                            clearDraft();
+                            document.getElementById('insertForm').submit();
+                        }
+                    }
+                } else {
+                    clearDraft();
+                }
+            });
         });
     </script>
 @endpush

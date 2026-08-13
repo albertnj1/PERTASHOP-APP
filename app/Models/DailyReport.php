@@ -17,6 +17,15 @@ class DailyReport extends Model
 
     protected $guarded = ['id'];
 
+    protected static function booted()
+    {
+        static::saved(function ($report) {
+            if ($report->sumber_data === 'import_excel_arsip') {
+                return; // Data arsip backdate, menghentikan seluruh proses operasional lanjutan
+            }
+        });
+    }
+
     protected $appends = [
         'totalisator_awal',
         'stik_awal',
@@ -28,6 +37,7 @@ class DailyReport extends Model
         'stok_akhir_teoritis',
         'losses_gain',
         'losses_gain_rupiah',
+        'losses_gain_kategori',
         'pengeluaran',
         'rupiah_penjualan',
         'pendapatan',
@@ -67,6 +77,11 @@ class DailyReport extends Model
     public function price()
     {
         return $this->belongsTo(Price::class);
+    }
+
+    public function excelUpload()
+    {
+        return $this->belongsTo(ExcelUpload::class, 'excel_upload_id');
     }
 
     public function periods()
@@ -183,7 +198,10 @@ class DailyReport extends Model
 
     public function getVolumePenjualanAktualAttribute()
     {
-        return max(0.0, $this->volume_penjualan_teoritis - $this->test_pump);
+        // Volume Aktual = Volume_Teoritis - Test_Pump - BBM_Lain2
+        // BBM_Lain2 = BBM keluar tapi bukan penjualan (jarang, default 0)
+        $bbmLain2 = floatval($this->attributes['bbm_keluar_lain'] ?? 0);
+        return max(0.0, $this->volume_penjualan_teoritis - $this->test_pump - $bbmLain2);
     }
 
     public function getRupiahPenjualanAktualAttribute()
@@ -214,7 +232,10 @@ class DailyReport extends Model
 
     public function getStokAkhirTeoritisAttribute()
     {
-        return round($this->stok_awal + $this->penerimaan - $this->volume_penjualan_teoritis, 2);
+        // Stok_Teoritis = Stok_Awal + Terima_BBM - BBM_Lain2 - Volume_Aktual
+        // BBM_Lain2 dikurangi karena stok berkurang akibat BBM keluar non-penjualan
+        $bbmLain2 = floatval($this->attributes['bbm_keluar_lain'] ?? 0);
+        return round($this->stok_awal + $this->penerimaan - $bbmLain2 - $this->volume_penjualan_aktual, 3);
     }
 
     public function getPenjualanLossesDAttribute()
@@ -225,6 +246,19 @@ class DailyReport extends Model
     public function getLossesGainAttribute()
     {
         return round($this->stok_akhir_aktual - $this->stok_akhir_teoritis, 3);
+    }
+
+    /**
+     * Kategori Losses/Gain dengan 3 nilai: "Losses", "Gain", "Pas".
+     * - "Pas"    : losses_gain == 0 (tepat, tidak ada selisih stok)
+     * - "Losses" : losses_gain < 0  (stok aktual < teoritis — dikurangi ke gaji jika perlakuan_losses_gain = losses_only)
+     * - "Gain"   : losses_gain > 0  (stok aktual > teoritis — tidak menambah gaji pada perlakuan_losses_gain = losses_only)
+     */
+    public function getLossesGainKategoriAttribute(): string
+    {
+        $lg = $this->losses_gain;
+        if ($lg == 0) return 'Pas';
+        return $lg < 0 ? 'Losses' : 'Gain';
     }
 
     public function getLossesGainRupiahAttribute()
@@ -253,14 +287,29 @@ class DailyReport extends Model
         return $this->belongsTo(Kolektan::class);
     }
 
+    public function deposits()
+    {
+        return $this->hasMany(DailyReportDeposit::class);
+    }
+
     public function getDisetorkanAttribute()
     {
+        $hasDeposits = $this->relationLoaded('deposits') ? $this->deposits->isNotEmpty() : $this->deposits()->exists();
+        if ($hasDeposits) {
+            $deposits = $this->relationLoaded('deposits') ? $this->deposits : $this->deposits()->with('category')->get();
+            return floatval($deposits->filter(fn($d) => $d->category && $d->category->termasuk_dalam_setoran)->sum('jumlah'));
+        }
         return floatval($this->setor_tunai ?? 0) + floatval($this->setor_qris ?? 0) + floatval($this->setor_transfer ?? 0) + floatval($this->setor_kolektan ?? 0);
     }
 
     public function getSelisihSetoranAttribute()
     {
-        return $this->disetorkan - $this->pendapatan;
+        // Refactor (bukan bug fix) — formula eksplisit dari komponen primitif:
+        // Selisih_Setoran = (Total_Pengeluaran + Total_Setoran) - Rupiah_Aktual
+        // Ini matematically equivalent dengan: disetorkan - (rupiah_aktual - pengeluaran)
+        // = disetorkan - pendapatan  (karena pendapatan = rupiah_aktual - pengeluaran)
+        // Positif = lebih setor, Negatif = kurang setor.
+        return ($this->pengeluaran + $this->disetorkan) - $this->rupiah_penjualan_aktual;
     }
 
     public function getBelumDisetorkanAttribute()

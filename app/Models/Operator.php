@@ -22,4 +22,14 @@ class Operator extends Model
     {
         return $this->belongsTo(Shop::class);
     }
+
+    public function payrollAssignments()
+    {
+        return $this->hasMany(PayrollOperatorAssignment::class);
+    }
+
+    public function payrollDetails()
+    {
+        return $this->hasMany(PayrollDetail::class);
+    }
 }

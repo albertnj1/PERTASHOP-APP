@@ -22,6 +22,12 @@ class SpendingController extends Controller
                 $shop_id = Auth::user()->admin->shop_id;
             } elseif (Auth::user()->role == 'operator') {
                 $shop_id = Auth::user()->operator->shop_id;
+            } elseif (Auth::user()->role == 'investor') {
+                $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
+                $shop_id = $request->input('shop_id');
+                if (!$shop_id || !in_array($shop_id, $investor_shops)) {
+                    $shop_id = reset($investor_shops) ?: 1;
+                }
             } else {
                 $shop_id = $request->input('shop_id', 1);
             }
@@ -40,6 +46,8 @@ class SpendingController extends Controller
             return DataTables::of($spendings)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) use ($spendings) {
+                    if (Auth::user()->role == 'investor') return '';
+
                     if (Auth::user()->role == 'operator') {
                         $lastRow = $spendings->first(); // Mendapatkan data terakhir dari koleksi
                         $button = '';
@@ -112,6 +120,9 @@ class SpendingController extends Controller
 
 
         $shops = Shop::all();
+        if (Auth::user()->role == 'investor') {
+            $shops = Auth::user()->investor?->shops ?? Shop::all();
+        }
         $spendingCategories = SpendingCategory::all();
         if (Auth::user()->role == 'operator') {
             $spendingCategories = SpendingCategory::where('id', '>', 2)->get();

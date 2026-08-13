@@ -383,7 +383,8 @@
         <div class="tab-pane fade" id="page2" role="tabpanel" tabindex="0">
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <h4 class="card-title text-primary font-weight-bold mb-4 border-bottom pb-3">Kendali Laba Kotor per Segmen Harga</h4>
+                    <h4 class="text-primary font-weight-bold mb-4 border-bottom pb-3 d-block w-100" style="clear: both;">Kendali Laba Kotor per Segmen Harga</h4>
+                    <div class="clearfix"></div>
                     
                     @foreach($segments as $segment)
                     <div class="mb-4">
@@ -474,7 +475,8 @@
         <div class="tab-pane fade" id="page3" role="tabpanel" tabindex="0">
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <h4 class="card-title text-primary font-weight-bold mb-4 border-bottom pb-3">Laporan Perhitungan Laba Bersih & Alokasi Payout</h4>
+                    <h4 class="text-primary font-weight-bold mb-4 border-bottom pb-3 d-block w-100" style="clear: both;">Laporan Perhitungan Laba Bersih & Alokasi Payout</h4>
+                    <div class="clearfix"></div>
                     
                     <div class="row">
                         <!-- Left Side: Laba Bersih Statement -->
@@ -572,7 +574,9 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    @php $sumGaji = 0; @endphp
                                     @forelse($operatorSalaries as $op)
+                                    @php $sumGaji += $op['gaji']; @endphp
                                     <tr>
                                         <td class="fw-bold text-dark">{{ $op['operator_nama'] }}</td>
                                         <td>{{ $op['hari_jaga'] }} Hari</td>
@@ -589,6 +593,27 @@
                                     </tr>
                                     @endforelse
                                 </tbody>
+                                <tfoot>
+                                    <tr class="bg-light font-weight-bold">
+                                        <td colspan="5" class="text-end">Total Gaji Operator :</td>
+                                        <td class="text-success">Rp {{ number_format($sumGaji, 0, ',', '.') }}</td>
+                                    </tr>
+                                    @if(isset($report->data_parsed['thr']) && $report->data_parsed['thr'] > 0)
+                                    <tr class="bg-light font-weight-bold">
+                                        <td colspan="5" class="text-end">Tunjangan Hari Raya (THR) :</td>
+                                        <td class="text-success">Rp {{ number_format($report->data_parsed['thr'], 0, ',', '.') }}</td>
+                                    </tr>
+                                    <tr class="table-success font-weight-bold">
+                                        <td colspan="5" class="text-end">GRAND TOTAL GAJI & THR :</td>
+                                        <td class="text-success">Rp {{ number_format($sumGaji + $report->data_parsed['thr'], 0, ',', '.') }}</td>
+                                    </tr>
+                                    @elseif(isset($report->data_parsed['total_gaji_karyawan_excel']) && $report->data_parsed['total_gaji_karyawan_excel'] > $sumGaji)
+                                    <tr class="table-success font-weight-bold">
+                                        <td colspan="5" class="text-end">GRAND TOTAL GAJI KARYAWAN (Excel) :</td>
+                                        <td class="text-success">Rp {{ number_format($report->data_parsed['total_gaji_karyawan_excel'], 0, ',', '.') }}</td>
+                                    </tr>
+                                    @endif
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -601,7 +626,8 @@
         <div class="tab-pane fade" id="page4" role="tabpanel" tabindex="0">
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <h4 class="card-title text-primary font-weight-bold mb-4 border-bottom pb-3">Posisi Modal Kerja & Rata-rata Penjualan</h4>
+                    <h4 class="text-primary font-weight-bold mb-4 border-bottom pb-3 d-block w-100" style="clear: both;">Posisi Modal Kerja & Rata-rata Penjualan</h4>
+                    <div class="clearfix"></div>
                     
                     <div class="row">
                         <!-- Working Capital Position -->

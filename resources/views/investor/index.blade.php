@@ -37,8 +37,10 @@
                             @endif
 
                         </div>
+                        @if(Auth::user()->role !== 'investor')
                         <a href="{{ route('investors.create') }}" class="btn btn-primary"><i
                                 class="fa fa-plus mr-2"></i>Tambah Investor</a>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
@@ -74,12 +76,13 @@
                                                                     <span class="font-weight-bold text-dark">Rp {{ number_format($inv->pivot->nominal, 0, ',', '.') }}</span>
                                                                 </div>
                                                                 @if ($inv->pivot->sub_investors)
-                                                                    @php $subs = json_decode($inv->pivot->sub_investors, true); @endphp
-                                                                    <ul class="list-unstyled pl-3 mt-1 text-muted" style="font-size: 11px;">
-                                                                    @foreach ($subs as $sub)
-                                                                        <li>- {{ $sub['name'] }} @if(isset($sub['nominal'])) <span class="font-weight-bold ml-1">(Rp {{ number_format($sub['nominal'], 0, ',', '.') }})</span> @endif</li>
-                                                                    @endforeach
-                                                                    </ul>
+                                                                    @php $subData = json_decode($inv->pivot->sub_investors, true); @endphp
+                                                                    @if(isset($subData['is_hibah']) && $subData['is_hibah'])
+                                                                        <span class="badge badge-warning" style="font-size: 10px;">Saham Hibah</span>
+                                                                    @endif
+                                                                    @if(isset($subData['sub_name']) && $subData['sub_name'])
+                                                                        <div class="text-muted mt-1" style="font-size: 10px;">Sub: {{ $subData['sub_name'] }}</div>
+                                                                    @endif
                                                                 @endif
                                                             </li>
                                                         @endforeach
@@ -119,14 +122,18 @@
                     },
                     {
                         title: 'Nama',
-                        data: 'user.name',
+                        data: 'user',
                         name: 'user.name',
+                        render: function(data) {
+                            return data ? data.name : '-';
+                        }
                     },
                     {
                         title: 'Pertashop',
                         data: 'shops',
                         name: 'shops',
                         render: function(data) {
+                            if (!data || data.length === 0) return '-';
                             return data.map(function(d) {
                                 return d.nama;
                             }).join(', ');

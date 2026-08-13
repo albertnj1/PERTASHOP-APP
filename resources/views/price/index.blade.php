@@ -13,9 +13,11 @@
                 </h1>
             </div>
             <div class="col-4 text-right">
+                @if(Auth::user()->role !== 'investor')
                 <a href="{{ route('prices.create') }}" class="btn btn-primary">
                     <i class="fa fa-plus mr-2"></i>Tambah Harga
                 </a>
+                @endif
             </div>
         </div>
     </div>
@@ -24,10 +26,12 @@
 <section class="content">
     <div class="container-fluid">
 
+        @if(Auth::user()->role !== 'operator')
         <!-- Active Price Cards -->
         <div id="active-price-row" class="row mb-4">
             <!-- populated by JS -->
         </div>
+        @endif
 
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-0" id="priceTabs" style="border-bottom:2px solid #e2e8f0;">
@@ -58,9 +62,13 @@
                                         <th>#</th>
                                         <th>Outlet</th>
                                         <th>Berlaku Sejak</th>
+                                        @if(Auth::user()->role !== 'operator')
                                         <th class="text-right">Harga Beli (Rp)</th>
+                                        @endif
                                         <th class="text-right">Harga Jual (Rp)</th>
+                                        @if(Auth::user()->role !== 'operator')
                                         <th class="text-right">Margin (Rp)</th>
+                                        @endif
                                         <th>Lokasi</th>
                                         <th>Status</th>
                                         <th>Aksi</th>
@@ -85,9 +93,13 @@
                                         <th>Outlet</th>
                                         <th>Aksi</th>
                                         <th>Pengguna</th>
+                                        @if(Auth::user()->role !== 'operator')
                                         <th class="text-right">Harga Beli Lama</th>
+                                        @endif
                                         <th class="text-right">Harga Jual Lama</th>
+                                        @if(Auth::user()->role !== 'operator')
                                         <th class="text-right">Harga Beli Baru</th>
+                                        @endif
                                         <th class="text-right">Harga Jual Baru</th>
                                     </tr>
                                 </thead>
@@ -122,15 +134,19 @@ $(document).ready(function() {
             { title: 'Berlaku Sejak', data: 'effective_at', name: 'effective_at',
                 render: d => d ? new Date(d).toLocaleString('id-ID', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'
             },
+            @if(Auth::user()->role !== 'operator')
             { title: 'Harga Beli (Rp)', data: 'harga_beli', name: 'harga_beli', className: 'text-right',
                 render: d => formatNumber(d)
             },
+            @endif
             { title: 'Harga Jual (Rp)', data: 'harga_jual', name: 'harga_jual', className: 'text-right',
                 render: d => formatNumber(d)
             },
+            @if(Auth::user()->role !== 'operator')
             { title: 'Margin (Rp)', data: null, orderable: false, className: 'text-right',
                 render: (d, t, r) => `<strong class="text-success">+${formatNumber(r.harga_jual - r.harga_beli)}</strong>`
             },
+            @endif
             { title: 'Lokasi', data: 'lokasi_device', name: 'lokasi_device',
                 render: d => d ? `<span style="font-size:11px;color:#64748b;"><i class="fas fa-map-marker-alt mr-1"></i>${d}</span>` : '<span style="font-size:11px;color:#94a3b8;">Tidak ada info</span>'
             },
@@ -176,6 +192,7 @@ $(document).ready(function() {
         });
     });
 
+    @if(Auth::user()->role !== 'operator')
     // --- Active Price Cards ---
     function renderActivePrices() {
         const outletColors = {
@@ -193,22 +210,26 @@ $(document).ready(function() {
                     const color = outletColors[s.shop.nama] || '#00796B';
                     const effAt = s.effective_at ? new Date(s.effective_at).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : '—';
                     html += `
-                    <div class="col-12 col-sm-6 col-md-4 col-lg-2-4 mb-3">
-                        <div class="card" style="border-top:3px solid ${color};border-radius:10px;">
-                            <div class="card-body p-3">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;margin-right:6px;"></span>
-                                    <strong style="font-size:13px;">${s.shop.nama}</strong>
+                    <div class="col-6 col-sm-6 col-md-4 col-lg-2-4 px-1 px-sm-2 mb-2 mb-sm-3">
+                        <div class="card h-100 mb-0" style="border-top:3px solid ${color};border-radius:10px;">
+                            <div class="card-body p-2 p-sm-3">
+                                <div class="d-flex align-items-center mb-1 mb-sm-2">
+                                    <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;margin-right:6px;flex-shrink:0;"></span>
+                                    <strong style="font-size:12px;" class="text-truncate">${s.shop.nama}</strong>
                                 </div>
-                                <div class="d-flex justify-content-between" style="font-size:12px;color:#555;">
+                                <div class="d-flex justify-content-between" style="font-size:11px;color:#555;">
                                     <span>Harga Jual</span>
                                     <span class="font-weight-700 text-success">${formatCurrency(s.harga_jual_aktif, 0)}</span>
                                 </div>
-                                <div class="d-flex justify-content-between" style="font-size:12px;color:#555;">
+                                <div class="d-flex justify-content-between" style="font-size:11px;color:#555;">
                                     <span>Harga Beli</span>
                                     <span class="font-weight-700">${formatCurrency(s.harga_beli_aktif, 0)}</span>
                                 </div>
-                                <div class="text-muted mt-1" style="font-size:10px;">Berlaku: ${effAt}</div>
+                                <div class="d-flex justify-content-between" style="font-size:11px;color:#555;">
+                                    <span>Margin</span>
+                                    <span class="font-weight-700 text-${s.harga_jual_aktif - s.harga_beli_aktif > 0 ? 'success' : 'danger'}">${formatCurrency(s.harga_jual_aktif - s.harga_beli_aktif, 0)}</span>
+                                </div>
+                                <div class="text-muted mt-1" style="font-size:9px;">Berlaku: ${effAt}</div>
                             </div>
                         </div>
                     </div>`;
@@ -217,6 +238,7 @@ $(document).ready(function() {
             }
         });
     }
+    @endif
 
     // --- Audit Log Tab ---
     $('#tab-audit').on('shown.bs.tab', function() {
@@ -237,9 +259,13 @@ $(document).ready(function() {
                     <td>${l.shop}</td>
                     <td><span class="badge badge-${badge}">${label}</span></td>
                     <td>${l.user}</td>
+                    @if(Auth::user()->role !== 'operator')
                     <td class="text-right">${l.harga_beli_lama ? formatNumber(l.harga_beli_lama) : '—'}</td>
+                    @endif
                     <td class="text-right">${l.harga_jual_lama ? formatNumber(l.harga_jual_lama) : '—'}</td>
+                    @if(Auth::user()->role !== 'operator')
                     <td class="text-right font-weight-700">${formatNumber(l.harga_beli_baru)}</td>
+                    @endif
                     <td class="text-right font-weight-700 text-success">${formatNumber(l.harga_jual_baru)}</td>
                 </tr>`;
             }).join('');
@@ -247,7 +273,9 @@ $(document).ready(function() {
         });
     });
 
+    @if(Auth::user()->role !== 'operator')
     renderActivePrices();
+    @endif
 });
 
 // Tab nav styling

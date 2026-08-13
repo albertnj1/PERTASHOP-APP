@@ -1,6 +1,4 @@
-<!-- Developed By Febri Sutomo -->
-<!-- https://github.com/febrisutomo -->
-<!-- febrisutomo@gmail.com -->
+<!-- Developed By ALBERT NESTOR J -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -22,7 +20,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
         integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -33,19 +31,16 @@
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/adminlte.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/custom-theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/custom-theme.css') }}?v={{ time() }}">
+    <link rel="stylesheet" href="{{ asset('css/sidebar-only.css') }}?v={{ time() }}">
     @stack('style')
 
 </head>
 
 <body
-    class="hold-transition {{ Auth::user()->role == 'operator' ? 'layout-top-nav' : 'sidebar-mini layout-fixed layout-navbar-fixed' }}">
+    class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
 
-    @if (Auth::user()->role == 'operator')
-        @include('layouts._operator')
-    @else
-        @include('layouts._admin')
-    @endif
+    @include('layouts._admin')
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
         integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="

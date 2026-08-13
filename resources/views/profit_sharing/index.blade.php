@@ -1,60 +1,31 @@
-@extends('layouts.app')
+@extends('layouts._new_admin')
 
+@section('title', 'Rekap Profit Sharing')
 
 @section('content')
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>Rekap Profit Sharing</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/">Home</a></li>
-                        <li class="breadcrumb-item active">Rekap Profit Sharing</li>
-                    </ol>
-                </div>
+    <div class="metrics-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                @if (Auth::user()->role == 'admin')
+                    <h2 class="card-title" style="margin: 0; font-size: 1.2rem;">
+                        {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}</h2>
+                @else
+                    <select name="shop_id" class="form-control" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1); outline: none; background: #fff; cursor: pointer;">
+                        @foreach ($shops as $shop)
+                            <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
+                        @endforeach
+                    </select>
+                @endif
             </div>
         </div>
-    </section>
-
-    <section class="content">
-        <div class="container-fluid">
-            <div class="card card-primary card-outline">
-                <div class="card-header">
-                    <div class=" d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            @if (Auth::user()->role == 'admin')
-                                <h3 class="card-title mr-2">
-                                    {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}</h3>
-                            @else
-                                <select name="shop_id" class="form-control mr-2" style="width: 200px">
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
-                                    @endforeach
-                                </select>
-                            @endif
-
-                        </div>
-                        {{-- <a href="" class="btn btn-primary"><i class="fa fa-plus mr-2"></i>Tambah
-                            Laporan Bulanan</a> --}}
-                    </div>
-
-                </div>
-                <div class="card-body">
-
-                    <div class="table-responsive">
-                        <table id="table" class="table table-bordered">
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div class="table-responsive-lg">
+            <table id="table" class="table table-bordered" style="width: 100%;">
+            </table>
         </div>
-    </section>
+    </div>
 @endsection
 
-
-@push('script')
+@push('scripts')
     <script>
         $(document).ready(function() {
             let columns = [{
@@ -113,13 +84,25 @@
                     }
                 },
                 {
-                    title: 'Return On Invesment To Go (Rp)',
-                    data: 'roi',
-                    name: 'roi',
+                    title: 'Sisa Modal Belum Kembali (Rp)',
+                    data: 'payback_sisa',
+                    name: 'payback_sisa',
                     className: 'text-right',
                     render: function(data, type) {
                         if (type === 'display') {
                             return formatNumber(data, 0);
+                        }
+                        return data;
+                    }
+                },
+                {
+                    title: 'Persentase Pengembalian (%)',
+                    data: 'persentase_pengembalian',
+                    name: 'persentase_pengembalian',
+                    className: 'text-right',
+                    render: function(data, type) {
+                        if (type === 'display') {
+                            return data.toFixed(2) + '%';
                         }
                         return data;
                     }
@@ -139,8 +122,8 @@
             investors.forEach(investor => {
                 columns.splice(5, 0, {
                     title: investor.user.name + " " + investor.pivot.persentase + '%',
-                    data: investor.user.name.toLowerCase().split(' ').join('_'),
-                    name: investor.user.name.toLowerCase().split(' ').join('_'),
+                    data: 'inv_' + investor.id,
+                    name: 'inv_' + investor.id,
                     className: 'text-right',
                     render: function(data, type) {
                         if (type === 'display') {

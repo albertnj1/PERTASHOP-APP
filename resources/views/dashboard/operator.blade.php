@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts._new_admin')
 
 @push('style')
 <style>
@@ -29,99 +29,196 @@
 @endpush
 
 @section('content')
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-4 align-items-center mt-2">
-                <div class="col-12">
-                    <div class="d-flex align-items-center">
-                        <div class="bg-primary text-white rounded-circle p-2 mr-3 shadow-sm d-flex justify-content-center align-items-center" style="width: 54px; height: 54px; background: linear-gradient(135deg, #0ea5e9, #2563eb) !important;">
-                            <i class="fas fa-gas-pump" style="font-size: 20px;"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-weight-bold mb-0 text-dark" style="letter-spacing: -0.5px;">{{ Auth::user()->operator->shop->nama }}</h3>
-                            <p class="text-muted mb-0" style="font-size: 14px; font-weight: 500;"><i class="fas fa-hashtag mr-1" style="font-size: 11px;"></i>{{ Auth::user()->operator->shop->kode }}</p>
-                        </div>
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="page-title mb-1">{{ Auth::user()->operator?->shop?->nama ?? 'Dashboard Operator' }}</h1>
+            <p class="text-muted mb-0" style="font-size: 13px;">Kode Outlet: {{ Auth::user()->operator?->shop?->kode ?? '-' }}</p>
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="summary-grid">
+        <div class="metric-card pos">
+            <div class="metric-label">Sisa Stok</div>
+            <div class="metric-value pos">{{ number_format($stok_akhir, 0, ',', '.') }} ℓ</div>
+            <div class="metric-sub">Berdasarkan Penerimaan / Laporan</div>
+        </div>
+        <div class="metric-card neutral">
+            <div class="metric-label">Harga Jual</div>
+            <div class="metric-value">Rp {{ number_format($harga_jual, 0, ',', '.') }}</div>
+            <div class="metric-sub">Per liter</div>
+        </div>
+        <div class="metric-card neutral">
+            <div class="metric-label">Penjualan Hari Ini</div>
+            <div class="metric-value">{{ number_format($volume_penjualan, 0, ',', '.') }} ℓ</div>
+            <div class="metric-sub">Volume</div>
+        </div>
+        <div class="metric-card {{ $belum_disetorkan < 0 ? 'neg' : 'pos' }}">
+            <div class="metric-label">Belum Disetor</div>
+            <div class="metric-value {{ $belum_disetorkan < 0 ? 'neg' : 'pos' }}">Rp {{ number_format($belum_disetorkan, 0, ',', '.') }}</div>
+            <div class="metric-sub">Tagihan berjalan</div>
+        </div>
+        <div class="metric-card neutral">
+            <div class="metric-label">Kolektan (Bulan Ini)</div>
+            <div class="metric-value">Rp {{ number_format($total_setor_kolektan, 0, ',', '.') }}</div>
+            <div class="metric-sub">Total setoran kolektan</div>
+        </div>
+    </div>
+
+    {{-- WIDGET FITUR 2 & 3: Estimasi Gaji Live & Saldo Tabungan --}}
+    <div class="row cols-1-1 mb-4">
+        <div>
+            <div class="panel h-100 mb-0">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="status-pill" style="background:#fef3c7; color:#b45309; font-size: 11px;">LIVE ESTIMATE</span>
+                        <div class="panel-title mt-1">Estimasi Gaji Bulan Ini (Real-time)</div>
+                    </div>
+                    <div class="text-right">
+                        <div style="font-size: 11px; color: var(--muted);">Proyeksi Bersih (THP)</div>
+                        <div style="font-size: 20px; font-weight: 800; color: var(--green);">Rp {{ number_format($estimasi_thp, 0, ',', '.') }}</div>
+                    </div>
+                </div>
+                <div style="background: var(--page-bg); border-radius: 10px; height: 6px; overflow: hidden;" class="mb-3">
+                    <div style="width: 75%; background: var(--green); height: 100%;"></div>
+                </div>
+                <div class="d-flex justify-content-between pt-2" style="border-top: 1px solid var(--border); font-size: 12px;">
+                    <div>
+                        <span class="text-muted">Estimasi Kotor:</span>
+                        <strong class="ml-1">Rp {{ number_format($estimasi_gaji_kotor, 0, ',', '.') }}</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted">Potensi Potongan Kurang Setor:</span>
+                        <strong class="ml-1" style="color: var(--red);">- Rp {{ number_format($estimasi_kurang_setoran, 0, ',', '.') }}</strong>
                     </div>
                 </div>
             </div>
         </div>
-    </section>
 
-    <section class="content">
-        <div class="container-fluid">
-
-            <div class="row mb-4">
-                <div class="col-6 col-sm-6 col-xl mb-3 px-2">
-                    <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #10b981 !important; border-radius: 12px;">
-                        <div class="card-body p-2 p-sm-3">
-                            <p class="text-muted mb-1 text-xs font-weight-600"><i class="fas fa-gas-pump mr-1 text-success"></i>Sisa Stok</p>
-                            <h4 class="font-weight-bold text-dark mb-0" style="font-size: 1.1rem;"><span class="number">{{ $stok_akhir }}</span> <small class="text-muted" style="font-size: 12px;">&ell;</small></h4>
-                        </div>
+        <div>
+            <div class="panel h-100 mb-0 d-flex flex-column justify-content-between">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <div class="panel-title">Saldo Tabungan Saya</div>
+                        <div class="text-muted" style="font-size: 12px;">Terakumulasi dari potongan gaji</div>
                     </div>
+                    <span class="status-pill" style="background:#dcfce7; color:#15803d;">Aktif</span>
                 </div>
-                <div class="col-6 col-sm-6 col-xl mb-3 px-2">
-                    <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #3b82f6 !important; border-radius: 12px;">
-                        <div class="card-body p-2 p-sm-3">
-                            <p class="text-muted mb-1 text-xs font-weight-600"><i class="fas fa-tags mr-1 text-primary"></i>Harga Jual</p>
-                            <h4 class="font-weight-bold text-dark mb-0" style="font-size: 1.1rem;"><span class="currency">{{ $harga_jual }}</span> <small class="text-muted" style="font-size: 12px;">/ &ell;</small></h4>
-                        </div>
-                    </div>
+                <div class="my-2">
+                    <div style="font-size: 24px; font-weight: 800; color: var(--blue);">Rp {{ number_format($saldo_tabungan, 0, ',', '.') }}</div>
                 </div>
-                <div class="col-6 col-sm-6 col-xl mb-3 px-2">
-                    <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #06b6d4 !important; border-radius: 12px;">
-                        <div class="card-body p-2 p-sm-3">
-                            <p class="text-muted mb-1 text-xs font-weight-600"><i class="fas fa-chart-bar mr-1 text-info"></i>Penj. Hari Ini</p>
-                            <h4 class="font-weight-bold text-dark mb-0" style="font-size: 1.1rem;"><span class="number">{{ $volume_penjualan }}</span> <small class="text-muted" style="font-size: 12px;">&ell;</small></h4>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 col-sm-6 col-xl mb-3 px-2">
-                    <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #ef4444 !important; border-radius: 12px;">
-                        <div class="card-body p-2 p-sm-3">
-                            <p class="text-muted mb-1 text-xs font-weight-600"><i class="fas fa-money-bill-wave mr-1 text-danger"></i>Belum Disetor</p>
-                            <h4 class="font-weight-bold text-dark mb-0 currency" style="font-size: 1.1rem;">{{ $belum_disetorkan }}</h4>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-sm-12 col-xl mb-3 px-2">
-                    <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #f59e0b !important; border-radius: 12px;">
-                        <div class="card-body p-2 p-sm-3">
-                            <p class="text-muted mb-1 text-xs font-weight-600"><i class="fas fa-wallet mr-1 text-warning"></i>Kolektan (Bulan Ini)</p>
-                            <h4 class="font-weight-bold text-dark mb-0 currency" style="font-size: 1.1rem;">{{ $total_setor_kolektan }}</h4>
-                        </div>
-                    </div>
+                <div>
+                    <button type="button" class="btn btn-outline-primary btn-sm btn-block font-weight-bold" style="border-radius: 8px;" data-toggle="modal" data-target="#modalTukarShift">
+                        Ajukan Tukar Shift
+                    </button>
                 </div>
             </div>
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card h-100 border-0 shadow-sm">
-                        <div class="card-header bg-white border-0 pb-0">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h3 class="card-title" style="font-weight: 700; color: #1e293b; font-size: 1.1rem;">
-                                    <i class="fas fa-chart-line mr-2 text-muted"></i>Grafik Penjualan
-                                </h3>
-                                <input name="filter" type="text" value="day" hidden>
-                                <div class="btn-group" style="background-color: #f1f5f9; padding: 4px; border-radius: 8px;">
-                                    <button class="btn btn-sm btn-filter filter-day btn-primary">Harian</button>
-                                    <button class="btn btn-sm btn-filter filter-week btn-link">Mingguan</button>
-                                    <button class="btn btn-sm btn-filter filter-month btn-link">Bulanan</button>
+        </div>
+    </div>
+
+            {{-- MODAL FITUR 1: Pengajuan Tukar Shift Mandiri Operator --}}
+            <div class="modal fade" id="modalTukarShift" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden;">
+                        <div class="modal-header" style="background: var(--page-bg); border-bottom: 1px solid var(--border);">
+                            <h5 class="modal-title font-weight-bold" style="font-size: 15px;">Pengajuan Tukar Shift Mandiri</h5>
+                            <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                        </div>
+                        <form action="{{ route('shift-schedules.request-swap') }}" method="POST">
+                            @csrf
+                            <div class="modal-body">
+                                <p class="text-muted small">Pilih jadwal shift Anda dan rekan pengganti dari toko yang sama. Pengajuan akan masuk ke antrian persetujuan Admin.</p>
+                                
+                                <div class="form-group">
+                                    <label class="font-weight-bold">Pilih Jadwal Shift Anda</label>
+                                    @php
+                                        $opId = Auth::user()->operator?->id ?? 0;
+                                        $opShopId = Auth::user()->operator?->shop_id ?? 0;
+                                        $mySchedules = \App\Models\ShiftSchedule::where('operator_id', $opId)
+                                            ->where('tanggal', '>=', now()->toDateString())
+                                            ->orderBy('tanggal', 'asc')
+                                            ->get();
+                                    @endphp
+                                    <select name="shift_schedule_id" class="form-control" required>
+                                        @forelse($mySchedules as $sch)
+                                            <option value="{{ $sch->id }}">
+                                                {{ $sch->tanggal->format('d M Y') }} — Shift Ke-{{ $sch->shift_ke }}
+                                            </option>
+                                        @empty
+                                            <option value="">(Tidak ada jadwal shift mendatang)</option>
+                                        @endforelse
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="font-weight-bold">Pilih Rekan Pengganti</label>
+                                    @php
+                                        $coOperators = \App\Models\Operator::with('user')
+                                            ->where('shop_id', $opShopId)
+                                            ->where('id', '!=', $opId)
+                                            ->get();
+                                    @endphp
+                                    <select name="operator_pengganti_id" class="form-control" required>
+                                        @foreach($coOperators as $coOp)
+                                            <option value="{{ $coOp->id }}">{{ $coOp->user?->name ?? 'Operator #'.$coOp->id }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="font-weight-bold">Alasan Halangan</label>
+                                    <select name="alasan" class="form-control" required>
+                                        <option value="izin">Izin</option>
+                                        <option value="sakit">Sakit</option>
+                                        <option value="keperluan_pribadi">Keperluan Pribadi</option>
+                                        <option value="lainnya">Lainnya</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="font-weight-bold">Catatan Keterangan Tambahan</label>
+                                    <textarea name="keterangan" class="form-control" rows="2" placeholder="Contoh: Sakit demam, sudah janji tukar shift dengan Budi"></textarea>
                                 </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="salesChart" style="min-height: 300px; height: 300px; max-height: 300px; max-width: 100%;"></canvas>
-                        </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
+                                <button type="submit" class="btn btn-primary btn-sm font-weight-bold">Kirim Pengajuan</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
-            <div class="row">
 
-                <div class="col-lg-3 col-6 mb-4">
-                    <div class="card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-4">
-                            <div class="bg-light-primary rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+            <div class="panel mb-4" style="margin-bottom: 24px;">
+                <div class="panel-head">
+                    <div class="panel-title">
+                        <i class="fas fa-chart-line text-muted"></i>Grafik Penjualan
+                    </div>
+                    <input name="filter" type="text" value="day" hidden>
+                    <div class="custom-dropdown" tabindex="0">
+                        <div class="dropdown-selected" id="chartFilterText">
+                            <span>Harian</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+                        <div class="dropdown-options">
+                            <div class="dropdown-item filter-day" style="padding:8px 12px; cursor:pointer;">Harian</div>
+                            <div class="dropdown-item filter-week" style="padding:8px 12px; cursor:pointer;">Mingguan</div>
+                            <div class="dropdown-item filter-month" style="padding:8px 12px; cursor:pointer;">Bulanan</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <canvas id="salesChart" style="min-height: 300px; height: 300px; max-height: 300px; max-width: 100%;"></canvas>
+                </div>
+            <div class="action-grid mb-4">
+                <div>
+                    <div class="card action-card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px; background: white;">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-3 p-md-4">
+                            <div class="icon-wrapper bg-light-primary rounded-circle d-flex align-items-center justify-content-center mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-download"
-                                    width="36" height="36" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                                    width="28" height="28" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
                                     fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                     <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
@@ -129,19 +226,19 @@
                                     <path d="M12 4l0 12"></path>
                                 </svg>
                             </div>
-                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 1rem;">Penerimaan</h5>
-                            <p class="text-muted text-xs mb-0">Catat BBM datang dari tangki supply</p>
+                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 0.95rem;">Penerimaan</h5>
+                            <p class="text-muted text-xs mb-0">Catat BBM datang</p>
                             <a href="{{ route('incomings.index') }}" class="stretched-link"></a>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-3 col-6 mb-4">
-                    <div class="card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-4">
-                            <div class="bg-light-info rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                <div>
+                    <div class="card action-card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px; background: white;">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-3 p-md-4">
+                            <div class="icon-wrapper bg-light-info rounded-circle d-flex align-items-center justify-content-center mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-test-pipe-2"
-                                    width="36" height="36" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                                    width="28" height="28" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
                                     fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                     <path d="M15 3v15a3 3 0 0 1 -6 0v-15"></path>
@@ -149,19 +246,19 @@
                                     <path d="M8 3h8"></path>
                                 </svg>
                             </div>
-                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 1rem;">Test Pump</h5>
-                            <p class="text-muted text-xs mb-0">Catat hasil tera volume BBM</p>
+                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 0.95rem;">Test Pump</h5>
+                            <p class="text-muted text-xs mb-0">Catat tera volume</p>
                             <a href="{{ route('test-pumps.index') }}" class="stretched-link"></a>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-3 col-6 mb-4">
-                    <div class="card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-4">
-                            <div class="bg-light-danger rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                <div>
+                    <div class="card action-card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px; background: white;">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-3 p-md-4">
+                            <div class="icon-wrapper bg-light-danger rounded-circle d-flex align-items-center justify-content-center mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-receipt-2"
-                                    width="36" height="36" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                                    width="28" height="28" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
                                     fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                     <path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2">
@@ -170,19 +267,19 @@
                                     </path>
                                 </svg>
                             </div>
-                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 1rem;">Pengeluaran</h5>
-                            <p class="text-muted text-xs mb-0">Catat biaya operasional harian</p>
+                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 0.95rem;">Pengeluaran</h5>
+                            <p class="text-muted text-xs mb-0">Catat biaya operasional</p>
                             <a href="{{ route('spendings.index') }}" class="stretched-link"></a>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-3 col-6 mb-4">
-                    <div class="card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-4">
-                            <div class="bg-light-success rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                <div>
+                    <div class="card action-card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px; background: white;">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-3 p-md-4">
+                            <div class="icon-wrapper bg-light-success rounded-circle d-flex align-items-center justify-content-center mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-report"
-                                    width="36" height="36" viewBox="0 0 24 24" stroke-width="2"
+                                    width="28" height="28" viewBox="0 0 24 24" stroke-width="2"
                                     stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                     <path d="M8 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h5.697"></path>
@@ -195,18 +292,18 @@
                                     <path d="M8 15h3"></path>
                                 </svg>
                             </div>
-                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 1rem;">Laporan Harian</h5>
-                            <p class="text-muted text-xs mb-0">Entri data & setoran per shift</p>
+                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 0.95rem;">Laporan Harian</h5>
+                            <p class="text-muted text-xs mb-0">Entri data per shift</p>
                             <a href="{{ route('daily-reports.index') }}" class="stretched-link"></a>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-3 col-6 mb-4">
-                    <div class="card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-4">
-                            <div class="bg-light-warning rounded-circle p-3 mb-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                <div>
+                    <div class="card action-card h-100 border-0 shadow-sm transition-hover" style="border-radius: 16px; background: white;">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center text-center p-3 p-md-4">
+                            <div class="icon-wrapper bg-light-warning rounded-circle d-flex align-items-center justify-content-center mb-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-report-money"
-                                    width="36" height="36" viewBox="0 0 24 24" stroke-width="2"
+                                    width="28" height="28" viewBox="0 0 24 24" stroke-width="2"
                                     stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
                                     <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"></path>
@@ -215,20 +312,16 @@
                                     <path d="M12 17v1m0 -8v1"></path>
                                 </svg>
                             </div>
-                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 1rem;">Perubahan Harga</h5>
-                            <p class="text-muted text-xs mb-0">Catat harga baru dari Pertamina</p>
+                            <h5 class="font-weight-bold text-gray-800 mb-1" style="font-size: 0.95rem;">Perubahan Harga</h5>
+                            <p class="text-muted text-xs mb-0">Catat harga Pertamina</p>
                             <a href="{{ route('prices.index') }}" class="stretched-link"></a>
                         </div>
                     </div>
                 </div>
             </div>
-
-        </div>
-    </div>
-</section>
 @endsection
 
-@push('script')
+@push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         var ctxSalesChart = document.getElementById('salesChart').getContext('2d');
@@ -268,15 +361,16 @@
                     plugins: { legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true, font: { family: "'Inter', sans-serif", size: 12 } } } }
                 }
             });
-            $('.btn-filter').removeClass('btn-primary').addClass('btn-link');
-            $(`.filter-${filter}`).removeClass('btn-link').addClass('btn-primary');
+            // Update active state in custom dropdown
+            $('.dropdown-item').css('background', 'transparent');
+            $(`.filter-${filter}`).css('background', 'rgba(59, 110, 165, 0.08)');
         }
 
         function getData() {
             var filter = $('input[name=filter]').val();
             $.ajax({
                 type: "GET",
-                url: "/",
+                url: "{{ route('dashboard') }}",
                 data: { filter: filter },
                 success: function(response) {
                     showSalesChart(response.sales);
@@ -288,9 +382,21 @@
         }
 
         $(document).ready(function() {
-            $(".filter-week").on('click', function() { $('input[name=filter]').val('week').trigger('change'); });
-            $(".filter-day").on('click',  function() { $('input[name=filter]').val('day').trigger('change');  });
-            $(".filter-month").on('click',function() { $('input[name=filter]').val('month').trigger('change');});
+            $(".filter-week").on('click', function() { 
+                $('input[name=filter]').val('week').trigger('change'); 
+                $('#chartFilterText span').text('Mingguan');
+                document.activeElement.blur();
+            });
+            $(".filter-day").on('click',  function() { 
+                $('input[name=filter]').val('day').trigger('change');  
+                $('#chartFilterText span').text('Harian');
+                document.activeElement.blur();
+            });
+            $(".filter-month").on('click',function() { 
+                $('input[name=filter]').val('month').trigger('change');
+                $('#chartFilterText span').text('Bulanan');
+                document.activeElement.blur();
+            });
 
             $('input[name=filter]').on('change', function() { getData(); });
 

@@ -27,6 +27,8 @@ class PurchaseController extends Controller
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('action', function ($row) {
+                    if (Auth::user()->role == 'investor') return '';
+
                     $button = '<a href="' . route('purchases.edit', $row->id) . '" class="btn btn-sm btn-info" title="Edit"><i class="fa fa-edit"></i></a>';
                     $button .= ' <button class="btn btn-sm btn-danger btn-delete" title="hapus" data-id="' . $row->id . '"><i class="fa fa-trash"></i></button>';
                     return $button;
@@ -57,6 +59,18 @@ class PurchaseController extends Controller
      */
     public function store(Request $request)
     {
+        if ($request->has('volume') && !$request->has('jumlah_kl')) {
+            $request->merge([
+                'jumlah_kl' => $request->volume / 1000,
+                'total_nominal' => $request->total_bayar,
+                'persen_net' => 85.06,
+                'persen_ppn' => 10.11,
+                'persen_pph' => 0.23,
+                'persen_pbbkb' => 4.60,
+                'catatan_debit_credit' => 0,
+            ]);
+        }
+
         $customMessages = [
             'required' => ':attribute wajib diisi.',
         ];
@@ -136,6 +150,18 @@ class PurchaseController extends Controller
      */
     public function update(Request $request, Purchase $purchase)
     {
+        if ($request->has('volume') && !$request->has('jumlah_kl')) {
+            $request->merge([
+                'jumlah_kl' => $request->volume / 1000,
+                'total_nominal' => $request->total_bayar,
+                'persen_net' => 85.06,
+                'persen_ppn' => 10.11,
+                'persen_pph' => 0.23,
+                'persen_pbbkb' => 4.60,
+                'catatan_debit_credit' => 0,
+            ]);
+        }
+
         $customMessages = [
             'required' => ':attribute wajib diisi.',
         ];

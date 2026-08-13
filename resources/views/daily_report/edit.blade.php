@@ -204,31 +204,31 @@
                                         <div class="row">
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Ongkos Bongkar</label>
-                                                <input type="number" name="spendings[3]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[3]) ? intval($spendings[3]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[1]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[1]) ? intval($spendings[1]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Biaya Transfer</label>
-                                                <input type="number" name="spendings[4]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[4]) ? intval($spendings[4]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[2]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[2]) ? intval($spendings[2]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Fotocopy & ATK</label>
-                                                <input type="number" name="spendings[5]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[5]) ? intval($spendings[5]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[3]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[3]) ? intval($spendings[3]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Listrik</label>
-                                                <input type="number" name="spendings[6]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[6]) ? intval($spendings[6]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[4]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[4]) ? intval($spendings[4]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Air Bersih</label>
-                                                <input type="number" name="spendings[7]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[7]) ? intval($spendings[7]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[5]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[5]) ? intval($spendings[5]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Cashback</label>
-                                                <input type="number" name="spendings[8]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[8]) ? intval($spendings[8]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[6]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[6]) ? intval($spendings[6]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-6 mb-2">
                                                 <label class="text-xs">Internet</label>
-                                                <input type="number" name="spendings[9]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[9]) ? intval($spendings[9]->jumlah) : 0 }}">
+                                                <input type="number" name="spendings[7]" class="form-control form-control-sm spending-input" value="{{ isset($spendings[7]) ? intval($spendings[7]->jumlah) : 0 }}">
                                             </div>
                                             <div class="col-md-12 mb-2">
                                                 <label class="text-xs">Lain-lain</label>

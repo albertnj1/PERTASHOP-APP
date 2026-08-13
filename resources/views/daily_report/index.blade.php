@@ -32,7 +32,9 @@
                             @else
                                 <select name="shop_id" class="form-control mr-2" style="width: 200px">
                                     @foreach ($shops as $shop)
-                                        <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
+                                        <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>
+                                            {{ $shop->kode . ' ' . $shop->nama }}
+                                        </option>
                                     @endforeach
                                 </select>
                             @endif
@@ -65,7 +67,7 @@
             var dataTable = $('#table').DataTable({
                 processing: true,
                 serverSide: true,
-                ajax: "{{ route('daily-reports.index') }}",
+                ajax: window.location.href,
                 columns: [
                     // {
                     //     title: '#',
@@ -235,6 +237,45 @@
                     // },
 
                     {
+                        title: 'Saldo Belum Setor',
+                        data: 'running_balance_setoran',
+                        name: 'running_balance_setoran',
+                        render: function(data, type) {
+                            if (type === 'display') {
+                                let val = parseFloat(data) || 0;
+                                let formatted = 'Rp ' + Math.abs(val).toLocaleString('id-ID');
+                                if (val < -100) {
+                                    // Lebih setor (baik) — hijau
+                                    return `<span style="color:#28a745;font-weight:700;" title="Lebih setor Rp ${Math.abs(val).toLocaleString('id-ID')}">▼ ${formatted}</span>`;
+                                } else if (val > 100) {
+                                    // Kurang setor (perhatian) — merah
+                                    return `<span style="color:#dc3545;font-weight:700;" title="Kurang setor Rp ${val.toLocaleString('id-ID')}">▲ ${formatted}</span>`;
+                                }
+                                return `<span style="color:#6c757d;">${formatted}</span>`;
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        title: 'Status',
+                        data: 'status_lifecycle',
+                        name: 'status_lifecycle',
+                        render: function(data, type) {
+                            if (type === 'display') {
+                                const map = {
+                                    'draft':     ['secondary', 'Draft'],
+                                    'imported':  ['primary',   'Diimpor'],
+                                    'validated': ['info',      'Tervalidasi'],
+                                    'approved':  ['success',   'Disetujui'],
+                                    'locked':    ['dark',      'Terkunci'],
+                                };
+                                let [cls, label] = map[data] || ['secondary', data || '-'];
+                                return `<span class="badge badge-${cls}">${label}</span>`;
+                            }
+                            return data;
+                        }
+                    },
+                    {
                         title: 'Aksi',
                         data: 'action',
                         name: 'action',
@@ -270,7 +311,10 @@
             });
 
             $('select[name=shop_id]').on('change', function() {
-                dataTable.ajax.url(`?shop_id=${this.value}`).load();
+                var url = new URL(window.location.href);
+                url.searchParams.set('shop_id', this.value);
+                window.history.pushState({}, '', url);
+                dataTable.ajax.url(url.href).load();
             });
 
 

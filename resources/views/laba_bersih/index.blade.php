@@ -1,63 +1,34 @@
-@extends('layouts.app')
+@extends('layouts._new_admin')
 
+@section('title', 'Laporan Laba Bersih')
 
 @section('content')
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>Laporan Laba Kotor</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/">Home</a></li>
-                        <li class="breadcrumb-item active">Laba Kotor</li>
-                    </ol>
-                </div>
+    <div class="metrics-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                @if (Auth::user()->role == 'operator')
+                    <h2 class="card-title" style="margin: 0; font-size: 1.2rem;">
+                        {{ Auth::user()->operator->shop->kode . ' ' . Auth::user()->operator->shop->nama }}</h2>
+                @elseif(Auth::user()->role == 'admin')
+                    <h2 class="card-title" style="margin: 0; font-size: 1.2rem;">
+                        {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}</h2>
+                @else
+                    <select name="shop_id" class="form-control" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1); outline: none; background: #fff; cursor: pointer;">
+                        @foreach ($shops as $shop)
+                            <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
+                        @endforeach
+                    </select>
+                @endif
             </div>
         </div>
-    </section>
-
-    <section class="content">
-        <div class="container-fluid">
-            <div class="card card-primary card-outline">
-                <div class="card-header">
-                    <div class=" d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            @if (Auth::user()->role == 'operator')
-                                <h3 class="card-title mr-2">
-                                    {{ Auth::user()->operator->shop->kode . ' ' . Auth::user()->operator->shop->nama }}</h3>
-                            @elseif(Auth::user()->role == 'admin')
-                                <h3 class="card-title mr-2">
-                                    {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}</h3>
-                            @else
-                                <select name="shop_id" class="form-control mr-2" style="width: 200px">
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
-                                    @endforeach
-                                </select>
-                            @endif
-
-                        </div>
-                        {{-- <a href="" class="btn btn-primary"><i class="fa fa-plus mr-2"></i>Tambah
-                            Laporan Bulanan</a> --}}
-                    </div>
-
-                </div>
-                <div class="card-body">
-
-                    <div class="table-responsive-lg">
-                        <table id="table" class="table table-bordered">
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div class="table-responsive-lg">
+            <table id="table" class="table table-bordered" style="width: 100%;">
+            </table>
         </div>
-    </section>
+    </div>
 @endsection
 
-
-@push('script')
+@push('scripts')
     <script>
         $(document).ready(function() {
             var dataTable = $('#table').DataTable({

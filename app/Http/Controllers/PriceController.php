@@ -10,6 +10,19 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PriceController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            if (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->role == 'investor') {
+                $action = $request->route()->getActionMethod();
+                if (in_array($action, ['create', 'store', 'edit', 'update', 'destroy'])) {
+                    abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+                }
+            }
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -19,6 +32,8 @@ class PriceController extends Controller
             $query = Price::with('shop')->orderBy('effective_at', 'desc');
             if (Auth::user()->role == 'operator') {
                 $query->where('shop_id', Auth::user()->operator->shop_id);
+            } elseif (Auth::user()->role == 'investor') {
+                $query->whereIn('shop_id', Auth::user()->investor->shops->pluck('id'));
             }
             $data = $query->get();
 
@@ -28,7 +43,12 @@ class PriceController extends Controller
                     return $row->shop ? $row->shop->nama : null;
                 })
                 ->addColumn('action', function ($row) {
-                    $isOperator = Auth::user()->role == 'operator';
+                    $role = Auth::user()->role;
+                    if ($role == 'investor') {
+                        return '';
+                    }
+
+                    $isOperator = $role == 'operator';
                     $createdDate = \Carbon\Carbon::parse($row->created_at)->startOfDay();
                     $today = \Carbon\Carbon::now()->timezone('Asia/Jakarta')->startOfDay();
                     

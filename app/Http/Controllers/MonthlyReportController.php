@@ -18,7 +18,12 @@ class MonthlyReportController extends Controller
 {
     public function index()
     {
-        $reports = MonthlyReport::with('shop')->orderBy('created_at', 'desc')->get();
+        if (auth()->user()->role === 'investor' && auth()->user()->investor) {
+            $shopIds = auth()->user()->investor->shops->pluck('id')->toArray();
+            $reports = MonthlyReport::with('shop')->whereIn('shop_id', $shopIds)->orderBy('created_at', 'desc')->get();
+        } else {
+            $reports = MonthlyReport::with('shop')->orderBy('created_at', 'desc')->get();
+        }
         return view('monthly_reports.index', compact('reports'));
     }
 
@@ -84,6 +89,9 @@ class MonthlyReportController extends Controller
         $excel_penahanan_modal = null;
         $excel_laba_dibagi = null;
         $excel_investors = [];
+        $excel_operator_salaries = [];
+        $excel_thr = 0;
+        $excel_total_gaji = 0;
         $excel_bunga = 0;
         $excel_pajak = 0;
         $excel_rugi = 0;
@@ -216,6 +224,210 @@ class MonthlyReportController extends Controller
                         }
                     }
                 }
+
+                // Parse Gaji Sheet
+                $gajiSheet = null;
+                $debug_logs = [];
+                foreach ($spreadsheet->getAllSheets() as $sh) {
+                    $shTitle = strtolower($sh->getTitle());
+                    if (str_contains($shTitle, 'gaji') || str_contains($shTitle, 'slip')) {
+                        $gajiSheet = $sh;
+                        break;
+                    }
+                }
+                
+                // Fallback: Check sheet contents for Gaji keywords if not found by title
+                if (!$gajiSheet) {
+                    foreach ($spreadsheet->getAllSheets() as $sh) {
+                        $shTitle = strtolower($sh->getTitle());
+                        if (str_contains($shTitle, 'bkh') || str_contains($shTitle, 'buku kas')) continue; // Skip BKH
+                        
+                        $firstRows = $sh->toArray(null, true, false, false);
+                        foreach (array_slice($firstRows, 0, 30) as $r) {
+                            foreach ($r as $cv) {
+                                if (is_string($cv) && preg_match('/take home pay|fee penjualan|gaji pokok|total gaji/i', $cv)) {
+                                    $gajiSheet = $sh;
+                                    break 3;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if ($gajiSheet) {
+                    $rowsGaji = [];
+                    $highestColumn = $gajiSheet->getHighestColumn();
+                    $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+                    $highestRow = $gajiSheet->getHighestRow();
+
+                    for ($rowIndex = 1; $rowIndex <= $highestRow; $rowIndex++) {
+                        $rData = [];
+                        for ($colIndex = 1; $colIndex <= $highestColumnIndex; $colIndex++) {
+                            $colString = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                            $cell = $gajiSheet->getCell($colString . $rowIndex);
+                            $val = null;
+                            if ($cell) {
+                                $rawVal = $cell->getValue();
+                                if (is_string($rawVal) && str_starts_with($rawVal, '=')) {
+                                    $val = $cell->getOldCalculatedValue();
+                                    if ($val === null) {
+                                        try {
+                                            $val = $cell->getFormattedValue();
+                                        } catch (\Exception $e) {
+                                            $val = $cell->getCalculatedValue();
+                                        }
+                                    }
+                                } else {
+                                    try {
+                                        $val = $cell->getFormattedValue();
+                                    } catch (\Exception $e) {
+                                        $val = $cell->getCalculatedValue();
+                                    }
+                                }
+                            }
+                            $rData[] = $val;
+                        }
+                        $rowsGaji[] = $rData;
+                    }
+                    
+                    foreach ($rowsGaji as $r => $row) {
+                        foreach ($row as $c => $cell) {
+                            $val = strtolower(trim((string)$cell));
+                            
+                            // Parse THR and Total
+                            if (str_contains($val, 'total gaji karyawan') || str_contains($val, 'total gaji operator')) {
+                                for ($nr = $r; $nr <= min($r + 2, count($rowsGaji) - 1); $nr++) {
+                                    for ($nc = $c; $nc <= $c + 2; $nc++) {
+                                        if ($nr === $r && $nc === $c && !preg_match('/\d/', $val)) continue;
+                                        $cv = strtolower(trim((string)($rowsGaji[$nr][$nc] ?? '')));
+                                        if (preg_match('/(?:rp)?\s*([\d\.,]+)/i', $cv, $m)) {
+                                            $v = $this->parseFlexibleNumber($m[1]);
+                                            if ($v > 0) { $excel_total_gaji = $v; break 2; }
+                                        }
+                                    }
+                                }
+                            }
+                            if ($val === 'thr') {
+                                for ($nr = $r; $nr <= min($r + 2, count($rowsGaji) - 1); $nr++) {
+                                    for ($nc = $c; $nc <= $c + 2; $nc++) {
+                                        if ($nr === $r && $nc === $c && !preg_match('/\d/', $val)) continue;
+                                        $cv = strtolower(trim((string)($rowsGaji[$nr][$nc] ?? '')));
+                                        if (preg_match('/(?:rp)?\s*([\d\.,]+)/i', $cv, $m)) {
+                                            $v = $this->parseFlexibleNumber($m[1]);
+                                            if ($v > 0) { $excel_thr = $v; break 2; }
+                                        }
+                                    }
+                                }
+                            }
+            
+                            // Parse Operator
+                            if (str_starts_with($val, 'nama')) {
+                                $nameCellLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($c + 1);
+                                $nameCellAddr = $nameCellLetter . ($r + 1);
+                                
+                                $nameVal = trim(substr((string)$cell, 4));
+                                $nameVal = ltrim($nameVal, ': ');
+                                if ($nameVal === '') {
+                                    for ($k = $c+1; $k <= $c+5; $k++) {
+                                        $v = trim((string)($row[$k] ?? ''));
+                                        if ($v !== '' && $v !== ':') {
+                                            $nameVal = $v;
+                                            $nameCellAddr = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($k + 1) . ($r + 1);
+                                            break;
+                                        }
+                                    }
+                                }
+                                if ($nameVal !== '' && !preg_match('/rp|liter|hk|\d/i', $nameVal)) {
+                                    $debug_logs[] = "Menemukan Nama Operator: $nameVal di cell $nameCellAddr";
+                                    $op = [
+                                        'operator_nama' => $nameVal,
+                                        'total_penjualan_b' => 0,
+                                        'losses_c' => 0,
+                                        'penjualan_losses_d' => 0,
+                                        'hari_jaga' => $daysInMonth,
+                                        'gaji' => 0
+                                    ];
+                                    
+                                    $hasHK = false;
+                                    $foundGrandTotal = false;
+                                    // Scan bounding box
+                                    $literCellAddr = 'Tidak Ditemukan';
+                                    $gajiCellAddr = 'Tidak Ditemukan';
+                                    $rawLiterString = '';
+                                    $rawGajiString = '';
+                                    for ($nr = $r; $nr <= min($r + 50, count($rowsGaji)-1); $nr++) {
+                                        $rowStrBox = '';
+                                        for ($nc = max(0, $c-2); $nc <= $c+12; $nc++) {
+                                            $rowStrBox .= ' ' . trim((string)($rowsGaji[$nr][$nc] ?? ''));
+                                        }
+                                        $rowStrBoxLow = strtolower($rowStrBox);
+                                        
+                                        if (str_contains($rowStrBoxLow, 'gaji bulanan') || str_contains($rowStrBoxLow, 'fee penjualan')) {
+                                            if (preg_match('/\(\s*([-\d\.,]+)\s*\)/i', $rowStrBox, $m)) {
+                                                $liter = $this->parseFlexibleNumber($m[1]);
+                                                $op['total_penjualan_b'] = $liter;
+                                                $op['penjualan_losses_d'] = $liter;
+                                                if (stripos($rowStrBoxLow, 'hk') !== false) {
+                                                    $op['hari_jaga'] = $liter;
+                                                    $hasHK = true;
+                                                }
+                                            }
+                                        }
+                                        if (str_contains($rowStrBoxLow, 'tidak masuk')) {
+                                            if (preg_match('/(?:0|:\s*(\d+))\s*hari/i', $rowStrBox, $m)) {
+                                                $tm = isset($m[1]) && $m[1] !== '' ? (int)$m[1] : 0;
+                                                if (!$hasHK) {
+                                                    $op['hari_jaga'] = $daysInMonth - $tm; 
+                                                }
+                                            }
+                                        }
+                                        // Update to support 'Take Home Pay' and 'GRAND TOTAL TAKE HOME PAY', and handle negative '(123)' or '-123'
+                                        if (str_contains($rowStrBoxLow, 'take home pay') || str_contains($rowStrBoxLow, 'grand total')) {
+                                            if (preg_match('/(?:take home pay|grand total)[^0-9\-\(]*([-\(\d\.,]+)/i', $rowStrBox, $m)) {
+                                                $val = $this->parseFlexibleNumber($m[1]);
+                                                $op['gaji'] = $val;
+                                                $foundGrandTotal = true;
+                                                if (str_contains($rowStrBoxLow, 'grand total')) {
+                                                    break; // If we found the grand total, it's the final one, so break.
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if ($foundGrandTotal) {
+                                        $debug_logs[] = "  -> BERHASIL PARSING!";
+                                        $debug_logs[] = "  -> Liter: {$op['total_penjualan_b']} (Dari $literCellAddr). Raw String: '$rawLiterString'";
+                                        $debug_logs[] = "  -> Gaji: Rp {$op['gaji']} (Dari $gajiCellAddr). Raw String: '$rawGajiString'";
+                                        $exists = false;
+                                        foreach ($excel_operator_salaries as $existing) {
+                                            if ($existing['operator_nama'] === $op['operator_nama']) {
+                                                $exists = true; break;
+                                            }
+                                        }
+                                        if (!$exists) {
+                                            $excel_operator_salaries[] = $op;
+                                        }
+                                    } else {
+                                        $debug_logs[] = "  -> GAGAL PARSING: Tidak menemukan nilai untuk 'GRAND TOTAL TAKE HOME PAY'.";
+                                        $debug_logs[] = "  -> Info Terakhir -> Liter: {$op['total_penjualan_b']} (Dari $literCellAddr). Raw String Liter: '$rawLiterString'";
+                                        $debug_logs[] = "  -> Info Terakhir -> Raw String Gaji yang sempat terlihat: '$rawGajiString'";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Calculate but do not enforce validation since 'Total Gaji Karyawan' in Excel is unreliable
+                    if (count($excel_operator_salaries) > 0) {
+                        $sumGaji = 0;
+                        foreach ($excel_operator_salaries as $op) {
+                            $sumGaji += $op['gaji'];
+                        }
+                    }
+                }
+                
+                \Log::info("DEBUG LOGS GAJI PARSER:", $debug_logs);
+                \Log::info("PARSED OPERATORS:", $excel_operator_salaries);
 
                 // Parse Rekap Modal Sheet (Find by title containing 'rekap' and 'modal')
                 $rekapModalSheet = null;
@@ -436,29 +648,46 @@ class MonthlyReportController extends Controller
                     $rowIndex = 0;
                     $previous_hj = null;
                     $previous_hb = null;
+                    $bkhLogged = false;
+                    
+                    $offset = 0;
+                    $headerRow = $rows[1] ?? [];
+                    $header0 = strtolower(trim($headerRow[0] ?? ''));
+                    $header1 = strtolower(trim($headerRow[1] ?? ''));
+                    $header2 = strtolower(trim($headerRow[2] ?? ''));
+                    
+                    if (str_contains($header1, 'tgl') || str_contains($header1, 'tanggal')) {
+                        $offset = 1;
+                    } elseif (str_contains($header2, 'tgl') || str_contains($header2, 'tanggal')) {
+                        $offset = 2;
+                    }
+                    
                     foreach ($rows as $r) {
                         $rowIndex++;
                         if ($rowIndex <= 2) continue;
                         
-                        $tgl_str = trim($r[1] ?? '');
-                        if (empty($tgl_str) || !is_numeric($tgl_str)) {
-                            $tgl_str = trim($r[0] ?? '');
-                        }
+                        $tgl_str = trim($r[$offset] ?? '');
                         if (empty($tgl_str) || !is_numeric($tgl_str)) continue;
                         
                         $day = intval($tgl_str);
                         if ($day < 1 || $day > 31) continue;
                         
+                        if (!$bkhLogged) {
+                            \Log::info("BKH FIRST DATA ROW (Index $rowIndex):", $r);
+                            \Log::info("Tgl: $tgl_str, Offset detected: $offset");
+                            $bkhLogged = true;
+                        }
+                        
                         $currentDate = $monthYearParsed->copy()->setDay($day);
                         
-                        $vol_teoritis = $this->parseFlexibleNumber($r[5] ?? 0);
-                        $rp_teoritis = $this->parseFlexibleNumber($r[6] ?? 0);
-                        $tp_vol = $this->parseFlexibleNumber($r[7] ?? 0);
-                        $stok_awal = $this->parseFlexibleNumber($r[13] ?? 0);
-                        $terima_bbm = $this->parseFlexibleNumber($r[15] ?? 0);
-                        $stok_akhir = $this->parseFlexibleNumber($r[18] ?? 0);
-                        $losses_vol = $this->parseFlexibleNumber($r[19] ?? 0);
-                        $losses_rp = $this->parseFlexibleNumber($r[20] ?? 0);
+                        $vol_teoritis = $this->parseFlexibleNumber($r[5 + $offset] ?? 0);
+                        $rp_teoritis = $this->parseFlexibleNumber($r[6 + $offset] ?? 0);
+                        $tp_vol = $this->parseFlexibleNumber($r[7 + $offset] ?? 0);
+                        $stok_awal = $this->parseFlexibleNumber($r[13 + $offset] ?? 0);
+                        $terima_bbm = $this->parseFlexibleNumber($r[15 + $offset] ?? 0);
+                        $stok_akhir = $this->parseFlexibleNumber($r[18 + $offset] ?? 0);
+                        $losses_vol = $this->parseFlexibleNumber($r[19 + $offset] ?? 0);
+                        $losses_rp = $this->parseFlexibleNumber($r[20 + $offset] ?? 0);
                         
                         if ($vol_teoritis <= 0 && $previous_hj !== null && $previous_hj > 0) {
                             $hj = $previous_hj;
@@ -497,15 +726,15 @@ class MonthlyReportController extends Controller
                         $rep->shop_id = $shop->id;
                         $rep->operator_id = $operator_id;
                         $rep->price_id = $dbPrice->id;
-                        $rep->totalisator_awal = $this->parseFlexibleNumber($r[3] ?? 0);
-                        $rep->totalisator_akhir = $this->parseFlexibleNumber($r[4] ?? 0);
+                        $rep->totalisator_awal = $this->parseFlexibleNumber($r[3 + $offset] ?? 0);
+                        $rep->totalisator_akhir = $this->parseFlexibleNumber($r[4 + $offset] ?? 0);
                         $rep->test_pump_volume = $tp_vol;
                         $rep->penerimaan_volume = $terima_bbm;
                         $rep->stik_akhir = $stok_akhir / $shop->skala;
                         $rep->stok_awal = $stok_awal;
-                        $rep->setor_tunai = $this->parseFlexibleNumber($r[37] ?? 0);
-                        $rep->setor_qris = $this->parseFlexibleNumber($r[38] ?? 0);
-                        $rep->setor_transfer = $this->parseFlexibleNumber($r[39] ?? 0);
+                        $rep->setor_tunai = $this->parseFlexibleNumber($r[37 + $offset] ?? 0);
+                        $rep->setor_qris = $this->parseFlexibleNumber($r[38 + $offset] ?? 0);
+                        $rep->setor_transfer = $this->parseFlexibleNumber($r[39 + $offset] ?? 0);
                         $rep->diverifikasi = 1;
                         $rep->created_at = $currentDate;
                         $rep->updated_at = $currentDate;
@@ -518,14 +747,14 @@ class MonthlyReportController extends Controller
                         $rep->losses_gain_rp_excel = $losses_rp;
                         $rep->volume_penjualan_teoritis_excel = $vol_teoritis;
                         $rep->rupiah_penjualan_teoritis_excel = $rp_teoritis;
-                        $rep->belum_disetorkan_excel = $this->parseFlexibleNumber($r[41] ?? 0);
+                        $rep->belum_disetorkan_excel = $this->parseFlexibleNumber($r[41 + $offset] ?? 0);
                         
                         $rep->setRelation('price', $dbPrice);
                         $rep->setRelation('shop', $shop);
                         $rep->setRelation('operator', $op);
                         
                         $spendings = collect();
-                        $bongkar = $this->parseFlexibleNumber($r[24] ?? 0);
+                        $bongkar = $this->parseFlexibleNumber($r[24 + $offset] ?? 0);
                         if ($bongkar > 0) {
                             $sp = new Spending(['spending_category_id' => 1, 'jumlah' => $bongkar, 'keterangan' => 'Bongkar', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -533,7 +762,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $tf = $this->parseFlexibleNumber($r[25] ?? 0);
+                        $tf = $this->parseFlexibleNumber($r[25 + $offset] ?? 0);
                         if ($tf > 0) {
                             $sp = new Spending(['spending_category_id' => 2, 'jumlah' => $tf, 'keterangan' => 'TF', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -541,7 +770,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $atk = $this->parseFlexibleNumber($r[26] ?? 0);
+                        $atk = $this->parseFlexibleNumber($r[26 + $offset] ?? 0);
                         if ($atk > 0) {
                             $sp = new Spending(['spending_category_id' => 3, 'jumlah' => $atk, 'keterangan' => 'ATK', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -549,7 +778,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $listrik = $this->parseFlexibleNumber($r[27] ?? 0);
+                        $listrik = $this->parseFlexibleNumber($r[27 + $offset] ?? 0);
                         if ($listrik > 0) {
                             $sp = new Spending(['spending_category_id' => 4, 'jumlah' => $listrik, 'keterangan' => 'Listrik', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -557,7 +786,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $air = $this->parseFlexibleNumber($r[28] ?? 0);
+                        $air = $this->parseFlexibleNumber($r[28 + $offset] ?? 0);
                         if ($air > 0) {
                             $sp = new Spending(['spending_category_id' => 5, 'jumlah' => $air, 'keterangan' => 'Air', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -565,7 +794,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $cashback = $this->parseFlexibleNumber($r[29] ?? 0);
+                        $cashback = $this->parseFlexibleNumber($r[29 + $offset] ?? 0);
                         if ($cashback > 0) {
                             $sp = new Spending(['spending_category_id' => 6, 'jumlah' => $cashback, 'keterangan' => 'Cashback', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -573,7 +802,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $internet = $this->parseFlexibleNumber($r[30] ?? 0);
+                        $internet = $this->parseFlexibleNumber($r[30 + $offset] ?? 0);
                         if ($internet > 0) {
                             $sp = new Spending(['spending_category_id' => 7, 'jumlah' => $internet, 'keterangan' => 'Internet', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -581,7 +810,7 @@ class MonthlyReportController extends Controller
                             $sp->save();
                             $spendings->push($sp);
                         }
-                        $lainnya = $this->parseFlexibleNumber($r[31] ?? 0);
+                        $lainnya = $this->parseFlexibleNumber($r[31 + $offset] ?? 0);
                         if ($lainnya > 0) {
                             $sp = new Spending(['spending_category_id' => 99, 'jumlah' => $lainnya, 'keterangan' => 'Lain-lain', 'shop_id' => $shop->id, 'operator_id' => $operator_id, 'daily_report_id' => $rep->id]);
                             $sp->created_at = $currentDate;
@@ -828,27 +1057,31 @@ class MonthlyReportController extends Controller
 
         // 3. Operator Salary Calculation: D * 200
         $operatorSalaries = [];
-        foreach ($dailyReports as $report) {
-            $opName = 'Tester Excel';
-            if ($report->operator && $report->operator->user) {
-                $opName = $report->operator->user->name;
+        if ($isExcel && !empty($excel_operator_salaries)) {
+            $operatorSalaries = $excel_operator_salaries;
+        } else {
+            foreach ($dailyReports as $report) {
+                $opName = 'Tester Excel';
+                if ($report->operator && $report->operator->user) {
+                    $opName = $report->operator->user->name;
+                }
+                if (!isset($operatorSalaries[$opName])) {
+                    $operatorSalaries[$opName] = [
+                        'operator_nama' => $opName,
+                        'hari_jaga' => 0,
+                        'total_penjualan_b' => 0,
+                        'losses_c' => 0,
+                        'penjualan_losses_d' => 0
+                    ];
+                }
+                $operatorSalaries[$opName]['hari_jaga'] += 1;
+                $operatorSalaries[$opName]['total_penjualan_b'] += floatval($isExcel ? ($report->volume_penjualan_teoritis_excel - $report->test_pump_volume) : $report->volume_penjualan_aktual);
+                $operatorSalaries[$opName]['losses_c'] += floatval($isExcel ? $report->losses_gain_excel : $report->losses_gain);
             }
-            if (!isset($operatorSalaries[$opName])) {
-                $operatorSalaries[$opName] = [
-                    'operator_nama' => $opName,
-                    'hari_jaga' => 0,
-                    'total_penjualan_b' => 0,
-                    'losses_c' => 0,
-                    'penjualan_losses_d' => 0
-                ];
+            foreach ($operatorSalaries as $key => $op) {
+                $operatorSalaries[$key]['penjualan_losses_d'] = $op['total_penjualan_b'] + $op['losses_c'];
+                $operatorSalaries[$key]['gaji'] = $operatorSalaries[$key]['penjualan_losses_d'] * 200;
             }
-            $operatorSalaries[$opName]['hari_jaga'] += 1;
-            $operatorSalaries[$opName]['total_penjualan_b'] += floatval($isExcel ? ($report->volume_penjualan_teoritis_excel - $report->test_pump_volume) : $report->volume_penjualan_aktual);
-            $operatorSalaries[$opName]['losses_c'] += floatval($isExcel ? $report->losses_gain_excel : $report->losses_gain);
-        }
-        foreach ($operatorSalaries as $key => $op) {
-            $operatorSalaries[$key]['penjualan_losses_d'] = $op['total_penjualan_b'] + $op['losses_c'];
-            $operatorSalaries[$key]['gaji'] = $operatorSalaries[$key]['penjualan_losses_d'] * 200;
         }
 
         // 4. Extra Spendings from Request
@@ -964,6 +1197,8 @@ class MonthlyReportController extends Controller
 
         $structuredData = [
             'operator_salaries' => array_values($operatorSalaries),
+            'thr' => $excel_thr,
+            'total_gaji_karyawan_excel' => $excel_total_gaji,
             'segments' => $segments,
             'daily_data' => $dataParsed,
             'pengeluaran_extra' => $pengeluaranExtra,
@@ -1309,5 +1544,45 @@ class MonthlyReportController extends Controller
         }
         
         return $results;
+    }
+
+    /**
+     * Generate Laporan Bulanan otomatis dari data DailyReports tanpa perlu upload Excel.
+     */
+    public function generateFromDailyReports(Request $request)
+    {
+        $request->validate([
+            'shop_id'    => 'required|exists:shops,id',
+            'year_month' => 'required|date_format:Y-m',
+        ]);
+
+        try {
+            $report = (new \App\Actions\GenerateMonthlyReport)->handle(
+                (int) $request->shop_id,
+                $request->year_month
+            );
+
+            return redirect()->route('monthly-reports.show', $report->id)
+                ->with('success', 'Laporan bulanan berhasil digenerate otomatis dari Laporan Harian!');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal generate laporan: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Export Laporan Bulanan ke PDF profesional siap kirim.
+     */
+    public function exportPdf($id)
+    {
+        $report = MonthlyReport::with(['shop.investors.user'])->findOrFail($id);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.monthly_report', compact('report'))
+            ->setPaper('a4', 'landscape');
+
+        $shopSlug = \Illuminate\Support\Str::slug($report->shop->nama ?? 'pertashop');
+        $dateSlug = \Illuminate\Support\Str::slug($report->bulan_tahun);
+        $filename = "Laporan_Bulanan_{$shopSlug}_{$dateSlug}.pdf";
+
+        return $pdf->download($filename);
     }
 }

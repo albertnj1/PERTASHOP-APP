@@ -14,62 +14,20 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
+        if (Auth::user()->role == 'admin') {
+            $shop_id = Auth::user()->admin?->shop_id;
+        } elseif (Auth::user()->role == 'operator') {
+            $shop_id = Auth::user()->operator?->shop_id;
+        } else {
+            $shop_id = $request->input('shop_id');
+        }
+
+        $time_filter = $request->input('filter', 'month');
+
+        $dashboardData = $this->getDashboardData($shop_id, $time_filter);
 
         if ($request->ajax()) {
-            if (Auth::user()->role == 'admin') {
-                $shop_id = Auth::user()->admin->shop_id;
-            } elseif (Auth::user()->role == 'operator') {
-                $shop_id = Auth::user()->operator->shop_id;
-            } else {
-                $shop_id = $request->input('shop_id');
-            }
-
-            $time_filter = $request->input('filter');
-
-            $sales = $this->getSales($shop_id, $time_filter);
-
-            $stocks = $this->getStocks($shop_id);
-
-            $summaries = $this->getSummaries($shop_id);
-
-            $total_penjualan_bersih_rp = 0;
-            $total_pembelian_rp = 0;
-            $total_laba_kotor = 0;
-            $total_volume = 0;
-            $total_losses_gain_vol = 0;
-            $total_losses_gain_rp = 0;
-            $total_laba_bersih = 0;
-            $total_investor_share = 0;
-            $total_corporate_share = 0;
-
-            foreach ($summaries as $summary) {
-                $total_penjualan_bersih_rp += $summary['jumlah_penjualan_bersih_rp'] ?? 0;
-                $total_pembelian_rp += $summary['jumlah_pembelian_rp'] ?? 0;
-                $total_laba_kotor += $summary['laba_kotor'] ?? 0;
-                $total_volume += $summary['jumlah_penjualan'] ?? 0;
-                $total_losses_gain_vol += $summary['total_losses_gain_vol'] ?? 0;
-                $total_losses_gain_rp  += $summary['total_losses_gain_rp']  ?? 0;
-                $total_laba_bersih     += $summary['laba_bersih']     ?? 0;
-                $total_investor_share  += $summary['investor_share']  ?? 0;
-                $total_corporate_share += $summary['corporate_share'] ?? 0;
-            }
-
-            return response()->json([
-                'stocks' => $stocks,
-                'sales' => $sales,
-                'summaries' => $summaries,
-                'totals' => [
-                    'penjualan_bersih'   => $total_penjualan_bersih_rp,
-                    'pembelian'          => $total_pembelian_rp,
-                    'laba_kotor'         => $total_laba_kotor,
-                    'volume'             => $total_volume,
-                    'losses_gain_vol'    => $total_losses_gain_vol,
-                    'losses_gain_rp'     => $total_losses_gain_rp,
-                    'laba_bersih'        => $total_laba_bersih,
-                    'investor_share'     => $total_investor_share,
-                    'corporate_share'    => $total_corporate_share,
-                ]
-            ]);
+            return response()->json($dashboardData);
         }
 
         $reports = LabaKotorController::getLabaKotor(1);
@@ -84,12 +42,31 @@ class DashboardController extends Controller
             'reports' => $reports,
             'shops' => $shops,
             'recent_reports' => $recent_reports,
-            'suppliers' => $suppliers
+            'suppliers' => $suppliers,
+            'initial_dashboard' => $dashboardData,
         ];
 
         if (Auth::user()->role === 'operator') {
-            $operator_id = Auth::user()->operator->id;
-            $shop_id = Auth::user()->operator->shop_id;
+            $operator = Auth::user()->operator;
+            if (!$operator) {
+                return view('dashboard.operator', [
+                    'stok_akhir' => 0,
+                    'totalisator_akhir' => 0,
+                    'harga_jual' => 0,
+                    'volume_penjualan' => 0,
+                    'rupiah_penjualan' => 0,
+                    'belum_disetorkan' => 0,
+                    'total_setor_kolektan' => 0,
+                    'estimasi_gaji_kotor' => 0,
+                    'estimasi_kurang_setoran' => 0,
+                    'estimasi_thp' => 0,
+                    'saldo_tabungan' => 0,
+                    'monthlySalesChart' => ['labels' => [], 'data' => []],
+                    'data' => $data,
+                ]);
+            }
+            $operator_id = $operator->id;
+            $shop_id = $operator->shop_id;
             $latest_report = DailyReport::where('shop_id', $shop_id)->latest()->first();
             $latest_incoming = \App\Models\Incoming::where('shop_id', $shop_id)->latest()->first();
             
@@ -123,7 +100,61 @@ class DashboardController extends Controller
             
             $harga_jual = $active_price ? $active_price->harga_jual : 0;
 
-            return view('dashboard.operator', compact('belum_disetorkan', 'stok_akhir', 'totalisator_akhir', 'volume_penjualan', 'rupiah_penjualan', 'harga_jual', 'total_setor_kolektan', 'data'));
+            // Fitur 3: Estimasi Gaji Bulan Ini (Real-time Live Progress)
+            $payrollSystem = \App\Models\PayrollSystem::where('shop_id', $shop_id)->where('aktif', true)->first();
+            $estimasi_gaji_kotor = 0;
+            $estimasi_kurang_setoran = 0;
+            $estimasi_thp = 0;
+
+            if ($payrollSystem) {
+                $month = Carbon::now()->month;
+                $year  = Carbon::now()->year;
+
+                $opDailyReports = DailyReport::where('shop_id', $shop_id)
+                    ->where('operator_id', $operator_id)
+                    ->whereMonth('created_at', $month)
+                    ->whereYear('created_at', $year)
+                    ->get();
+
+                $totalVolAktual = $opDailyReports->sum('volume_penjualan_aktual');
+                $estimasi_kurang_setoran = abs($opDailyReports->filter(fn($dr) => $dr->selisih_setoran < 0)->sum('selisih_setoran'));
+
+                $ratePerLiter = $payrollSystem->ada_rate_per_liter ? floatval($payrollSystem->rate_per_liter) : 0.0;
+                $gajiVariable = round($totalVolAktual * $ratePerLiter, 2);
+
+                if ($payrollSystem->metode_split === 'flat_bulanan_prorata_hari') {
+                    $hariKerjaAktual = $opDailyReports->count();
+                    $standar = $payrollSystem->standar_hari_kerja ?: 26;
+                    $gajiPokokNominal = $payrollSystem->ada_gaji_pokok ? floatval($payrollSystem->nominal_gaji_pokok) : 0.0;
+                    $rateHarian = $standar > 0 ? ($gajiPokokNominal / $standar) : 0;
+                    $gajiPokok = round($rateHarian * $hariKerjaAktual, 2);
+                } else {
+                    $gajiPokok = $payrollSystem->ada_gaji_pokok ? floatval($payrollSystem->nominal_gaji_pokok) : 0.0;
+                }
+
+                $estimasi_gaji_kotor = $gajiPokok + $gajiVariable;
+                $estimasi_thp = round($estimasi_gaji_kotor - $estimasi_kurang_setoran, 2);
+            }
+
+            // Fitur 2: Saldo Tabungan Berjalan
+            $totalSetoranTabungan = \App\Models\EmployeeSavings::where('operator_id', $operator_id)->where('jenis', 'setoran')->sum('jumlah');
+            $totalPengambilanTabungan = \App\Models\EmployeeSavings::where('operator_id', $operator_id)->where('jenis', 'pengambilan')->sum('jumlah');
+            $saldo_tabungan = max(0, $totalSetoranTabungan - $totalPengambilanTabungan);
+
+            return view('dashboard.operator', compact(
+                'belum_disetorkan',
+                'stok_akhir',
+                'totalisator_akhir',
+                'volume_penjualan',
+                'rupiah_penjualan',
+                'harga_jual',
+                'total_setor_kolektan',
+                'estimasi_gaji_kotor',
+                'estimasi_kurang_setoran',
+                'estimasi_thp',
+                'saldo_tabungan',
+                'data'
+            ));
         }
         return view('dashboard.index', $data);
     }
@@ -132,7 +163,7 @@ class DashboardController extends Controller
     {
         $shops = Shop::query();
 
-        if (\Illuminate\Support\Facades\Auth::user()->role === 'investor') {
+        if (\Illuminate\Support\Facades\Auth::user()?->role === 'investor') {
             $shopIds = \Illuminate\Support\Facades\Auth::user()->investor->shops->pluck('id');
             $shops->whereIn('id', $shopIds);
         }
@@ -152,13 +183,19 @@ class DashboardController extends Controller
 
             // --- Active Price (shop-specific first, then global fallback) ---
             $activePrice = Price::where('shop_id', $shop->id)
-                ->where('effective_at', '<=', \Carbon\Carbon::now())
-                ->orderBy('effective_at', 'desc')
+                ->where(function($q) {
+                    $q->whereNull('effective_at')->orWhere('effective_at', '<=', \Carbon\Carbon::now());
+                })
+                ->orderByRaw('COALESCE(effective_at, created_at) DESC')
+                ->orderBy('id', 'desc')
                 ->first();
             if (!$activePrice) {
                 $activePrice = Price::whereNull('shop_id')
-                    ->where('effective_at', '<=', \Carbon\Carbon::now())
-                    ->orderBy('effective_at', 'desc')
+                    ->where(function($q) {
+                        $q->whereNull('effective_at')->orWhere('effective_at', '<=', \Carbon\Carbon::now());
+                    })
+                    ->orderByRaw('COALESCE(effective_at, created_at) DESC')
+                    ->orderBy('id', 'desc')
                     ->first();
             }
             $summary['harga_jual_aktif']  = $activePrice ? $activePrice->harga_jual  : 0;
@@ -168,8 +205,8 @@ class DashboardController extends Controller
             // --- Gain / Losses: sum from getLabaKotor segments ---
             $labaKotorData = LabaKotorController::getLabaKotor($shop->id, $currentYearMonth);
             $total_losses_gain_vol  = $labaKotorData->sum('losses_gain');
-            $summary['total_losses_gain_vol'] = $labaKotorData->sum(fn($r) => ($r['sisa_stok_akhir'] - $r['sisa_stok']));
-            $summary['total_losses_gain_rp']  = $total_losses_gain_vol * ($activePrice ? $activePrice->harga_beli : 0);
+            $summary['total_losses_gain_vol'] = $total_losses_gain_vol;
+            $summary['total_losses_gain_rp']  = $labaKotorData->sum('beban_losses_rp') - $labaKotorData->sum('pendapatan_gain_rp');
 
             // --- Profit Sharing summary ---
             try {
@@ -198,10 +235,75 @@ class DashboardController extends Controller
                 ->whereYear('created_at', \Carbon\Carbon::now()->year)
                 ->sum('setor_kolektan');
 
+            $summary['sudah_disetorkan'] = \App\Models\DailyReport::where('shop_id', $shop->id)
+                ->whereMonth('created_at', \Carbon\Carbon::now()->month)
+                ->whereYear('created_at', \Carbon\Carbon::now()->year)
+                ->get()
+                ->sum('disetorkan');
+
             $data[$index] = $summary;
         }
 
         return $data;
+    }
+
+    private function getDashboardData($shop_id, $time_filter)
+    {
+        $cacheKey = 'dashboard_data_' . ($shop_id ?: 'all') . '_' . $time_filter;
+
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($shop_id, $time_filter) {
+            $sales = $this->getSales($shop_id, $time_filter);
+            $stocks = $this->getStocks($shop_id);
+            $summaries = $this->getSummaries($shop_id);
+
+            $total_penjualan_bersih_rp = 0;
+            $total_pembelian_rp = 0;
+            $total_laba_kotor = 0;
+            $total_volume = 0;
+            $total_losses_gain_vol = 0;
+            $total_losses_gain_rp = 0;
+            $total_laba_bersih = 0;
+            $total_investor_share = 0;
+            $total_corporate_share = 0;
+            $total_belum_disetorkan = 0;
+            $total_sudah_disetorkan = 0;
+            $total_setor_kolektan = 0;
+
+            foreach ($summaries as $summary) {
+                $total_penjualan_bersih_rp += $summary['jumlah_penjualan_bersih_rp'] ?? 0;
+                $total_pembelian_rp += $summary['jumlah_pembelian_rp'] ?? 0;
+                $total_laba_kotor += $summary['laba_kotor'] ?? 0;
+                $total_volume += $summary['jumlah_penjualan'] ?? 0;
+                $total_losses_gain_vol += $summary['total_losses_gain_vol'] ?? 0;
+                $total_losses_gain_rp  += $summary['total_losses_gain_rp']  ?? 0;
+                $total_laba_bersih     += $summary['laba_bersih']     ?? 0;
+                $total_investor_share  += $summary['investor_share']  ?? 0;
+                $total_corporate_share += $summary['corporate_share'] ?? 0;
+                $total_belum_disetorkan+= $summary['belum_disetorkan'] ?? 0;
+                $total_sudah_disetorkan+= $summary['sudah_disetorkan'] ?? 0;
+                $total_setor_kolektan  += $summary['total_setor_kolektan'] ?? 0;
+            }
+
+            return [
+                'stocks' => $stocks,
+                'sales' => $sales,
+                'summaries' => $summaries,
+                'totals' => [
+                    'penjualan_bersih'   => $total_penjualan_bersih_rp,
+                    'pembelian'          => $total_pembelian_rp,
+                    'laba_kotor'         => $total_laba_kotor,
+                    'volume'             => $total_volume,
+                    'losses_gain_vol'    => $total_losses_gain_vol,
+                    'losses_gain_rp'     => $total_losses_gain_rp,
+                    'laba_bersih'        => $total_laba_bersih,
+                    'investor_share'     => $total_investor_share,
+                    'corporate_share'    => $total_corporate_share,
+                    'belum_disetorkan'   => $total_belum_disetorkan,
+                    'sudah_disetorkan'   => $total_sudah_disetorkan,
+                    'setor_kolektan'     => $total_setor_kolektan,
+                ]
+            ];
+        });
     }
 
     protected function getStocks($shop_id)

@@ -1,1 +1,0 @@
-<?php require __DIR__.'/vendor/autoload.php';  = require_once __DIR__.'/bootstrap/app.php'; ->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); \Illuminate\Support\Facades\Auth::loginUsingId(14);  = \Illuminate\Support\Facades\Auth::user()->investor->shops->pluck('id');  = \App\Models\Shop::query(); ->whereIn('id', ); echo json_encode(->get()->pluck('nama'));

@@ -87,8 +87,10 @@
                             @endif
 
                         </div>
+                        @if(Auth::user()->role !== 'investor')
                         <a href="{{ route('operators.create') }}" class="btn btn-primary"><i
                                 class="fa fa-plus mr-2"></i>Tambah Operator</a>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
@@ -119,8 +121,11 @@
                     },
                     {
                         title: 'Nama',
-                        data: 'user.name',
+                        data: 'user',
                         name: 'user.name',
+                        render: function(data) {
+                            return data ? data.name : '-';
+                        }
                     },
                     {
                         title: 'Alamat',
@@ -129,8 +134,11 @@
                     },
                     {
                         title: 'Pertashop',
-                        data: 'shop.nama',
+                        data: 'shop',
                         name: 'shop.nama',
+                        render: function(data) {
+                            return data ? data.nama : '-';
+                        }
                     },
                     {
                         title: 'Status',
