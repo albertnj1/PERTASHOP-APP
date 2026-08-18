@@ -1,0 +1,7 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/digitale5/sal-pertashop/
+    - /bin/cp -R * $DEPLOYPATH
+    - export PUBLICPATH=/home/digitale5/public_html/
+    - /bin/cp -R public/* $PUBLICPATH
