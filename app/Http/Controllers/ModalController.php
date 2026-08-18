@@ -16,14 +16,36 @@ class ModalController extends Controller
 
     public function index(Request $request)
     {
-
         if ($request->ajax()) {
-            $shop_id = $request->input('shop_id', 1);
+            $shop_id = $request->input('shop_id');
 
-            $salesQuery = \Illuminate\Support\Facades\DB::table('daily_reports')
+            if (Auth::user()->role == 'investor') {
+                $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
+                if (!$shop_id || !in_array($shop_id, $investor_shops)) {
+                    $shop_id = reset($investor_shops) ?: 1;
+                }
+            } elseif (Auth::user()->role == 'admin') {
+                $shop_id = Auth::user()->admin?->shop_id ?? $shop_id ?? 1;
+            } else {
+                $shop_id = $shop_id ?: (Shop::first()?->id ?: 1);
+            }
+
+            $subDaily = \Illuminate\Support\Facades\DB::table('daily_reports')
                 ->where('shop_id', $shop_id)
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan")
-                ->groupBy('bulan');
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan");
+
+            $subMonthly = \Illuminate\Support\Facades\DB::table('monthly_reports')
+                ->where('shop_id', $shop_id)
+                ->selectRaw("bulan_tahun as bulan");
+
+            $subRecap = \Illuminate\Support\Facades\DB::table('capital_recaps')
+                ->where('shop_id', $shop_id)
+                ->selectRaw("CONCAT(tahun, '-', LPAD(bulan, 2, '0')) as bulan");
+
+            $salesQuery = \Illuminate\Support\Facades\DB::query()->fromSub(
+                $subDaily->union($subMonthly)->union($subRecap),
+                'unique_months'
+            )->select('bulan')->groupBy('bulan');
 
             $dt = DataTables::of($salesQuery)->addIndexColumn();
 
@@ -42,10 +64,13 @@ class ModalController extends Controller
             foreach ($response['data'] as &$row) {
                 list($year, $month) = explode('-', $row['bulan']);
                 $recap = \App\Models\CapitalRecap::where('shop_id', $shop_id)
-                         ->where('tahun', $year)
-                         ->where('bulan', $month)->first();
+                         ->where('tahun', (int)$year)
+                         ->where('bulan', (int)$month)->first();
                          
-                $row['modal_akhir'] = $recap ? $recap->posisi_akhir_modal : 0;
+                $monthlyRep = \App\Models\MonthlyReport::where('shop_id', $shop_id)
+                         ->where('bulan_tahun', $row['bulan'])->first();
+                         
+                $row['modal_akhir'] = $recap ? $recap->posisi_akhir_modal : ($monthlyRep ? $monthlyRep->saldo_akhir_modal : 0);
                 
                 // ASET
                 $summary = \App\Http\Controllers\LabaKotorController::getSummary($shop_id, $row['bulan']);
@@ -85,6 +110,10 @@ class ModalController extends Controller
                             ->selectRaw("SUM(CASE WHEN jenis = 'setoran' THEN jumlah ELSE -jumlah END) as total")->first()->total ?? 0;
                             
                 $row['ekuitas_aktual'] = ($kas_tangan + $sisa_stok_aktual_rp + $piutang + $kasbon) - ($hutang_do + $tabungan);
+                if ($monthlyRep && $row['ekuitas_aktual'] == 0) {
+                    $row['ekuitas_aktual'] = $monthlyRep->saldo_akhir_modal;
+                }
+
                 $row['selisih'] = $row['ekuitas_aktual'] - $row['modal_akhir'];
                 
                 if (round($row['selisih'], 2) == 0) {

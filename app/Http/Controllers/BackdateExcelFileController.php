@@ -197,7 +197,12 @@ class BackdateExcelFileController extends Controller
         
         $fileBase64 = null;
         $summary = null;
-        if (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
+
+        if (file_exists($fullPath)) {
+            $fileBase64 = base64_encode(file_get_contents($fullPath));
+            $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
+        } elseif (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
             $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
             $fileBase64 = base64_encode(Storage::disk('public')->get($backdateExcelFile->file_path));
             $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
@@ -213,17 +218,31 @@ class BackdateExcelFileController extends Controller
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
-        if (!Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
+        if (!file_exists($fullPath) && Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
+        }
+
+        if (!file_exists($fullPath)) {
             abort(404, 'Berkas fisik tidak ditemukan di server.');
         }
 
-        $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-        
-        return response()->file($fullPath, [
-            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'inline; filename="' . $backdateExcelFile->original_filename . '"',
+        $ext = strtolower(pathinfo($backdateExcelFile->original_filename, PATHINFO_EXTENSION));
+        $contentType = ($ext === 'xls')
+            ? 'application/vnd.ms-excel'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+        return response()->streamDownload(function () use ($fullPath) {
+            $stream = fopen($fullPath, 'rb');
+            if ($stream) {
+                fpassthru($stream);
+                fclose($stream);
+            }
+        }, $backdateExcelFile->original_filename, [
+            'Content-Type'        => $contentType,
+            'Content-Disposition' => 'inline; filename="' . rawurlencode($backdateExcelFile->original_filename) . '"',
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
-        ]);
+        ], 'inline');
     }
 
     /**
@@ -233,11 +252,29 @@ class BackdateExcelFileController extends Controller
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
-        if (!Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
+        if (!file_exists($fullPath) && Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
+        }
+
+        if (!file_exists($fullPath)) {
             return redirect()->back()->with('error', 'Berkas fisik tidak ditemukan di server.');
         }
 
-        return Storage::disk('public')->download($backdateExcelFile->file_path, $backdateExcelFile->original_filename);
+        $ext = strtolower(pathinfo($backdateExcelFile->original_filename, PATHINFO_EXTENSION));
+        $contentType = ($ext === 'xls')
+            ? 'application/vnd.ms-excel'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+        return response()->streamDownload(function () use ($fullPath) {
+            $stream = fopen($fullPath, 'rb');
+            if ($stream) {
+                fpassthru($stream);
+                fclose($stream);
+            }
+        }, $backdateExcelFile->original_filename, [
+            'Content-Type' => $contentType,
+        ]);
     }
 
     /**
@@ -248,8 +285,11 @@ class BackdateExcelFileController extends Controller
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
         $filename = $backdateExcelFile->original_filename;
+        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
 
-        if (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+        if (file_exists($fullPath)) {
+            @unlink($fullPath);
+        } elseif (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
             Storage::disk('public')->delete($backdateExcelFile->file_path);
         }
 

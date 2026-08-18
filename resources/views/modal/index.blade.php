@@ -31,7 +31,12 @@
             var dataTable = $('#table').DataTable({
                 processing: true,
                 serverSide: true,
-                ajax: "{{ route('modal.index') }}",
+                ajax: {
+                    url: "{{ route('modal.index') }}",
+                    data: function(d) {
+                        d.shop_id = $('select[name=shop_id]').val();
+                    }
+                },
                 columns: [{
                         title: '#',
                         data: 'DT_RowIndex',
@@ -130,7 +135,7 @@
             });
 
             $('select[name=shop_id]').on('change', function() {
-                dataTable.ajax.url(`?shop_id=${this.value}`).load();
+                dataTable.ajax.reload();
             });
 
 

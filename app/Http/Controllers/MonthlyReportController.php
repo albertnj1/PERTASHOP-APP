@@ -1331,9 +1331,21 @@ class MonthlyReportController extends Controller
     public function download($id)
     {
         $report = MonthlyReport::findOrFail($id);
-        if ($report->file_path && Storage::exists($report->file_path)) {
+        $fullPath = storage_path('app/' . $report->file_path);
+
+        if ($report->file_path && file_exists($fullPath)) {
+            $filename = basename($report->file_path);
+            return response()->streamDownload(function () use ($fullPath) {
+                $stream = fopen($fullPath, 'rb');
+                if ($stream) {
+                    fpassthru($stream);
+                    fclose($stream);
+                }
+            }, $filename);
+        } elseif ($report->file_path && Storage::exists($report->file_path)) {
             return Storage::download($report->file_path);
         }
+
         return back()->with('error', 'File tidak ditemukan.');
     }
 
