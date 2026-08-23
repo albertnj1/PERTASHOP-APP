@@ -18,13 +18,27 @@ class BackdateExcelFileController extends Controller
     {
         $user = Auth::user();
         $shops = $this->getAccessibleShops();
+        $shopIds = $shops->pluck('id')->toArray();
 
-        // Load files grouped by shop
+        // Load active files grouped by shop
         $shops->load(['backdateExcelFiles' => function ($q) {
             $q->orderBy('bulan_tahun', 'desc')->orderBy('created_at', 'desc');
         }]);
 
-        return view('backdate_excel.index', compact('shops'));
+        // Load trashed files for accessible shops
+        $trashedQuery = BackdateExcelFile::onlyTrashed()->with(['shop', 'user']);
+        if ($user->role !== 'superadmin' && !empty($shopIds)) {
+            $trashedQuery->whereIn('shop_id', $shopIds);
+        }
+        $trashedFiles = $trashedQuery->orderBy('deleted_at', 'desc')->get();
+        $trashedCount = $trashedFiles->count();
+
+        // Total active files count across accessible shops
+        $totalActiveFilesCount = $shops->sum(function ($shop) {
+            return $shop->backdateExcelFiles->count();
+        });
+
+        return view('backdate_excel.index', compact('shops', 'trashedFiles', 'trashedCount', 'totalActiveFilesCount'));
     }
 
     /**
@@ -318,25 +332,156 @@ class BackdateExcelFileController extends Controller
     }
 
     /**
-     * Hapus Berkas Excel Backdate Dari Arsip
+     * Hapus Berkas Excel Backdate Dari Arsip (Soft Delete -> Masuk Tempat Sampah)
      */
     public function destroy(BackdateExcelFile $backdateExcelFile)
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
         $filename = $backdateExcelFile->original_filename;
-        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
-
-        if (file_exists($fullPath)) {
-            @unlink($fullPath);
-        } elseif (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
-            Storage::disk('public')->delete($backdateExcelFile->file_path);
-        }
-
         $backdateExcelFile->delete();
 
         return redirect()->route('backdate-excel-files.index')
-            ->with('success', "File Excel '{$filename}' berhasil dihapus dari arsip.");
+            ->with('success', "File Excel '{$filename}' berhasil dipindahkan ke Tempat Sampah.");
+    }
+
+    /**
+     * Hapus Semua Berkas Active (Global atau Spesifik Toko) -> Masuk Tempat Sampah
+     */
+    public function deleteAll(Request $request)
+    {
+        $user = Auth::user();
+        if ($user->role === 'investor') {
+            abort(403, 'Anda tidak memiliki hak akses untuk menghapus file.');
+        }
+
+        $shops = $this->getAccessibleShops();
+        $shopIds = $shops->pluck('id')->toArray();
+
+        $query = BackdateExcelFile::query();
+        if ($user->role !== 'superadmin' && !empty($shopIds)) {
+            $query->whereIn('shop_id', $shopIds);
+        }
+
+        if ($request->filled('shop_id')) {
+            $this->authorizeShopAccess($request->shop_id);
+            $query->where('shop_id', $request->shop_id);
+            $shop = Shop::find($request->shop_id);
+            $targetName = $shop ? "toko {$shop->nama}" : "Pertashop ini";
+        } else {
+            $targetName = "seluruh Pertashop";
+        }
+
+        $count = $query->count();
+        if ($count === 0) {
+            return redirect()->back()->with('error', 'Tidak ada berkas yang dapat dihapus.');
+        }
+
+        $query->delete();
+
+        return redirect()->route('backdate-excel-files.index')
+            ->with('success', "Berhasil memindahkan {$count} berkas dari {$targetName} ke Tempat Sampah.");
+    }
+
+    /**
+     * Pulihkan Berkas Excel Dari Tempat Sampah
+     */
+    public function restore($id)
+    {
+        $file = BackdateExcelFile::onlyTrashed()->findOrFail($id);
+        $this->authorizeShopAccess($file->shop_id);
+
+        $file->restore();
+
+        return redirect()->route('backdate-excel-files.index')
+            ->with('success', "Berkas Excel '{$file->original_filename}' berhasil dipulihkan dari Tempat Sampah.");
+    }
+
+    /**
+     * Pulihkan Semua Berkas Dari Tempat Sampah
+     */
+    public function restoreAll()
+    {
+        $user = Auth::user();
+        $shops = $this->getAccessibleShops();
+        $shopIds = $shops->pluck('id')->toArray();
+
+        $query = BackdateExcelFile::onlyTrashed();
+        if ($user->role !== 'superadmin' && !empty($shopIds)) {
+            $query->whereIn('shop_id', $shopIds);
+        }
+
+        $count = $query->count();
+        if ($count === 0) {
+            return redirect()->back()->with('error', 'Tidak ada berkas di Tempat Sampah untuk dipulihkan.');
+        }
+
+        $query->restore();
+
+        return redirect()->route('backdate-excel-files.index')
+            ->with('success', "Berhasil memulihkan {$count} berkas dari Tempat Sampah.");
+    }
+
+    /**
+     * Hapus Permanen Berkas Excel Dari Tempat Sampah (Hapus DB & File Fisik)
+     */
+    public function forceDelete($id)
+    {
+        $file = BackdateExcelFile::onlyTrashed()->findOrFail($id);
+        $this->authorizeShopAccess($file->shop_id);
+
+        $filename = $file->original_filename;
+        $fullPath = storage_path('app/public/' . $file->file_path);
+
+        if (file_exists($fullPath)) {
+            @unlink($fullPath);
+        } elseif (Storage::disk('public')->exists($file->file_path)) {
+            Storage::disk('public')->delete($file->file_path);
+        }
+
+        $file->forceDelete();
+
+        return redirect()->route('backdate-excel-files.index')
+            ->with('success', "Berkas Excel '{$filename}' telah dihapus secara permanen dari server.");
+    }
+
+    /**
+     * Kosongkan Tempat Sampah (Hapus Permanen Semua Berkas Terhapus)
+     */
+    public function emptyTrash()
+    {
+        $user = Auth::user();
+        if ($user->role === 'investor') {
+            abort(403, 'Anda tidak memiliki hak akses.');
+        }
+
+        $shops = $this->getAccessibleShops();
+        $shopIds = $shops->pluck('id')->toArray();
+
+        $query = BackdateExcelFile::onlyTrashed();
+        if ($user->role !== 'superadmin' && !empty($shopIds)) {
+            $query->whereIn('shop_id', $shopIds);
+        }
+
+        $files = $query->get();
+        $count = $files->count();
+
+        if ($count === 0) {
+            return redirect()->back()->with('error', 'Tempat Sampah sudah kosong.');
+        }
+
+        foreach ($files as $file) {
+            $fullPath = storage_path('app/public/' . $file->file_path);
+            if (file_exists($fullPath)) {
+                @unlink($fullPath);
+            } elseif (Storage::disk('public')->exists($file->file_path)) {
+                Storage::disk('public')->delete($file->file_path);
+            }
+            $file->forceDelete();
+        }
+
+        return redirect()->route('backdate-excel-files.index')
+            ->with('success', "Tempat Sampah berhasil dikosongkan ({$count} berkas dihapus permanen).");
     }
 
     private function getAccessibleShops()

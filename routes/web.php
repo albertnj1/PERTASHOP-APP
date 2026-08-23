@@ -101,6 +101,11 @@ Route::middleware('auth')->group(function () {
         // Arsip Upload File Excel Backdate (per Pertashop Container)
         Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');
         Route::post('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'store'])->name('backdate-excel-files.store');
+        Route::delete('backdate-excel-files/delete-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'deleteAll'])->name('backdate-excel-files.delete-all');
+        Route::post('backdate-excel-files/restore-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'restoreAll'])->name('backdate-excel-files.restore-all');
+        Route::delete('backdate-excel-files/empty-trash', [\App\Http\Controllers\BackdateExcelFileController::class, 'emptyTrash'])->name('backdate-excel-files.empty-trash');
+        Route::post('backdate-excel-files/{id}/restore', [\App\Http\Controllers\BackdateExcelFileController::class, 'restore'])->name('backdate-excel-files.restore');
+        Route::delete('backdate-excel-files/{id}/force-delete', [\App\Http\Controllers\BackdateExcelFileController::class, 'forceDelete'])->name('backdate-excel-files.force-delete');
         Route::post('backdate-excel-files/{backdateExcelFile}/sync', [\App\Http\Controllers\BackdateExcelFileController::class, 'sync'])->name('backdate-excel-files.sync');
         Route::get('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'show'])->name('backdate-excel-files.show');
         Route::get('backdate-excel-files/{backdateExcelFile}/stream', [\App\Http\Controllers\BackdateExcelFileController::class, 'stream'])->name('backdate-excel-files.stream');
