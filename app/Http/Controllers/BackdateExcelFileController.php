@@ -112,7 +112,7 @@ class BackdateExcelFileController extends Controller
                     $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
 
                     foreach ($periodsToSave as $periodStr) {
-                        BackdateExcelFile::create([
+                        $bef = BackdateExcelFile::create([
                             'shop_id'           => $shop->id,
                             'bulan_tahun'       => $periodStr,
                             'original_filename' => $originalFilename,
@@ -121,6 +121,13 @@ class BackdateExcelFileController extends Controller
                             'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
                             'user_id'           => Auth::id(),
                         ]);
+
+                        // Auto-sync into MonthlyReport and CapitalRecap
+                        try {
+                            \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                        } catch (\Throwable $e) {
+                            \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -135,7 +142,7 @@ class BackdateExcelFileController extends Controller
                     $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
 
                     foreach ($periodsToSave as $periodStr) {
-                        BackdateExcelFile::create([
+                        $bef = BackdateExcelFile::create([
                             'shop_id'           => $shop->id,
                             'bulan_tahun'       => $periodStr,
                             'original_filename' => $originalFilename,
@@ -144,13 +151,20 @@ class BackdateExcelFileController extends Controller
                             'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
                             'user_id'           => Auth::id(),
                         ]);
+
+                        // Auto-sync into MonthlyReport and CapitalRecap
+                        try {
+                            \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                        } catch (\Throwable $e) {
+                            \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
+                        }
                     }
                 }
             }
 
             $shopNamesStr = $matchedShops->pluck('nama')->implode(', ');
             return redirect()->route('backdate-excel-files.index')
-                ->with('success', "File Excel Master '{$originalFilename}' berhasil diuraikan menjadi " . count($periodsToSave) . " periode bulan dan didistribusikan ke {$matchedShops->count()} Pertashop: {$shopNamesStr}.");
+                ->with('success', "File Excel Master '{$originalFilename}' berhasil diuraikan, disimpan, dan disinkronkan ke Laporan Bulanan & Rekap Modal {$matchedShops->count()} Pertashop: {$shopNamesStr}.");
         }
 
         // 2. OPSI SINGLE PERTASHOP SPESIFIK
@@ -161,7 +175,7 @@ class BackdateExcelFileController extends Controller
         $storedPath = $file->storeAs($folderPath, $savedFilename, 'public');
 
         foreach ($periodsToSave as $periodStr) {
-            BackdateExcelFile::create([
+            $bef = BackdateExcelFile::create([
                 'shop_id'           => $shop->id,
                 'bulan_tahun'       => $periodStr,
                 'original_filename' => $originalFilename,
@@ -170,10 +184,17 @@ class BackdateExcelFileController extends Controller
                 'keterangan'        => $request->keterangan,
                 'user_id'           => Auth::id(),
             ]);
+
+            // Auto-sync into MonthlyReport and CapitalRecap
+            try {
+                \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+            } catch (\Throwable $e) {
+                \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
+            }
         }
 
         return redirect()->route('backdate-excel-files.index')
-            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} berhasil diurai menjadi " . count($periodsToSave) . " periode bulanan dan disimpan ke arsip.");
+            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} berhasil disimpan dan disinkronkan secara otomatis ke Laporan Bulanan & Rekapitulasi Nilai Modal.");
     }
 
     private function detectYearRangeFromFilename(string $filename): string
@@ -208,7 +229,26 @@ class BackdateExcelFileController extends Controller
             $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
         }
 
-        return view('backdate_excel.show', compact('backdateExcelFile', 'fileBase64', 'summary'));
+        $monthlyReport = \App\Models\MonthlyReport::where('shop_id', $backdateExcelFile->shop_id)
+            ->where('bulan_tahun', $backdateExcelFile->bulan_tahun)
+            ->first();
+
+        return view('backdate_excel.show', compact('backdateExcelFile', 'fileBase64', 'summary', 'monthlyReport'));
+    }
+
+    /**
+     * Sinkronkan Berkas Backdate ke Laporan Bulanan & Rekapitulasi Modal
+     */
+    public function sync(BackdateExcelFile $backdateExcelFile)
+    {
+        $this->authorizeShopAccess($backdateExcelFile->shop_id);
+
+        try {
+            $report = \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($backdateExcelFile);
+            return redirect()->back()->with('success', "Berkas '{$backdateExcelFile->original_filename}' berhasil disinkronkan ke Laporan Bulanan (Periode: {$backdateExcelFile->formatted_period}) dan Rekapitulasi Nilai Modal.");
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', "Gagal melakukan sinkronisasi: " . $e->getMessage());
+        }
     }
 
     /**

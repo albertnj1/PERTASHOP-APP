@@ -29,6 +29,13 @@ class CapitalRecapController extends Controller
         return view('capital_recaps.index', compact('recaps', 'shops'));
     }
 
+    public function recalculate(Shop $shop)
+    {
+        \App\Services\MonthlyReportCalculationService::syncAndRecalculate($shop);
+        return redirect()->route('capital-recaps.index', ['shop_id' => $shop->id])
+            ->with('success', "Sinkronisasi berantai dan rekalkulasi modal historis untuk {$shop->nama} berhasil diperbarui.");
+    }
+
     public function importForm()
     {
         $shops = Shop::all();

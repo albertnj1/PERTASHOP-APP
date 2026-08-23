@@ -61,6 +61,18 @@ class CapitalRecap extends Model
             }
             
             $recap->saveQuietly();
+
+            // Synchronize with MonthlyReport if exists
+            $monthlyReport = \App\Models\MonthlyReport::where('shop_id', $shopId)
+                ->whereYear('bulan_tahun', $recap->tahun)
+                ->whereMonth('bulan_tahun', $recap->bulan)
+                ->first();
+
+            if ($monthlyReport) {
+                $monthlyReport->saldo_awal_modal = $nilaiModalAwal;
+                $monthlyReport->saldo_akhir_modal = $posisiAkhir;
+                $monthlyReport->saveQuietly();
+            }
         }
     }
     

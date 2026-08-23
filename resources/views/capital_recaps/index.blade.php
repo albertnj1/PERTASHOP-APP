@@ -19,20 +19,64 @@
             </div>
         @endif
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        @php
+            $selectedShop = request('shop_id') ? $shops->firstWhere('id', request('shop_id')) : $shops->first();
+            $modalDasar = $selectedShop && $selectedShop->modal_awal > 0 ? floatval($selectedShop->modal_awal) : 60000000;
+            $latestRecap = $recaps->last();
+            $totalAkumulasi = $latestRecap ? floatval($latestRecap->akumulasi_penambahan_penyusutan) : 0;
+            $grandTotalModal = $latestRecap ? floatval($latestRecap->posisi_akhir_modal) : $modalDasar;
+            $persenPenambahan = $modalDasar > 0 ? ($totalAkumulasi / $modalDasar) * 100 : 0;
+            $persenTotal = 100 + $persenPenambahan;
+        @endphp
+
+        {{-- Executive KPI Metrics --}}
+        @if($recaps->isNotEmpty())
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="p-3 bg-white border rounded shadow-xs" style="border-left: 4px solid #2563eb !important;">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 11px;">Nilai Modal Dasar (100%)</small>
+                    <h4 class="font-weight-bold text-dark mb-0">Rp {{ number_format($modalDasar, 0, ',', '.') }}</h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-white border rounded shadow-xs" style="border-left: 4px solid #10b981 !important;">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 11px;">Akumulasi Penambahan Modal</small>
+                    <h4 class="font-weight-bold text-success mb-0">+ Rp {{ number_format($totalAkumulasi, 0, ',', '.') }} <small style="font-size: 13px;">(+{{ number_format($persenPenambahan, 2) }}%)</small></h4>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-white border rounded shadow-xs" style="border-left: 4px solid #f59e0b !important;">
+                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 11px;">Posisi Grand Total Modal</small>
+                    <h4 class="font-weight-bold text-primary mb-0">Rp {{ number_format($grandTotalModal, 0, ',', '.') }} <small style="font-size: 13px;">({{ number_format($persenTotal, 2) }}%)</small></h4>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
             <form method="GET" action="{{ route('capital-recaps.index') }}" class="form-inline" style="display: flex; align-items: center; gap: 12px;">
-                <label style="margin: 0; font-weight: 500;">Pertashop:</label>
-                <select name="shop_id" class="form-control" onchange="this.form.submit()" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1); outline: none; background: #fff; cursor: pointer;">
-                                <option value="">-- Semua Pertashop --</option>
-                                @foreach($shops as $shop)
-                                    <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>{{ $shop->nama }}</option>
-                                @endforeach
-                            </select>
+                <label style="margin: 0; font-weight: 600;">Pertashop:</label>
+                <select name="shop_id" class="form-control" onchange="this.form.submit()" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.15); outline: none; background: #fff; cursor: pointer;">
+                    <option value="">-- Semua Pertashop --</option>
+                    @foreach($shops as $shop)
+                        <option value="{{ $shop->id }}" {{ request('shop_id') == $shop->id ? 'selected' : '' }}>{{ $shop->nama }}</option>
+                    @endforeach
                 </select>
             </form>
-            <a href="{{ route('capital-recaps.import') }}" class="btn btn-success" style="background: var(--success); border-color: var(--success); border-radius: 20px; padding: 8px 16px;">
-                <i class="fa fa-file-excel mr-2"></i> Import dari Excel (Multi-Sheet)
-            </a>
+
+            <div class="d-flex align-items-center gap-2">
+                @if($selectedShop)
+                <form action="{{ route('capital-recaps.recalculate', $selectedShop->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Recalculate seluruh running saldo modal berantai untuk {{ $selectedShop->nama }}?')">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary" style="border-radius: 20px; padding: 8px 16px; font-weight: 600;">
+                        <i class="fa fa-sync-alt mr-1"></i> Sinkronisasi Cascading Modal
+                    </button>
+                </form>
+                @endif
+                <a href="{{ route('capital-recaps.import') }}" class="btn btn-success" style="background: var(--success); border-color: var(--success); border-radius: 20px; padding: 8px 16px; font-weight: 600;">
+                    <i class="fa fa-file-excel mr-1"></i> Import dari Excel (Multi-Sheet)
+                </a>
+            </div>
         </div>
         <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;">
             <table class="table table-bordered table-striped" style="white-space: nowrap; font-size: 13px; width: 100%;">

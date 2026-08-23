@@ -1312,20 +1312,26 @@ class MonthlyReportController extends Controller
             ->get();
             
         $capitalRecaps = \App\Models\CapitalRecap::where('shop_id', $report->shop_id)
-            ->where(function ($q) use ($year, $month) {
-                $q->where('tahun', '<', $year)
-                  ->orWhere(function ($sub) use ($year, $month) {
-                      $sub->where('tahun', $year)
-                          ->where('bulan', '<=', $month);
-                  });
-            })
             ->orderBy('tahun', 'asc')
             ->orderBy('bulan', 'asc')
             ->get();
             
         $validations = \App\Models\MonthlyReportValidation::where('monthly_report_id', $report->id)->get();
-            
-        return view('monthly_reports.show', compact('report', 'history', 'purchases', 'capitalRecaps', 'validations'));
+        
+        // Build complete structured 4-Page Report Data & Cascading Numbers
+        $reportData = \App\Services\MonthlyReportCalculationService::buildReportData($report);
+
+        return view('monthly_reports.show', compact('report', 'history', 'purchases', 'capitalRecaps', 'validations', 'reportData'));
+    }
+
+    /**
+     * Trigger manual / on-demand cascading recalculation from past to current month.
+     */
+    public function recalculateCascade(Shop $shop)
+    {
+        \App\Services\MonthlyReportCalculationService::syncAndRecalculate($shop);
+
+        return back()->with('success', "Perhitungan berantai (Cascading Update) untuk {$shop->nama} berhasil dijalankan dari awal beroperasi hingga bulan berjalan.");
     }
 
     public function download($id)

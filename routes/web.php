@@ -89,6 +89,7 @@ Route::middleware('auth')->group(function () {
         ]);
         
         Route::post('monthly-reports/generate', [\App\Http\Controllers\MonthlyReportController::class, 'generateFromDailyReports'])->name('monthly-reports.generate');
+        Route::post('monthly-reports/recalculate-cascade/{shop}', [\App\Http\Controllers\MonthlyReportController::class, 'recalculateCascade'])->name('monthly-reports.recalculate-cascade');
         Route::get('monthly-reports/{id}/export-pdf', [\App\Http\Controllers\MonthlyReportController::class, 'exportPdf'])->name('monthly-reports.export-pdf');
         Route::get('monthly-reports/{id}/download', [\App\Http\Controllers\MonthlyReportController::class, 'download'])->name('monthly-reports.download');
         Route::resource('monthly-reports', \App\Http\Controllers\MonthlyReportController::class);
@@ -100,6 +101,7 @@ Route::middleware('auth')->group(function () {
         // Arsip Upload File Excel Backdate (per Pertashop Container)
         Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');
         Route::post('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'store'])->name('backdate-excel-files.store');
+        Route::post('backdate-excel-files/{backdateExcelFile}/sync', [\App\Http\Controllers\BackdateExcelFileController::class, 'sync'])->name('backdate-excel-files.sync');
         Route::get('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'show'])->name('backdate-excel-files.show');
         Route::get('backdate-excel-files/{backdateExcelFile}/stream', [\App\Http\Controllers\BackdateExcelFileController::class, 'stream'])->name('backdate-excel-files.stream');
         Route::get('backdate-excel-files/{backdateExcelFile}/download', [\App\Http\Controllers\BackdateExcelFileController::class, 'download'])->name('backdate-excel-files.download');
@@ -183,6 +185,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/investors/{investor}/add-investment', [InvestorController::class, 'addInvestment'])->name('investors.add-investment');
 
     Route::get('/capital-recaps', [CapitalRecapController::class, 'index'])->name('capital-recaps.index');
+    Route::post('/capital-recaps/recalculate/{shop}', [CapitalRecapController::class, 'recalculate'])->name('capital-recaps.recalculate');
     Route::get('/capital-recaps/import', [CapitalRecapController::class, 'importForm'])->name('capital-recaps.import');
     Route::post('/capital-recaps/import', [CapitalRecapController::class, 'importStore'])->name('capital-recaps.import.store');
 
