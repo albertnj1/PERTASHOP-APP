@@ -272,9 +272,9 @@
             </span>
             <div class="d-flex" style="gap: 8px;">
               {{-- Restore All --}}
-              <form action="{{ route('backdate-excel-files.restore-all') }}" method="POST" class="d-inline" onsubmit="return confirm('Pulihkan semua berkas dari Tempat Sampah?')">
+              <form id="restore-all-form" action="{{ route('backdate-excel-files.restore-all') }}" method="POST" class="d-inline">
                 @csrf
-                <button type="submit" class="btn btn-sm btn-success font-weight-bold" style="border-radius: 6px; padding: 6px 12px;">
+                <button type="button" onclick="confirmRestoreAll()" class="btn btn-sm btn-success font-weight-bold" style="border-radius: 6px; padding: 6px 12px;">
                   <i class="fas fa-undo mr-1"></i> Pulihkan Semua
                 </button>
               </form>
@@ -459,6 +459,30 @@ function confirmForceDeleteFile(fileId, filename) {
     });
   } else {
     if (confirm(`File "${filename}" akan dihapus PERMANEN dari server. Lanjutkan?`)) {
+      form.submit();
+    }
+  }
+}
+
+function confirmRestoreAll() {
+  const form = document.getElementById('restore-all-form');
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: 'Pulihkan Semua Berkas?',
+      text: 'Semua berkas yang ada di Tempat Sampah akan dikembalikan ke daftar arsip aktif.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: '<i class="fas fa-undo mr-1"></i> Ya, Pulihkan Semua',
+      cancelButtonText: 'Batal'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        form.submit();
+      }
+    });
+  } else {
+    if (confirm('Pulihkan semua berkas dari Tempat Sampah?')) {
       form.submit();
     }
   }

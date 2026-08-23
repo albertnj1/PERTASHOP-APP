@@ -418,11 +418,10 @@
       </div>
     </div>
 
-    <div class="d-flex align-items-center flex-wrap gap-2 mt-3 mt-md-0">
       {{-- Tombol Sinkronisasi ke Laporan Bulanan & Rekap Modal --}}
-      <form action="{{ route('backdate-excel-files.sync', $backdateExcelFile->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Sinkronkan seluruh isi berkas Excel ini ke Laporan Bulanan & Rekapitulasi Nilai Modal untuk toko {{ $backdateExcelFile->shop->nama }} periode {{ $backdateExcelFile->formatted_period }}?')">
+      <form id="sync-backdate-form" action="{{ route('backdate-excel-files.sync', $backdateExcelFile->id) }}" method="POST" class="d-inline">
         @csrf
-        <button type="submit" class="btn btn-info btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
+        <button type="button" onclick="confirmSyncBackdate()" class="btn btn-info btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
           <i class="fas fa-sync-alt mr-1.5"></i> Sinkronkan ke Laporan Bulanan &amp; Rekap Modal
         </button>
       </form>
@@ -1569,5 +1568,40 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function confirmSyncBackdate() {
+  const form = document.getElementById('sync-backdate-form');
+  const shopName = "{{ addslashes($backdateExcelFile->shop->nama) }}";
+  const period = "{{ addslashes($backdateExcelFile->formatted_period) }}";
+  
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: 'Sinkronkan Data Laporan?',
+      html: `Apakah Anda yakin ingin menyinkronkan seluruh isi berkas Excel ini ke <strong>Laporan Bulanan</strong> &amp; <strong>Rekapitulasi Nilai Modal</strong> untuk toko <strong>${shopName}</strong> (Periode: <strong>${period}</strong>)?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0284c7',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '<i class="fas fa-sync-alt mr-1"></i> Ya, Sinkronkan Sekarang',
+      cancelButtonText: 'Batal'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          title: 'Memproses Sinkronisasi...',
+          text: 'Mohon tunggu, data sedang dihitung dan disinkronkan ke database.',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        form.submit();
+      }
+    });
+  } else {
+    if (confirm(`Sinkronkan seluruh isi berkas Excel ini ke Laporan Bulanan & Rekapitulasi Nilai Modal untuk toko ${shopName} periode ${period}?`)) {
+      form.submit();
+    }
+  }
+}
 </script>
 @endsection

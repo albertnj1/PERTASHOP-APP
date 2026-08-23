@@ -1289,8 +1289,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    const currentShopAliases = <?php echo json_encode($currentShopAliasesData, 15, 512) ?>;
-    const allOtherShops = <?php echo json_encode($allOtherShopsData, 15, 512) ?>;
+    const currentShopAliases = <?php echo json_encode($currentShopAliasesData ?? [], 15, 512) ?>;
+    const allOtherShops = <?php echo json_encode($allOtherShopsData ?? [], 15, 512) ?>;
     const currentPeriod = <?php echo json_encode($backdateExcelFile->bulan_tahun, 15, 512) ?>;
 
     function parsePeriodFromSheet(sName) {
