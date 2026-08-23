@@ -20,6 +20,17 @@ class BackdateExcelFileController extends Controller
         $shops = $this->getAccessibleShops();
         $shopIds = $shops->pluck('id')->toArray();
 
+        // Auto-ensure deleted_at column exists in database if migration hasn't been run manually
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'deleted_at')) {
+            try {
+                \Illuminate\Support\Facades\Schema::table('backdate_excel_files', function ($table) {
+                    $table->softDeletes();
+                });
+            } catch (\Throwable $e) {
+                \Log::warning("Auto migration deleted_at failed: " . $e->getMessage());
+            }
+        }
+
         // Load active files grouped by shop
         $shops->load(['backdateExcelFiles' => function ($q) {
             $q->orderBy('bulan_tahun', 'desc')->orderBy('created_at', 'desc');
