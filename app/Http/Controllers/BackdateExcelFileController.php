@@ -254,11 +254,21 @@ class BackdateExcelFileController extends Controller
             $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
         }
 
+        $currentShopAliasesData = BackdateExcelSummaryService::getShopAliases($backdateExcelFile->shop);
+        $allOtherShopsData = Shop::where('id', '!=', $backdateExcelFile->shop_id)->get()->map(function ($s) {
+            return [
+                'id' => $s->id,
+                'nama' => $s->nama,
+                'kode' => $s->kode,
+                'aliases' => BackdateExcelSummaryService::getShopAliases($s),
+            ];
+        });
+
         $monthlyReport = \App\Models\MonthlyReport::where('shop_id', $backdateExcelFile->shop_id)
             ->where('bulan_tahun', $backdateExcelFile->bulan_tahun)
             ->first();
 
-        return view('backdate_excel.show', compact('backdateExcelFile', 'fileBase64', 'summary', 'monthlyReport'));
+        return view('backdate_excel.show', compact('backdateExcelFile', 'fileBase64', 'summary', 'monthlyReport', 'currentShopAliasesData', 'allOtherShopsData'));
     }
 
     /**

@@ -1,7 +1,6 @@
-@extends('layouts._new_admin')
-@section('title', 'Pratinjau File Excel — ' . $backdateExcelFile->original_filename)
+<?php $__env->startSection('title', 'Pratinjau File Excel — ' . $backdateExcelFile->original_filename); ?>
 
-@push('style')
+<?php $__env->startPush('style'); ?>
 <style>
 /* Custom Styles for Modern Executive Excel Viewer */
 .excel-viewer-card {
@@ -350,35 +349,35 @@
     font-weight: 800;
 }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="container-fluid py-4">
 
-  @if (session('success'))
+  <?php if(session('success')): ?>
       <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert" style="border-left: 4px solid #10b981 !important;">
           <h6 class="font-weight-bold text-success mb-1"><i class="fas fa-check-circle mr-1"></i> Berhasil Tersinkronisasi!</h6>
-          <p class="mb-0 text-dark" style="font-size: 13px;">{{ session('success') }}</p>
+          <p class="mb-0 text-dark" style="font-size: 13px;"><?php echo e(session('success')); ?></p>
           <button type="button" class="close" data-dismiss="alert" aria-label="Close">
               <span aria-hidden="true">&times;</span>
           </button>
       </div>
-  @endif
+  <?php endif; ?>
 
-  @if (session('error'))
+  <?php if(session('error')): ?>
       <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert" style="border-left: 4px solid #ef4444 !important;">
           <h6 class="font-weight-bold text-danger mb-1"><i class="fas fa-exclamation-triangle mr-1"></i> Gagal Sinkronisasi!</h6>
-          <p class="mb-0 text-dark" style="font-size: 13px;">{{ session('error') }}</p>
+          <p class="mb-0 text-dark" style="font-size: 13px;"><?php echo e(session('error')); ?></p>
           <button type="button" class="close" data-dismiss="alert" aria-label="Close">
               <span aria-hidden="true">&times;</span>
           </button>
       </div>
-  @endif
+  <?php endif; ?>
   
-  {{-- Header Banner & Control Toolbar --}}
+  
   <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-4 gap-3">
     <div>
-      <a href="{{ route('backdate-excel-files.index') }}" class="btn btn-outline-secondary btn-sm mb-2" style="border-radius: 6px; font-weight: 600;">
+      <a href="<?php echo e(route('backdate-excel-files.index')); ?>" class="btn btn-outline-secondary btn-sm mb-2" style="border-radius: 6px; font-weight: 600;">
         <i class="fas fa-arrow-left mr-1"></i> Kembali ke Daftar Arsip
       </a>
       
@@ -387,62 +386,63 @@
           <i class="fas fa-file-excel mr-1"></i> EXCEL (.xlsx)
         </span>
         <h1 class="page-title mb-0" style="font-size: 22px; font-weight: 800; color: #0f172a;">
-          Pratinjau File: {{ $backdateExcelFile->original_filename }}
+          Pratinjau File: <?php echo e($backdateExcelFile->original_filename); ?>
+
         </h1>
-        @if(isset($monthlyReport) && $monthlyReport)
+        <?php if(isset($monthlyReport) && $monthlyReport): ?>
           <span class="badge badge-primary px-2.5 py-1" style="font-size: 12px; border-radius: 6px;">
-            <i class="fas fa-link mr-1"></i> Terhubung Laporan Bulanan (#{{ $monthlyReport->id }})
+            <i class="fas fa-link mr-1"></i> Terhubung Laporan Bulanan (#<?php echo e($monthlyReport->id); ?>)
           </span>
-        @else
+        <?php else: ?>
           <span class="badge badge-warning px-2.5 py-1 text-dark font-weight-bold" style="font-size: 12px; border-radius: 6px;">
             <i class="fas fa-exclamation-circle mr-1"></i> Perlu Disinkronkan
           </span>
-        @endif
+        <?php endif; ?>
       </div>
 
       <div class="d-flex align-items-center flex-wrap mt-2 gap-2 text-muted" style="font-size: 13px;">
         <span class="badge badge-light border px-2 py-1">
-          <i class="fas fa-store mr-1 text-primary"></i> <strong>{{ $backdateExcelFile->shop->nama }}</strong> ({{ $backdateExcelFile->shop->kode }})
+          <i class="fas fa-store mr-1 text-primary"></i> <strong><?php echo e($backdateExcelFile->shop->nama); ?></strong> (<?php echo e($backdateExcelFile->shop->kode); ?>)
         </span>
         <span class="badge badge-light border px-2 py-1">
-          <i class="fas fa-calendar-alt mr-1 text-info"></i> Periode: <strong>{{ $backdateExcelFile->formatted_period }}</strong>
+          <i class="fas fa-calendar-alt mr-1 text-info"></i> Periode: <strong><?php echo e($backdateExcelFile->formatted_period); ?></strong>
         </span>
         <span class="badge badge-light border px-2 py-1">
-          <i class="fas fa-hdd mr-1 text-secondary"></i> Ukuran: <strong>{{ $backdateExcelFile->formatted_file_size }}</strong>
+          <i class="fas fa-hdd mr-1 text-secondary"></i> Ukuran: <strong><?php echo e($backdateExcelFile->formatted_file_size); ?></strong>
         </span>
-        @if($backdateExcelFile->user)
+        <?php if($backdateExcelFile->user): ?>
           <span class="badge badge-light border px-2 py-1">
-            <i class="fas fa-user-edit mr-1 text-muted"></i> Oleh: <strong>{{ $backdateExcelFile->user->name }}</strong>
+            <i class="fas fa-user-edit mr-1 text-muted"></i> Oleh: <strong><?php echo e($backdateExcelFile->user->name); ?></strong>
           </span>
-        @endif
+        <?php endif; ?>
       </div>
     </div>
 
     <div class="d-flex align-items-center flex-wrap gap-2 mt-3 mt-md-0">
-      {{-- Tombol Sinkronisasi ke Laporan Bulanan & Rekap Modal --}}
-      <form action="{{ route('backdate-excel-files.sync', $backdateExcelFile->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Sinkronkan seluruh isi berkas Excel ini ke Laporan Bulanan & Rekapitulasi Nilai Modal untuk toko {{ $backdateExcelFile->shop->nama }} periode {{ $backdateExcelFile->formatted_period }}?')">
-        @csrf
+      
+      <form action="<?php echo e(route('backdate-excel-files.sync', $backdateExcelFile->id)); ?>" method="POST" class="d-inline" onsubmit="return confirm('Sinkronkan seluruh isi berkas Excel ini ke Laporan Bulanan & Rekapitulasi Nilai Modal untuk toko <?php echo e($backdateExcelFile->shop->nama); ?> periode <?php echo e($backdateExcelFile->formatted_period); ?>?')">
+        <?php echo csrf_field(); ?>
         <button type="submit" class="btn btn-info btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
           <i class="fas fa-sync-alt mr-1.5"></i> Sinkronkan ke Laporan Bulanan &amp; Rekap Modal
         </button>
       </form>
 
-      @if(isset($monthlyReport) && $monthlyReport)
-        <a href="{{ route('monthly-reports.show', $monthlyReport->id) }}" class="btn btn-dark btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
+      <?php if(isset($monthlyReport) && $monthlyReport): ?>
+        <a href="<?php echo e(route('monthly-reports.show', $monthlyReport->id)); ?>" class="btn btn-dark btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
           <i class="fas fa-external-link-alt mr-1.5"></i> Buka Laporan Bulanan Resmi
         </a>
-      @endif
+      <?php endif; ?>
 
-      <a href="{{ route('backdate-excel-files.download', $backdateExcelFile->id) }}" class="btn btn-outline-primary btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
+      <a href="<?php echo e(route('backdate-excel-files.download', $backdateExcelFile->id)); ?>" class="btn btn-outline-primary btn-sm shadow-sm" style="font-weight: 700; border-radius: 8px; padding: 9px 16px;">
         <i class="fas fa-download mr-1.5"></i> Unduh File Asli
       </a>
     </div>
   </div>
 
-  {{-- Card Wrapper Pratinjau Excel --}}
+  
   <div class="excel-viewer-card">
     
-    {{-- Status Loading --}}
+    
     <div id="excel-loading" class="text-center py-5">
       <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
         <span class="sr-only">Membaca file Excel...</span>
@@ -451,47 +451,48 @@
       <p class="text-muted" style="font-size: 13px;">Mohon tunggu sebentar, sistem sedang memformat sheet dan kesimpulan laporan.</p>
     </div>
 
-    {{-- Sheet Navigation Tabs (Styled Excel Tab Bar) --}}
+    
     <div id="excel-sheets-nav" class="excel-tab-bar" style="display: none;">
-      {{-- Tab buttons populated via JS --}}
+      
     </div>
 
-    {{-- KESIMPULAN LAPORAN SUMMARY DASHBOARD CONTAINER --}}
+    
     <div id="excel-summary-container" class="p-4" style="display: none; background: #ffffff;">
       
-      {{-- Header Kesimpulan --}}
+      
       <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-4 border-bottom pb-3 gap-2">
         <div>
           <h4 class="font-weight-bold mb-1" style="color: #0f172a; font-size: 18px;">
             <i class="fas fa-chart-pie text-primary mr-2"></i> Kesimpulan Ringkasan Laporan Backdate (Terintegrasi)
-            @if(!empty($summary['matched_sheet_name']))
+            <?php if(!empty($summary['matched_sheet_name'])): ?>
               <span class="badge badge-info font-weight-normal ml-2 px-2 py-1" style="font-size: 12px; border-radius: 6px;">
-                <i class="fas fa-table mr-1"></i> Sheet Toko: {{ $summary['matched_sheet_name'] }}
+                <i class="fas fa-table mr-1"></i> Sheet Toko: <?php echo e($summary['matched_sheet_name']); ?>
+
               </span>
-            @endif
+            <?php endif; ?>
           </h4>
           <span class="text-muted" style="font-size: 13px;">
-            Rangkuman 4 Halaman Resmi Operasional Pertashop <strong>{{ $backdateExcelFile->shop->nama }}</strong> periode <strong>{{ $backdateExcelFile->formatted_period }}</strong> yang terhubung dengan modul Laporan Bulanan dan Rekapitulasi Modal.
+            Rangkuman 4 Halaman Resmi Operasional Pertashop <strong><?php echo e($backdateExcelFile->shop->nama); ?></strong> periode <strong><?php echo e($backdateExcelFile->formatted_period); ?></strong> yang terhubung dengan modul Laporan Bulanan dan Rekapitulasi Modal.
           </span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          @if(isset($monthlyReport) && $monthlyReport)
-            <a href="{{ route('monthly-reports.show', $monthlyReport->id) }}" class="btn btn-outline-success btn-sm font-weight-bold" style="border-radius: 6px;">
-              <i class="fas fa-check-circle mr-1"></i> Tersinkron (Laporan #{{ $monthlyReport->id }})
+          <?php if(isset($monthlyReport) && $monthlyReport): ?>
+            <a href="<?php echo e(route('monthly-reports.show', $monthlyReport->id)); ?>" class="btn btn-outline-success btn-sm font-weight-bold" style="border-radius: 6px;">
+              <i class="fas fa-check-circle mr-1"></i> Tersinkron (Laporan #<?php echo e($monthlyReport->id); ?>)
             </a>
-          @endif
-          <a href="{{ route('backdate-excel-files.download', $backdateExcelFile->id) }}" class="btn btn-outline-primary btn-sm style-btn" style="border-radius: 6px; font-weight: 600;">
+          <?php endif; ?>
+          <a href="<?php echo e(route('backdate-excel-files.download', $backdateExcelFile->id)); ?>" class="btn btn-outline-primary btn-sm style-btn" style="border-radius: 6px; font-weight: 600;">
             <i class="fas fa-file-download mr-1"></i> Unduh Berkas (.xlsx)
           </a>
         </div>
-      </div>      @php
+      </div>      <?php
         $h1 = $summary['hal1'] ?? [];
         $h2 = $summary['hal2'] ?? [];
         $h3 = $summary['hal3'] ?? [];
         $h4 = $summary['hal4'] ?? [];
-      @endphp
+      ?>
 
-      {{-- Sub-Navigation for 4 Official Pages + Legacy BKH --}}
+      
       <ul class="nav nav-tabs sub-report-nav mb-4" id="previewSubTabs" role="tablist">
         <li class="nav-item">
           <a class="nav-link active" id="pv-hal1-tab" data-toggle="tab" href="#pv-hal1" role="tab">
@@ -522,154 +523,154 @@
 
       <div class="tab-content" id="previewSubTabsContent">
 
-        {{-- ========================================================================= --}}
-        {{-- SUB-TAB 1: HALAMAN 1 - STOK, PENJUALAN & LABA KOTOR --}}
-        {{-- ========================================================================= --}}
+        
+        
+        
         <div class="tab-pane fade show active" id="pv-hal1" role="tabpanel">
           <div class="report-paper-preview">
-            <div class="report-header-title-pv">LAPORAN STOCK, PENJUALAN &amp; LABA KOTOR {{ $backdateExcelFile->formatted_period }}</div>
-            <div class="report-header-sub-pv">PERTASHOP {{ $backdateExcelFile->shop->kode }} {{ $backdateExcelFile->shop->alamat }}</div>
+            <div class="report-header-title-pv">LAPORAN STOCK, PENJUALAN &amp; LABA KOTOR <?php echo e($backdateExcelFile->formatted_period); ?></div>
+            <div class="report-header-sub-pv">PERTASHOP <?php echo e($backdateExcelFile->shop->kode); ?> <?php echo e($backdateExcelFile->shop->alamat); ?></div>
             <div class="report-header-pt-pv">PT SERAYU AGUNG MANDIRI</div>
 
-            {{-- Header Prices & Daily Average --}}
+            
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 text-dark" style="font-size: 11.5px; font-weight: 700; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px;">
               <div>
                 <span class="text-uppercase">PERTAMAX :</span>
-                @foreach($h1['segments'] ?? [] as $sIdx => $seg)
-                  <span class="ml-2">Harga Beli {{ $sIdx + 1 }}: Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }},- &nbsp; Harga Jual {{ $sIdx + 1 }}: Rp {{ number_format($seg['harga_jual'], 2, ',', '.') }},-</span>
-                @endforeach
+                <?php $__currentLoopData = $h1['segments'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sIdx => $seg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                  <span class="ml-2">Harga Beli <?php echo e($sIdx + 1); ?>: Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?>,- &nbsp; Harga Jual <?php echo e($sIdx + 1); ?>: Rp <?php echo e(number_format($seg['harga_jual'], 2, ',', '.')); ?>,-</span>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
               </div>
               <div>
-                Rata-rata omset Harian (ℓ) = <span class="text-primary">{{ number_format($h1['rata_rata_omset_harian'] ?? 0, 2, ',', '.') }}</span>
+                Rata-rata omset Harian (ℓ) = <span class="text-primary"><?php echo e(number_format($h1['rata_rata_omset_harian'] ?? 0, 2, ',', '.')); ?></span>
               </div>
             </div>
 
-            {{-- Segments Loop --}}
-            @forelse($h1['segments'] ?? [] as $sIdx => $seg)
+            
+            <?php $__empty_1 = true; $__currentLoopData = $h1['segments'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sIdx => $seg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
               <div class="box-segment-pv">
-                <div class="box-segment-number-pv">{{ $sIdx + 1 }}</div>
+                <div class="box-segment-number-pv"><?php echo e($sIdx + 1); ?></div>
 
-                {{-- I. PEMBELIAN --}}
-                <div class="font-weight-bold mb-1" style="font-size: 12.5px;">I. PEMBELIAN {{ $sIdx + 1 }}</div>
+                
+                <div class="font-weight-bold mb-1" style="font-size: 12.5px;">I. PEMBELIAN <?php echo e($sIdx + 1); ?></div>
                 <table class="table-formal-pv mb-2" style="max-width: 85%;">
                   <tr>
                     <td style="width: 140px;">Stok Awal</td>
                     <td style="width: 20px;">=</td>
-                    <td style="width: 90px;" class="text-right">{{ number_format($seg['stok_awal'], 2, ',', '.') }}</td>
+                    <td style="width: 90px;" class="text-right"><?php echo e(number_format($seg['stok_awal'], 2, ',', '.')); ?></td>
                     <td style="width: 30px;">ℓ</td>
                     <td style="width: 20px;">x</td>
-                    <td style="width: 100px;">Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }}</td>
+                    <td style="width: 100px;">Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?></td>
                     <td style="width: 30px;" class="text-center">&rarr;</td>
-                    <td style="width: 130px;" class="text-right">Rp {{ number_format($seg['stok_awal_rp'], 0, ',', '.') }}</td>
+                    <td style="width: 130px;" class="text-right">Rp <?php echo e(number_format($seg['stok_awal_rp'], 0, ',', '.')); ?></td>
                   </tr>
                   <tr>
                     <td>BBM Datang</td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['bbm_datang'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['bbm_datang'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td>x</td>
-                    <td>Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }}</td>
+                    <td>Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?></td>
                     <td style="width: 30px;" class="text-center">&rarr;</td>
-                    <td style="width: 130px;" class="text-right">Rp {{ number_format($seg['bbm_datang_rp'], 0, ',', '.') }}</td>
+                    <td style="width: 130px;" class="text-right">Rp <?php echo e(number_format($seg['bbm_datang_rp'], 0, ',', '.')); ?></td>
                   </tr>
                   <tr style="font-weight: 700; border-top: 1px solid #94a3b8;">
-                    <td>A. Jumlah Pembelian {{ $sIdx + 1 }}</td>
+                    <td>A. Jumlah Pembelian <?php echo e($sIdx + 1); ?></td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['jumlah_pembelian'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['jumlah_pembelian'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td colspan="2"></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right">Rp {{ number_format($seg['jumlah_pembelian_rp'], 0, ',', '.') }}</td>
+                    <td class="text-right">Rp <?php echo e(number_format($seg['jumlah_pembelian_rp'], 0, ',', '.')); ?></td>
                   </tr>
                 </table>
 
-                {{-- II. PENJUALAN --}}
-                <div class="font-weight-bold mt-2 mb-1" style="font-size: 12.5px;">II. PENJUALAN {{ $sIdx + 1 }}</div>
+                
+                <div class="font-weight-bold mt-2 mb-1" style="font-size: 12.5px;">II. PENJUALAN <?php echo e($sIdx + 1); ?></div>
                 <table class="table-formal-pv mb-2" style="max-width: 85%;">
                   <tr>
-                    <td style="width: 230px;">a. Totalisator Akhir ({{ $seg['end_datetime_label'] ?? '-' }})</td>
+                    <td style="width: 230px;">a. Totalisator Akhir (<?php echo e($seg['end_datetime_label'] ?? '-'); ?>)</td>
                     <td style="width: 20px;">=</td>
-                    <td style="width: 90px;" class="text-right">{{ number_format($seg['totalisator_akhir'], 2, ',', '.') }}</td>
+                    <td style="width: 90px;" class="text-right"><?php echo e(number_format($seg['totalisator_akhir'], 2, ',', '.')); ?></td>
                     <td style="width: 30px;">ℓ</td>
                     <td colspan="4"></td>
                   </tr>
                   <tr>
-                    <td>b. Totalisator Awal ({{ $seg['start_datetime_label'] ?? '-' }})</td>
+                    <td>b. Totalisator Awal (<?php echo e($seg['start_datetime_label'] ?? '-'); ?>)</td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['totalisator_awal'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['totalisator_awal'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td style="width: 20px;">-</td>
                     <td colspan="3"></td>
                   </tr>
                   <tr style="border-top: 1px solid #cbd5e1;">
-                    <td>c. Total Penjualan {{ $sIdx + 1 }} (a-b)</td>
+                    <td>c. Total Penjualan <?php echo e($sIdx + 1); ?> (a-b)</td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['total_penjualan'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['total_penjualan'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td colspan="4"></td>
                   </tr>
                   <tr>
                     <td>d. Percobaan (Test Pump)</td>
                     <td>=</td>
-                    <td class="text-right">{{ $seg['test_pump'] > 0 ? number_format($seg['test_pump'], 2, ',', '.') : '-' }}</td>
+                    <td class="text-right"><?php echo e($seg['test_pump'] > 0 ? number_format($seg['test_pump'], 2, ',', '.') : '-'); ?></td>
                     <td>ℓ</td>
                     <td>-</td>
                     <td colspan="3"></td>
                   </tr>
                   <tr style="font-weight: 700; border-top: 1px solid #cbd5e1;">
-                    <td>B. Jumlah Penjualan {{ $sIdx + 1 }} (c-d)</td>
+                    <td>B. Jumlah Penjualan <?php echo e($sIdx + 1); ?> (c-d)</td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['jumlah_penjualan'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['jumlah_penjualan'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td>x</td>
-                    <td>Rp {{ number_format($seg['harga_jual'], 2, ',', '.') }}</td>
+                    <td>Rp <?php echo e(number_format($seg['harga_jual'], 2, ',', '.')); ?></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right">Rp {{ number_format($seg['jumlah_penjualan_rp'], 0, ',', '.') }}</td>
+                    <td class="text-right">Rp <?php echo e(number_format($seg['jumlah_penjualan_rp'], 0, ',', '.')); ?></td>
                   </tr>
                   <tr>
                     <td>Sisa Stock (A-B)</td>
                     <td>=</td>
-                    <td class="text-right">{{ number_format($seg['sisa_stok_teoretis'], 2, ',', '.') }}</td>
+                    <td class="text-right"><?php echo e(number_format($seg['sisa_stok_teoretis'], 2, ',', '.')); ?></td>
                     <td>ℓ</td>
                     <td>x</td>
-                    <td>Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }}</td>
+                    <td>Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right">Rp {{ number_format($seg['sisa_stok_teoretis_rp'], 0, ',', '.') }} -</td>
+                    <td class="text-right">Rp <?php echo e(number_format($seg['sisa_stok_teoretis_rp'], 0, ',', '.')); ?> -</td>
                   </tr>
                   <tr style="border-top: 1px solid #cbd5e1; font-weight: 600;">
-                    <td colspan="6">Jumlah {{ $sIdx + 1 }}</td>
+                    <td colspan="6">Jumlah <?php echo e($sIdx + 1); ?></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right">Rp {{ number_format($seg['jumlah_penjualan_rp'] + $seg['sisa_stok_teoretis_rp'], 0, ',', '.') }}</td>
+                    <td class="text-right">Rp <?php echo e(number_format($seg['jumlah_penjualan_rp'] + $seg['sisa_stok_teoretis_rp'], 0, ',', '.')); ?></td>
                   </tr>
                   <tr>
-                    <td>Losses / Gain &nbsp;&rarr;&nbsp; <span class="{{ $seg['losses_gain'] < 0 ? 'text-danger' : 'text-success' }}">{{ $seg['losses_gain'] < 0 ? 'Losses' : 'Gain' }} ({{ number_format($seg['losses_gain_persen'], 3) }}%)</span></td>
+                    <td>Losses / Gain &nbsp;&rarr;&nbsp; <span class="<?php echo e($seg['losses_gain'] < 0 ? 'text-danger' : 'text-success'); ?>"><?php echo e($seg['losses_gain'] < 0 ? 'Losses' : 'Gain'); ?> (<?php echo e(number_format($seg['losses_gain_persen'], 3)); ?>%)</span></td>
                     <td>=</td>
-                    <td class="text-right {{ $seg['losses_gain'] < 0 ? 'text-danger' : 'text-success' }}">({{ number_format(abs($seg['losses_gain']), 3, ',', '.') }})</td>
+                    <td class="text-right <?php echo e($seg['losses_gain'] < 0 ? 'text-danger' : 'text-success'); ?>">(<?php echo e(number_format(abs($seg['losses_gain']), 3, ',', '.')); ?>)</td>
                     <td>ℓ</td>
                     <td>x</td>
-                    <td>Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }}</td>
+                    <td>Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right {{ $seg['losses_gain'] < 0 ? 'text-danger' : 'text-success' }}">Rp ({{ number_format(abs($seg['losses_gain_rp']), 0, ',', '.') }}) +</td>
+                    <td class="text-right <?php echo e($seg['losses_gain'] < 0 ? 'text-danger' : 'text-success'); ?>">Rp (<?php echo e(number_format(abs($seg['losses_gain_rp']), 0, ',', '.')); ?>) +</td>
                   </tr>
                   <tr style="font-weight: 700; border-top: 1.5px solid #0f172a;">
-                    <td colspan="6">C. Jumlah Penjualan Bersih {{ $sIdx + 1 }}</td>
+                    <td colspan="6">C. Jumlah Penjualan Bersih <?php echo e($sIdx + 1); ?></td>
                     <td class="text-center">&rarr;</td>
-                    <td class="text-right text-primary">Rp {{ number_format($seg['jumlah_penjualan_bersih'], 0, ',', '.') }}</td>
+                    <td class="text-right text-primary">Rp <?php echo e(number_format($seg['jumlah_penjualan_bersih'], 0, ',', '.')); ?></td>
                   </tr>
                 </table>
 
-                {{-- III. SISA STOK AKHIR --}}
+                
                 <div class="font-weight-bold mt-2" style="font-size: 12.5px;">
-                  III. Sisa Stok Akhir {{ $sIdx + 1 }} : &nbsp;&nbsp; {{ number_format($seg['stok_akhir_cm'] ?? 0, 2) }} cm &nbsp;&nbsp; = &nbsp;&nbsp; {{ number_format($seg['stok_akhir_fisik'], 2, ',', '.') }} ℓ &nbsp; x &nbsp; Rp {{ number_format($seg['harga_beli'], 2, ',', '.') }} &nbsp;&rarr;&nbsp; <strong>Rp {{ number_format($seg['stok_akhir_fisik_rp'], 0, ',', '.') }}</strong>
+                  III. Sisa Stok Akhir <?php echo e($sIdx + 1); ?> : &nbsp;&nbsp; <?php echo e(number_format($seg['stok_akhir_cm'] ?? 0, 2)); ?> cm &nbsp;&nbsp; = &nbsp;&nbsp; <?php echo e(number_format($seg['stok_akhir_fisik'], 2, ',', '.')); ?> ℓ &nbsp; x &nbsp; Rp <?php echo e(number_format($seg['harga_beli'], 2, ',', '.')); ?> &nbsp;&rarr;&nbsp; <strong>Rp <?php echo e(number_format($seg['stok_akhir_fisik_rp'], 0, ',', '.')); ?></strong>
                 </div>
               </div>
-            @empty
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
               <div class="alert alert-light border text-center py-3">
                 <i class="fas fa-info-circle text-info mr-1"></i> Data segmen penjualan sedang diformat dari berkas Excel.
               </div>
-            @endforelse
+            <?php endif; ?>
 
-            {{-- Summary Laba Kotor & DO Box Grid --}}
+            
             <div class="row mt-3">
               <div class="col-md-5 mb-3">
                 <div class="border p-2.5 rounded bg-light" style="font-size: 11.5px;">
@@ -677,11 +678,11 @@
                   <table class="table table-sm table-bordered bg-white mb-0 text-center">
                     <thead class="bg-light"><tr><th>PERTAMAX</th><th>KL</th></tr></thead>
                     <tbody>
-                      <tr><td class="text-left">Stok Awal</td><td>{{ number_format($h1['sisa_do_mees']['stok_awal_kl'] ?? 0, 2) }} KL</td></tr>
-                      <tr><td class="text-left">Setor</td><td>{{ number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2) }} KL</td></tr>
-                      <tr><td class="text-left">Setoran Tunai</td><td>{{ number_format($h1['sisa_do_mees']['setoran_tunai'] ?? 0, 2) }} KL</td></tr>
-                      <tr class="font-weight-bold"><td class="text-left">Jumlah</td><td>{{ number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2) }} KL</td></tr>
-                      <tr><td class="text-left">Datang</td><td>{{ number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2) }} KL</td></tr>
+                      <tr><td class="text-left">Stok Awal</td><td><?php echo e(number_format($h1['sisa_do_mees']['stok_awal_kl'] ?? 0, 2)); ?> KL</td></tr>
+                      <tr><td class="text-left">Setor</td><td><?php echo e(number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2)); ?> KL</td></tr>
+                      <tr><td class="text-left">Setoran Tunai</td><td><?php echo e(number_format($h1['sisa_do_mees']['setoran_tunai'] ?? 0, 2)); ?> KL</td></tr>
+                      <tr class="font-weight-bold"><td class="text-left">Jumlah</td><td><?php echo e(number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2)); ?> KL</td></tr>
+                      <tr><td class="text-left">Datang</td><td><?php echo e(number_format($h1['sisa_do_mees']['setor_kl'] ?? 0, 2)); ?> KL</td></tr>
                       <tr class="font-weight-bold bg-light"><td class="text-left">Sisa</td><td>- KL *)</td></tr>
                     </tbody>
                   </table>
@@ -690,23 +691,23 @@
 
               <div class="col-md-7 mb-3">
                 <div class="border p-2.5 rounded bg-light" style="font-size: 12px;">
-                  @foreach($h1['segments'] ?? [] as $sIdx => $seg)
+                  <?php $__currentLoopData = $h1['segments'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sIdx => $seg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span>Total Laba Kotor {{ $sIdx + 1 }} = Penjualan (Rp {{ number_format($seg['jumlah_penjualan_bersih'], 0, ',', '.') }}) - Pembelian (Rp {{ number_format($seg['jumlah_pembelian_rp'], 0, ',', '.') }})</span>
-                      <strong class="text-dark">Rp {{ number_format($seg['laba_kotor'], 0, ',', '.') }}</strong>
+                      <span>Total Laba Kotor <?php echo e($sIdx + 1); ?> = Penjualan (Rp <?php echo e(number_format($seg['jumlah_penjualan_bersih'], 0, ',', '.')); ?>) - Pembelian (Rp <?php echo e(number_format($seg['jumlah_pembelian_rp'], 0, ',', '.')); ?>)</span>
+                      <strong class="text-dark">Rp <?php echo e(number_format($seg['laba_kotor'], 0, ',', '.')); ?></strong>
                     </div>
-                  @endforeach
+                  <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                   <hr class="my-2">
                   <div class="d-flex justify-content-between align-items-center font-weight-bold" style="font-size: 13.5px;">
                     <span>Grand Total Laba Kotor Bulan Berjalan :</span>
-                    <span class="text-success" style="font-size: 15px;">Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</span>
+                    <span class="text-success" style="font-size: 15px;">Rp <?php echo e(number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.')); ?></span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {{-- Margin Footnote --}}
-            @if(!empty($h1['margin_history']))
+            
+            <?php if(!empty($h1['margin_history'])): ?>
             <div class="mt-3 border-top pt-2" style="font-size: 11px;">
               <div class="font-weight-bold mb-1">Ilustrasi Turun / Naik Margin Pertamax92 Pertashop :</div>
               <div class="table-responsive">
@@ -715,85 +716,86 @@
                     <tr><th>Tanggal Efektif</th><th>Harga Beli</th><th>Harga Jual</th><th>Margin</th><th>Naik / Turun</th></tr>
                   </thead>
                   <tbody>
-                    @foreach($h1['margin_history'] as $mh)
+                    <?php $__currentLoopData = $h1['margin_history']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $mh): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                       <tr>
-                        <td>{{ $mh['tanggal'] }}</td>
-                        <td>Rp {{ number_format($mh['harga_beli'], 2, ',', '.') }}</td>
-                        <td>Rp {{ number_format($mh['harga_jual'], 2, ',', '.') }}</td>
-                        <td class="font-weight-bold">Rp {{ number_format($mh['margin'], 2, ',', '.') }}</td>
-                        <td class="{{ $mh['arah'] == 'Naik' ? 'text-success' : ($mh['arah'] == 'Turun' ? 'text-danger' : '') }}">
-                          {{ $mh['arah'] }} {{ $mh['diff'] > 0 ? '(Rp ' . number_format($mh['diff'], 2, ',', '.') . ')' : '' }}
+                        <td><?php echo e($mh['tanggal']); ?></td>
+                        <td>Rp <?php echo e(number_format($mh['harga_beli'], 2, ',', '.')); ?></td>
+                        <td>Rp <?php echo e(number_format($mh['harga_jual'], 2, ',', '.')); ?></td>
+                        <td class="font-weight-bold">Rp <?php echo e(number_format($mh['margin'], 2, ',', '.')); ?></td>
+                        <td class="<?php echo e($mh['arah'] == 'Naik' ? 'text-success' : ($mh['arah'] == 'Turun' ? 'text-danger' : '')); ?>">
+                          <?php echo e($mh['arah']); ?> <?php echo e($mh['diff'] > 0 ? '(Rp ' . number_format($mh['diff'], 2, ',', '.') . ')' : ''); ?>
+
                         </td>
                       </tr>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                   </tbody>
                 </table>
               </div>
             </div>
-            @endif
+            <?php endif; ?>
 
           </div>
         </div>
 
-        {{-- ========================================================================= --}}
-        {{-- SUB-TAB 2: HALAMAN 2 - LABA BERSIH & PROFIT SHARING --}}
-        {{-- ========================================================================= --}}
+        
+        
+        
         <div class="tab-pane fade" id="pv-hal2" role="tabpanel">
           <div class="report-paper-preview">
-            <div class="report-header-title-pv">PERHITUNGAN LABA BERSIH {{ $backdateExcelFile->formatted_period }}</div>
-            <div class="report-header-sub-pv">PERTASHOP {{ $backdateExcelFile->shop->kode }} {{ $backdateExcelFile->shop->alamat }}</div>
+            <div class="report-header-title-pv">PERHITUNGAN LABA BERSIH <?php echo e($backdateExcelFile->formatted_period); ?></div>
+            <div class="report-header-sub-pv">PERTASHOP <?php echo e($backdateExcelFile->shop->kode); ?> <?php echo e($backdateExcelFile->shop->alamat); ?></div>
             <div class="report-header-pt-pv">PT SERAYU AGUNG MANDIRI</div>
 
-            {{-- PENDAPATAN --}}
+            
             <div class="font-weight-bold text-uppercase mb-1" style="font-size: 12.5px; text-decoration: underline;">PENDAPATAN</div>
             <table class="table-formal-pv mb-3">
               <tr>
                 <td style="width: 280px;">1. LABA KOTOR ........................................................................</td>
                 <td style="width: 20px;">=</td>
-                <td style="width: 140px;" class="text-right">Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</td>
+                <td style="width: 140px;" class="text-right">Rp <?php echo e(number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.')); ?></td>
                 <td style="width: 40px;"></td>
-                <td class="text-right font-weight-bold" style="width: 200px;">A. Total Laba Kotor = Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</td>
+                <td class="text-right font-weight-bold" style="width: 200px;">A. Total Laba Kotor = Rp <?php echo e(number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.')); ?></td>
               </tr>
             </table>
 
-            {{-- PENGELUARAN --}}
-            @php $pd = $h2['pengeluaran_details'] ?? []; @endphp
+            
+            <?php $pd = $h2['pengeluaran_details'] ?? []; ?>
             <div class="font-weight-bold text-uppercase mb-1" style="font-size: 12.5px; text-decoration: underline;">PENGELUARAN</div>
             <table class="table-formal-pv mb-2">
-              <tr><td>1. GAJI OPERATOR ...................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['gaji_operator'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>2. GAJI ADMIN ..........................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['gaji_admin'] ?? 500000, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>3. BIAYA CURAH / BONGKAR .................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['biaya_curah'] ?? 50000, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>4. BIAYA TRANSFER BANK ....................................................</td><td>=</td><td class="text-right">{{ ($pd['biaya_tf'] ?? 0) > 0 ? 'Rp ' . number_format($pd['biaya_tf'], 0, ',', '.') : 'Rp -' }}</td><td></td></tr>
-              <tr><td>5. LISTRIK .................................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['listrik'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>6. AIR BERSIH ..........................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['air'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>7. CASHBACK PENGECER .....................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['cashback'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>8. INTERNET .............................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['internet'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
-              <tr><td>9. FOTOCOPY &amp; ATK ............................................................</td><td>=</td><td class="text-right">{{ ($pd['atk'] ?? 0) > 0 ? 'Rp ' . number_format($pd['atk'], 0, ',', '.') : 'Rp -' }}</td><td></td></tr>
-              <tr><td>10. LAIN2 ({{ $pd['lain_lain_notes'] ?? 'OPERASIONAL' }}) .................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['lain_lain'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
+              <tr><td>1. GAJI OPERATOR ...................................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['gaji_operator'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>2. GAJI ADMIN ..........................................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['gaji_admin'] ?? 500000, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>3. BIAYA CURAH / BONGKAR .................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['biaya_curah'] ?? 50000, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>4. BIAYA TRANSFER BANK ....................................................</td><td>=</td><td class="text-right"><?php echo e(($pd['biaya_tf'] ?? 0) > 0 ? 'Rp ' . number_format($pd['biaya_tf'], 0, ',', '.') : 'Rp -'); ?></td><td></td></tr>
+              <tr><td>5. LISTRIK .................................................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['listrik'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>6. AIR BERSIH ..........................................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['air'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>7. CASHBACK PENGECER .....................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['cashback'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>8. INTERNET .............................................................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['internet'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
+              <tr><td>9. FOTOCOPY &amp; ATK ............................................................</td><td>=</td><td class="text-right"><?php echo e(($pd['atk'] ?? 0) > 0 ? 'Rp ' . number_format($pd['atk'], 0, ',', '.') : 'Rp -'); ?></td><td></td></tr>
+              <tr><td>10. LAIN2 (<?php echo e($pd['lain_lain_notes'] ?? 'OPERASIONAL'); ?>) .................................</td><td>=</td><td class="text-right">Rp <?php echo e(number_format($pd['lain_lain'] ?? 0, 0, ',', '.')); ?></td><td></td></tr>
               <tr style="border-top: 1px solid #94a3b8; font-weight: 700;">
                 <td colspan="2">B. Total Biaya</td>
-                <td class="text-right text-danger">Rp {{ number_format($h2['total_biaya'] ?? 0, 0, ',', '.') }}</td>
+                <td class="text-right text-danger">Rp <?php echo e(number_format($h2['total_biaya'] ?? 0, 0, ',', '.')); ?></td>
                 <td></td>
               </tr>
             </table>
 
-            {{-- Summary Laba Bersih & Alokasi --}}
+            
             <div class="row justify-content-end mb-3">
               <div class="col-md-6">
                 <table class="table-formal-pv" style="font-size: 12.5px;">
-                  <tr><td>A. Total Laba Kotor</td><td class="text-right font-weight-bold">Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</td></tr>
-                  <tr><td>B. Total Biaya</td><td class="text-right font-weight-bold text-danger">Rp {{ number_format($h2['total_biaya'] ?? 0, 0, ',', '.') }} -</td></tr>
+                  <tr><td>A. Total Laba Kotor</td><td class="text-right font-weight-bold">Rp <?php echo e(number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.')); ?></td></tr>
+                  <tr><td>B. Total Biaya</td><td class="text-right font-weight-bold text-danger">Rp <?php echo e(number_format($h2['total_biaya'] ?? 0, 0, ',', '.')); ?> -</td></tr>
                   <tr style="border-top: 1.5px solid #0f172a; font-weight: 800;">
                     <td>(A-B) LABA BERSIH</td>
-                    <td class="text-right text-success" style="font-size: 13.5px;">Rp {{ number_format($h2['laba_bersih'] ?? 0, 0, ',', '.') }}</td>
+                    <td class="text-right text-success" style="font-size: 13.5px;">Rp <?php echo e(number_format($h2['laba_bersih'] ?? 0, 0, ',', '.')); ?></td>
                   </tr>
                   <tr class="text-muted">
                     <td>*) Alokasi Penambahan Modal dari 10% Profit</td>
-                    <td class="text-right text-warning font-weight-bold">Rp {{ number_format($h2['alokasi_penambahan_modal'] ?? 0, 0, ',', '.') }} -</td>
+                    <td class="text-right text-warning font-weight-bold">Rp <?php echo e(number_format($h2['alokasi_penambahan_modal'] ?? 0, 0, ',', '.')); ?> -</td>
                   </tr>
                   <tr style="font-weight: 700;">
                     <td>Saldo Laba Bersih (90%) yg Dibagi</td>
-                    <td class="text-right">Rp {{ number_format($h2['saldo_laba_bersih_90'] ?? 0, 0, ',', '.') }}</td>
+                    <td class="text-right">Rp <?php echo e(number_format($h2['saldo_laba_bersih_90'] ?? 0, 0, ',', '.')); ?></td>
                   </tr>
                   <tr>
                     <td>Saldo Laba Bersih Bulan Sebelumnya yg blm Dibagi</td>
@@ -801,31 +803,31 @@
                   </tr>
                   <tr style="border-top: 2px solid #0f172a; font-weight: 800; background: #f8fafc;">
                     <td>Total Saldo Laba Bersih yg Dibagi [HOLD / PAYOUT]</td>
-                    <td class="text-right text-primary" style="font-size: 14px;">Rp {{ number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.') }}</td>
+                    <td class="text-right text-primary" style="font-size: 14px;">Rp <?php echo e(number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.')); ?></td>
                   </tr>
                 </table>
               </div>
             </div>
 
-            {{-- Investor List & Transfer Accounts --}}
+            
             <div class="font-weight-bold mt-3 mb-1" style="font-size: 12.5px;">Pembagian Laba Bersih :</div>
             <table class="table-formal-pv mb-3" style="max-width: 60%;">
-              @foreach($h2['investor_distributions'] ?? [] as $idx => $inv)
+              <?php $__currentLoopData = $h2['investor_distributions'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $idx => $inv): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                 <tr>
-                  <td style="width: 30px;">{{ $idx + 1 }}.</td>
-                  <td style="width: 220px;">{{ $inv['nama'] }}</td>
-                  <td style="width: 70px;" class="text-right">{{ number_format($inv['persen'], 0) }}%</td>
+                  <td style="width: 30px;"><?php echo e($idx + 1); ?>.</td>
+                  <td style="width: 220px;"><?php echo e($inv['nama']); ?></td>
+                  <td style="width: 70px;" class="text-right"><?php echo e(number_format($inv['persen'], 0)); ?>%</td>
                   <td style="width: 20px;" class="text-center">=</td>
-                  <td class="text-right font-weight-bold">Rp {{ number_format($inv['nominal'], 0, ',', '.') }}</td>
+                  <td class="text-right font-weight-bold">Rp <?php echo e(number_format($inv['nominal'], 0, ',', '.')); ?></td>
                 </tr>
-              @endforeach
+              <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
               <tr style="border-top: 1.5px solid #0f172a; font-weight: 800;">
                 <td colspan="4">Total</td>
-                <td class="text-right text-success">Rp {{ number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.') }}</td>
+                <td class="text-right text-success">Rp <?php echo e(number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.')); ?></td>
               </tr>
             </table>
 
-            {{-- Catatan Rekening & Checklist Transfer --}}
+            
             <div class="font-weight-bold mt-3 mb-1" style="font-size: 12.5px;">Catatan Transfer :</div>
             <table class="table-formal-pv mb-3">
               <thead>
@@ -838,17 +840,17 @@
                 </tr>
               </thead>
               <tbody>
-                @foreach($h2['investor_distributions'] ?? [] as $idx => $inv)
+                <?php $__currentLoopData = $h2['investor_distributions'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $idx => $inv): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                   <tr>
-                    <td>{{ $idx + 1 }}.</td>
-                    <td><strong>{{ $inv['nama_bank'] }}</strong> {{ $inv['no_rekening'] }}</td>
-                    <td>a/n {{ $inv['atas_nama_rekening'] }}</td>
-                    <td class="text-right font-weight-bold">Rp {{ number_format($inv['nominal'], 0, ',', '.') }}</td>
+                    <td><?php echo e($idx + 1); ?>.</td>
+                    <td><strong><?php echo e($inv['nama_bank']); ?></strong> <?php echo e($inv['no_rekening']); ?></td>
+                    <td>a/n <?php echo e($inv['atas_nama_rekening']); ?></td>
+                    <td class="text-right font-weight-bold">Rp <?php echo e(number_format($inv['nominal'], 0, ',', '.')); ?></td>
                     <td class="text-center">
                       <span class="badge badge-success px-2 py-1"><i class="fas fa-check mr-1"></i> Siap Ditransfer</span>
                     </td>
                   </tr>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
               </tbody>
             </table>
             <div class="text-muted italic" style="font-size: 11px;">*) Jika Laba Positif, Alokasi Modal 10% Untuk Penambahan Modal Dasar</div>
@@ -856,18 +858,18 @@
           </div>
         </div>
 
-        {{-- ========================================================================= --}}
-        {{-- SUB-TAB 3: HALAMAN 3 - POSISI MODAL KERJA (NERACA LIKUIDITAS) --}}
-        {{-- ========================================================================= --}}
+        
+        
+        
         <div class="tab-pane fade" id="pv-hal3" role="tabpanel">
           <div class="report-paper-preview">
-            <div class="report-header-title-pv">POSISI MODAL KERJA PERIODE {{ $backdateExcelFile->formatted_period }}</div>
-            <div class="report-header-sub-pv">PERTASHOP {{ $backdateExcelFile->shop->kode }} {{ $backdateExcelFile->shop->alamat }}</div>
+            <div class="report-header-title-pv">POSISI MODAL KERJA PERIODE <?php echo e($backdateExcelFile->formatted_period); ?></div>
+            <div class="report-header-sub-pv">PERTASHOP <?php echo e($backdateExcelFile->shop->kode); ?> <?php echo e($backdateExcelFile->shop->alamat); ?></div>
             <div class="report-header-pt-pv">PT SERAYU AGUNG MANDIRI</div>
 
             <div class="d-flex justify-content-between align-items-center mb-2 font-weight-bold" style="font-size: 12.5px; border-bottom: 2px solid #0f172a; padding-bottom: 4px;">
               <span>POSISI MODAL KERJA</span>
-              <span>Saldo Awal Modal Periode Bulan Sebelumnya : <strong class="text-primary">Rp {{ number_format($h3['saldo_awal_modal'] ?? 68019683, 0, ',', '.') }}</strong></span>
+              <span>Saldo Awal Modal Periode Bulan Sebelumnya : <strong class="text-primary">Rp <?php echo e(number_format($h3['saldo_awal_modal'] ?? 68019683, 0, ',', '.')); ?></strong></span>
             </div>
 
             <table class="table-formal-pv mb-3" style="font-size: 12.5px;">
@@ -875,96 +877,96 @@
                 <tr>
                   <td style="width: 30px;">1.</td>
                   <td style="width: 260px;">DO yang Masih Ada di Pertamina</td>
-                  <td style="width: 140px;" class="text-center">{{ ($h3['do_di_pertamina'] ?? 0) > 0 ? '5.00 ℓ x Rp ' . number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.') : '- ℓ x Rp ' . number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.') }}</td>
+                  <td style="width: 140px;" class="text-center"><?php echo e(($h3['do_di_pertamina'] ?? 0) > 0 ? '5.00 ℓ x Rp ' . number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.') : '- ℓ x Rp ' . number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.')); ?></td>
                   <td style="width: 20px;">:</td>
-                  <td class="text-right" style="width: 140px;">{{ ($h3['do_di_pertamina'] ?? 0) > 0 ? 'Rp ' . number_format($h3['do_di_pertamina'], 0, ',', '.') : 'Rp -' }}</td>
+                  <td class="text-right" style="width: 140px;"><?php echo e(($h3['do_di_pertamina'] ?? 0) > 0 ? 'Rp ' . number_format($h3['do_di_pertamina'], 0, ',', '.') : 'Rp -'); ?></td>
                 </tr>
                 <tr>
                   <td>2.</td>
                   <td>Uang Di Bank Periode Bulan ini</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right">Rp {{ number_format($h3['uang_di_bank'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right">Rp <?php echo e(number_format($h3['uang_di_bank'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
                 <tr>
                   <td>3.</td>
                   <td>Kas Kecil di Pertashop (TUNAI)</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right text-muted">Rp ({{ number_format(abs($h3['kas_kecil'] ?? 0), 0, ',', '.') }})</td>
+                  <td class="text-right text-muted">Rp (<?php echo e(number_format(abs($h3['kas_kecil'] ?? 0), 0, ',', '.')); ?>)</td>
                 </tr>
                 <tr>
                   <td>4.</td>
                   <td>Sisa Stok yang Masih ada Di Pertashop</td>
-                  <td class="text-center">{{ number_format($h1['final_stok_liter'] ?? 0, 2, ',', '.') }} ℓ x Rp {{ number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.') }}</td>
+                  <td class="text-center"><?php echo e(number_format($h1['final_stok_liter'] ?? 0, 2, ',', '.')); ?> ℓ x Rp <?php echo e(number_format($h1['final_harga_beli'] ?? 15334.81, 2, ',', '.')); ?></td>
                   <td>:</td>
-                  <td class="text-right text-muted">Rp ({{ number_format(abs($h3['sisa_stok_pertashop_rp'] ?? 0), 0, ',', '.') }})</td>
+                  <td class="text-right text-muted">Rp (<?php echo e(number_format(abs($h3['sisa_stok_pertashop_rp'] ?? 0), 0, ',', '.')); ?>)</td>
                 </tr>
                 <tr>
                   <td>5.</td>
                   <td>Hasil Penjualan yang Belum Disetor di Akhir Periode (TUNAI)</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right text-muted">Rp ({{ number_format(abs($h3['hasil_belum_disetor'] ?? 0), 0, ',', '.') }})</td>
+                  <td class="text-right text-muted">Rp (<?php echo e(number_format(abs($h3['hasil_belum_disetor'] ?? 0), 0, ',', '.')); ?>)</td>
                 </tr>
                 <tr>
                   <td>6.</td>
                   <td>Piutang</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right text-muted">Rp ({{ number_format(abs($h3['piutang'] ?? 0), 0, ',', '.') }}) +</td>
+                  <td class="text-right text-muted">Rp (<?php echo e(number_format(abs($h3['piutang'] ?? 0), 0, ',', '.')); ?>) +</td>
                 </tr>
                 <tr style="border-top: 1.5px solid #0f172a; font-weight: 700; background: #f8fafc;">
                   <td colspan="3" class="text-right">A. Sub Total Saldo Akhir Modal :</td>
                   <td>:</td>
-                  <td class="text-right">Rp {{ number_format($h3['subtotal_a'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right">Rp <?php echo e(number_format($h3['subtotal_a'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
 
-                {{-- Adjustments --}}
+                
                 <tr>
                   <td>7.</td>
                   <td>Bunga Bank Periode Bulan ini</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right text-success">Rp {{ number_format($h3['bunga_bank'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right text-success">Rp <?php echo e(number_format($h3['bunga_bank'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
                 <tr>
                   <td>8.</td>
                   <td>Pajak Bank Periode Bulan ini</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right text-danger">Rp ({{ number_format($h3['pajak_bank'] ?? 0, 0, ',', '.') }})</td>
+                  <td class="text-right text-danger">Rp (<?php echo e(number_format($h3['pajak_bank'] ?? 0, 0, ',', '.')); ?>)</td>
                 </tr>
                 <tr>
                   <td>9.</td>
                   <td>Profit Sharing yang dibagi ke Investor</td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right font-weight-bold text-dark">Rp {{ number_format($h3['profit_sharing_dibagi'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right font-weight-bold text-dark">Rp <?php echo e(number_format($h3['profit_sharing_dibagi'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
                 <tr>
                   <td>10.</td>
-                  <td><span class="{{ ($h3['penambahan_keuntungan'] ?? 0) >= 0 ? 'text-primary' : 'text-danger' }}">Penambahan / Pengurangan Modal dari Keuntungan bulan ini</span></td>
+                  <td><span class="<?php echo e(($h3['penambahan_keuntungan'] ?? 0) >= 0 ? 'text-primary' : 'text-danger'); ?>">Penambahan / Pengurangan Modal dari Keuntungan bulan ini</span></td>
                   <td class="text-center"></td>
                   <td>:</td>
-                  <td class="text-right font-weight-bold {{ ($h3['penambahan_keuntungan'] ?? 0) >= 0 ? 'text-primary' : 'text-danger' }}">
-                    Rp {{ number_format($h3['penambahan_keuntungan'] ?? 0, 0, ',', '.') }} +
+                  <td class="text-right font-weight-bold <?php echo e(($h3['penambahan_keuntungan'] ?? 0) >= 0 ? 'text-primary' : 'text-danger'); ?>">
+                    Rp <?php echo e(number_format($h3['penambahan_keuntungan'] ?? 0, 0, ',', '.')); ?> +
                   </td>
                 </tr>
                 <tr style="border-top: 1.5px solid #0f172a; font-weight: 700; background: #f8fafc;">
                   <td colspan="3" class="text-right">B. Sub Total Penambahan Modal :</td>
                   <td>:</td>
-                  <td class="text-right">Rp {{ number_format($h3['subtotal_b'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right">Rp <?php echo e(number_format($h3['subtotal_b'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
                 <tr style="border-top: 1px solid #cbd5e1; font-weight: 700;">
                   <td colspan="3" class="text-right">C. Sub Total Saldo Akhir Modal (A+B) :</td>
                   <td>:</td>
-                  <td class="text-right">Rp {{ number_format($h3['subtotal_c'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right">Rp <?php echo e(number_format($h3['subtotal_c'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
                 <tr style="border-top: 2px solid #0f172a; font-weight: 800; background: #eff6ff; font-size: 13.5px;">
                   <td colspan="3" class="text-right text-primary">D. Total Saldo Akhir Modal (C-9) :</td>
                   <td>:</td>
-                  <td class="text-right text-primary" style="font-size: 15px;">Rp {{ number_format($h3['total_saldo_akhir_modal'] ?? 0, 0, ',', '.') }}</td>
+                  <td class="text-right text-primary" style="font-size: 15px;">Rp <?php echo e(number_format($h3['total_saldo_akhir_modal'] ?? 0, 0, ',', '.')); ?></td>
                 </tr>
               </tbody>
             </table>
@@ -972,13 +974,13 @@
           </div>
         </div>
 
-        {{-- ========================================================================= --}}
-        {{-- SUB-TAB 4: HALAMAN 4 - REKAPITULASI NILAI MODAL HISTORIS --}}
-        {{-- ========================================================================= --}}
+        
+        
+        
         <div class="tab-pane fade" id="pv-hal4" role="tabpanel">
           <div class="report-paper-preview">
-            <div class="report-header-title-pv">REKAPITULASI NILAI MODAL {{ $backdateExcelFile->shop->nama }}</div>
-            <div class="report-header-sub-pv">{{ $backdateExcelFile->shop->kode }} {{ $backdateExcelFile->shop->alamat }}</div>
+            <div class="report-header-title-pv">REKAPITULASI NILAI MODAL <?php echo e($backdateExcelFile->shop->nama); ?></div>
+            <div class="report-header-sub-pv"><?php echo e($backdateExcelFile->shop->kode); ?> <?php echo e($backdateExcelFile->shop->alamat); ?></div>
             <div class="report-header-pt-pv">PT SERAYU AGUNG MANDIRI</div>
 
             <div class="table-responsive mb-3" style="max-height: 480px; overflow-y: auto;">
@@ -1000,79 +1002,86 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @php
+                  <?php
                     $bulanIndo = [
                         1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
                         5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
                         9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
                     ];
-                  @endphp
-                  @forelse($h4['capital_recaps'] ?? [] as $recap)
+                  ?>
+                  <?php $__empty_1 = true; $__currentLoopData = $h4['capital_recaps'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $recap): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <tr>
-                      <td>{{ $recap['tahun_ke'] ?? 1 }}</td>
-                      <td class="text-left font-weight-bold">{{ $bulanIndo[$recap['bulan']] ?? $recap['bulan'] }} {{ $recap['tahun'] }}</td>
-                      <td class="text-right">Rp {{ number_format($recap['nilai_modal_awal'], 0, ',', '.') }}</td>
-                      <td class="text-right {{ ($recap['penyusutan_rugi'] ?? 0) < 0 ? 'text-danger font-weight-bold' : '' }}">
-                        {{ ($recap['penyusutan_rugi'] ?? 0) < 0 ? 'Rp (' . number_format(abs($recap['penyusutan_rugi']), 0, ',', '.') . ')' : '-' }}
+                      <td><?php echo e($recap['tahun_ke'] ?? 1); ?></td>
+                      <td class="text-left font-weight-bold"><?php echo e($bulanIndo[$recap['bulan']] ?? $recap['bulan']); ?> <?php echo e($recap['tahun']); ?></td>
+                      <td class="text-right">Rp <?php echo e(number_format($recap['nilai_modal_awal'], 0, ',', '.')); ?></td>
+                      <td class="text-right <?php echo e(($recap['penyusutan_rugi'] ?? 0) < 0 ? 'text-danger font-weight-bold' : ''); ?>">
+                        <?php echo e(($recap['penyusutan_rugi'] ?? 0) < 0 ? 'Rp (' . number_format(abs($recap['penyusutan_rugi']), 0, ',', '.') . ')' : '-'); ?>
+
                       </td>
-                      <td class="text-right {{ ($recap['penyusutan_pajak_bank'] ?? 0) < 0 ? 'text-danger' : '' }}">
-                        {{ ($recap['penyusutan_pajak_bank'] ?? 0) < 0 ? 'Rp (' . number_format(abs($recap['penyusutan_pajak_bank']), 0, ',', '.') . ')' : '-' }}
+                      <td class="text-right <?php echo e(($recap['penyusutan_pajak_bank'] ?? 0) < 0 ? 'text-danger' : ''); ?>">
+                        <?php echo e(($recap['penyusutan_pajak_bank'] ?? 0) < 0 ? 'Rp (' . number_format(abs($recap['penyusutan_pajak_bank']), 0, ',', '.') . ')' : '-'); ?>
+
                       </td>
-                      <td class="text-right {{ ($recap['penambahan_keuntungan'] ?? 0) > 0 ? 'text-success font-weight-bold' : '' }}">
-                        {{ ($recap['penambahan_keuntungan'] ?? 0) > 0 ? 'Rp ' . number_format($recap['penambahan_keuntungan'], 0, ',', '.') : '-' }}
+                      <td class="text-right <?php echo e(($recap['penambahan_keuntungan'] ?? 0) > 0 ? 'text-success font-weight-bold' : ''); ?>">
+                        <?php echo e(($recap['penambahan_keuntungan'] ?? 0) > 0 ? 'Rp ' . number_format($recap['penambahan_keuntungan'], 0, ',', '.') : '-'); ?>
+
                       </td>
-                      <td class="text-right {{ ($recap['penambahan_bunga_bank'] ?? 0) > 0 ? 'text-success' : '' }}">
-                        {{ ($recap['penambahan_bunga_bank'] ?? 0) > 0 ? 'Rp ' . number_format($recap['penambahan_bunga_bank'], 0, ',', '.') : '-' }}
+                      <td class="text-right <?php echo e(($recap['penambahan_bunga_bank'] ?? 0) > 0 ? 'text-success' : ''); ?>">
+                        <?php echo e(($recap['penambahan_bunga_bank'] ?? 0) > 0 ? 'Rp ' . number_format($recap['penambahan_bunga_bank'], 0, ',', '.') : '-'); ?>
+
                       </td>
-                      <td class="text-right font-weight-bold {{ ($recap['nilai_penambahan_penyusutan'] ?? 0) < 0 ? 'text-danger' : 'text-dark' }}">
-                        Rp {{ number_format($recap['nilai_penambahan_penyusutan'] ?? 0, 0, ',', '.') }}
+                      <td class="text-right font-weight-bold <?php echo e(($recap['nilai_penambahan_penyusutan'] ?? 0) < 0 ? 'text-danger' : 'text-dark'); ?>">
+                        Rp <?php echo e(number_format($recap['nilai_penambahan_penyusutan'] ?? 0, 0, ',', '.')); ?>
+
                       </td>
                       <td class="text-right font-weight-bold text-primary">
-                        Rp {{ number_format($recap['akumulasi_penambahan_penyusutan'] ?? 0, 0, ',', '.') }}
+                        Rp <?php echo e(number_format($recap['akumulasi_penambahan_penyusutan'] ?? 0, 0, ',', '.')); ?>
+
                       </td>
                       <td class="text-right font-weight-bold" style="font-size: 11.5px; color: #0f172a;">
-                        Rp {{ number_format($recap['posisi_akhir_modal'] ?? 0, 0, ',', '.') }}
+                        Rp <?php echo e(number_format($recap['posisi_akhir_modal'] ?? 0, 0, ',', '.')); ?>
+
                       </td>
-                      <td class="text-right">Rp {{ number_format($recap['harga_beli_pertamax'] ?? 0, 2, ',', '.') }}</td>
-                      <td class="text-right font-weight-bold">{{ number_format($recap['konversi_liter'] ?? 0, 2, ',', '.') }} ℓ</td>
+                      <td class="text-right">Rp <?php echo e(number_format($recap['harga_beli_pertamax'] ?? 0, 2, ',', '.')); ?></td>
+                      <td class="text-right font-weight-bold"><?php echo e(number_format($recap['konversi_liter'] ?? 0, 2, ',', '.')); ?> ℓ</td>
                     </tr>
-                  @empty
+                  <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                       <td colspan="12" class="text-center py-3 text-muted">Belum ada data Rekapitulasi Modal.</td>
                     </tr>
-                  @endforelse
+                  <?php endif; ?>
                 </tbody>
               </table>
             </div>
 
-            {{-- Summary Footer --}}
+            
             <div class="row justify-content-between align-items-center p-3 rounded bg-light border">
               <div class="col-md-6" style="font-size: 12px;">
                 <table class="table-formal-pv">
                   <tr>
                     <td style="width: 140px;">Nilai Modal Dasar</td>
                     <td style="width: 20px;">=</td>
-                    <td style="width: 130px;" class="text-right font-weight-bold">Rp {{ number_format($h4['modal_awal_dasar'] ?? 60000000, 0, ',', '.') }}</td>
+                    <td style="width: 130px;" class="text-right font-weight-bold">Rp <?php echo e(number_format($h4['modal_awal_dasar'] ?? 60000000, 0, ',', '.')); ?></td>
                     <td class="text-right" style="width: 90px;">100.00%</td>
                   </tr>
                   <tr>
                     <td>Penambahan Modal</td>
                     <td>=</td>
-                    <td class="text-right font-weight-bold text-success">+ Rp {{ number_format($h4['total_akumulasi_modal'] ?? 0, 0, ',', '.') }}</td>
-                    <td class="text-right text-success">+ {{ number_format($h4['persen_penambahan_modal'] ?? 0, 2) }}%</td>
+                    <td class="text-right font-weight-bold text-success">+ Rp <?php echo e(number_format($h4['total_akumulasi_modal'] ?? 0, 0, ',', '.')); ?></td>
+                    <td class="text-right text-success">+ <?php echo e(number_format($h4['persen_penambahan_modal'] ?? 0, 2)); ?>%</td>
                   </tr>
                   <tr style="border-top: 1.5px solid #0f172a; font-weight: 800;">
                     <td>Total Modal</td>
                     <td>=</td>
-                    <td class="text-right text-primary" style="font-size: 13.5px;">Rp {{ number_format($h4['grand_total_modal'] ?? 60000000, 0, ',', '.') }}</td>
-                    <td class="text-right text-primary" style="font-size: 13.5px;">{{ number_format($h4['persen_grand_total'] ?? 100, 2) }}%</td>
+                    <td class="text-right text-primary" style="font-size: 13.5px;">Rp <?php echo e(number_format($h4['grand_total_modal'] ?? 60000000, 0, ',', '.')); ?></td>
+                    <td class="text-right text-primary" style="font-size: 13.5px;"><?php echo e(number_format($h4['persen_grand_total'] ?? 100, 2)); ?>%</td>
                   </tr>
                 </table>
               </div>
               <div class="col-md-5 text-right">
                 <div class="p-2.5 bg-white border rounded shadow-xs">
                   <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 10.5px;">Saldo Akhir Modal Terverifikasi</small>
-                  <span class="h5 font-weight-bold text-primary mb-0">Rp {{ number_format($h3['total_saldo_akhir_modal'] ?? 0, 0, ',', '.') }}</span>
+                  <span class="h5 font-weight-bold text-primary mb-0">Rp <?php echo e(number_format($h3['total_saldo_akhir_modal'] ?? 0, 0, ',', '.')); ?></span>
                 </div>
               </div>
             </div>
@@ -1080,11 +1089,11 @@
           </div>
         </div>
 
-        {{-- ========================================================================= --}}
-        {{-- SUB-TAB 5: RINCIAN 8 POIN BKH (LEGACY OVERVIEW) --}}
-        {{-- ========================================================================= --}}
+        
+        
+        
         <div class="tab-pane fade" id="pv-bkh" role="tabpanel">
-          {{-- 6 KPI METRICS GRID --}}
+          
           <div class="row mb-4">
             <div class="col-md-4 col-lg-2 mb-3">
               <div class="kpi-card-v2 kpi-blue">
@@ -1093,7 +1102,8 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-play"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 15px;">
-                  {{ number_format($summary['totalisator_awal'] ?? 0, 2, ',', '.') }}
+                  <?php echo e(number_format($summary['totalisator_awal'] ?? 0, 2, ',', '.')); ?>
+
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Awal Bulan</small>
               </div>
@@ -1105,7 +1115,8 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-flag-checkered"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 15px;">
-                  {{ number_format($summary['totalisator_akhir'] ?? 0, 2, ',', '.') }}
+                  <?php echo e(number_format($summary['totalisator_akhir'] ?? 0, 2, ',', '.')); ?>
+
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Akhir Bulan</small>
               </div>
@@ -1117,7 +1128,7 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-gas-pump"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 15px;">
-                  {{ number_format($summary['jumlah_liter_terjual'] ?? 0, 2, ',', '.') }} L
+                  <?php echo e(number_format($summary['jumlah_liter_terjual'] ?? 0, 2, ',', '.')); ?> L
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Total 1 Bulan</small>
               </div>
@@ -1129,7 +1140,7 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-boxes"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 15px;">
-                  {{ number_format($summary['stok_akhir'] ?? 0, 2, ',', '.') }} L
+                  <?php echo e(number_format($summary['stok_akhir'] ?? 0, 2, ',', '.')); ?> L
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Akhir Bulan</small>
               </div>
@@ -1141,7 +1152,8 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-receipt"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 13.5px;">
-                  Rp {{ number_format($summary['total_pengeluaran']['total_rp'] ?? 0, 0, ',', '.') }}
+                  Rp <?php echo e(number_format($summary['total_pengeluaran']['total_rp'] ?? 0, 0, ',', '.')); ?>
+
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Operasional</small>
               </div>
@@ -1153,53 +1165,54 @@
                   <div class="kpi-icon-wrapper"><i class="fas fa-exclamation-circle"></i></div>
                 </div>
                 <h5 class="font-weight-bold text-dark mb-0" style="font-size: 13.5px;">
-                  Rp {{ number_format($summary['total_belum_disetorkan']['total_rp'] ?? 0, 0, ',', '.') }}
+                  Rp <?php echo e(number_format($summary['total_belum_disetorkan']['total_rp'] ?? 0, 0, ',', '.')); ?>
+
                 </h5>
                 <small class="text-muted" style="font-size: 11px;">Selisih Setoran</small>
               </div>
             </div>
           </div>
 
-          {{-- 4 Detail Tables --}}
+          
           <div class="row">
-            {{-- Test Pump --}}
+            
             <div class="col-md-6 mb-4">
               <div class="card shadow-sm border" style="border-radius: 10px; overflow: hidden;">
                 <div class="card-header bg-light d-flex align-items-center justify-content-between py-2 border-bottom">
                   <h6 class="mb-0 font-weight-bold text-dark" style="font-size: 13.5px;"><i class="fas fa-vial text-info mr-1"></i> 4. Test Pump</h6>
-                  <span class="badge badge-info px-2 py-1" style="font-size: 11px;">Total: {{ number_format($summary['test_pump']['total_volume'] ?? 0, 2, ',', '.') }} L</span>
+                  <span class="badge badge-info px-2 py-1" style="font-size: 11px;">Total: <?php echo e(number_format($summary['test_pump']['total_volume'] ?? 0, 2, ',', '.')); ?> L</span>
                 </div>
                 <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
                   <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
                     <thead class="thead-light"><tr><th>No</th><th>Tanggal</th><th class="text-right">Volume</th><th class="text-right">Nominal</th></tr></thead>
                     <tbody>
-                      @forelse($summary['test_pump']['details'] ?? [] as $idx => $tp)
-                        <tr><td>{{ $idx + 1 }}</td><td>{{ $tp['tgl'] }}</td><td class="text-right font-weight-bold">{{ number_format($tp['volume'], 2, ',', '.') }} L</td><td class="text-right">Rp {{ number_format($tp['nominal'], 0, ',', '.') }}</td></tr>
-                      @empty
+                      <?php $__empty_1 = true; $__currentLoopData = $summary['test_pump']['details'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $idx => $tp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <tr><td><?php echo e($idx + 1); ?></td><td><?php echo e($tp['tgl']); ?></td><td class="text-right font-weight-bold"><?php echo e(number_format($tp['volume'], 2, ',', '.')); ?> L</td><td class="text-right">Rp <?php echo e(number_format($tp['nominal'], 0, ',', '.')); ?></td></tr>
+                      <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr><td colspan="4" class="text-center text-muted py-3">Tidak ada data test pump.</td></tr>
-                      @endforelse
+                      <?php endif; ?>
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
 
-            {{-- Pembelian BBM --}}
+            
             <div class="col-md-6 mb-4">
               <div class="card shadow-sm border" style="border-radius: 10px; overflow: hidden;">
                 <div class="card-header bg-light d-flex align-items-center justify-content-between py-2 border-bottom">
                   <h6 class="mb-0 font-weight-bold text-dark" style="font-size: 13.5px;"><i class="fas fa-truck-loading text-success mr-1"></i> 5. Pembelian / Penerimaan BBM</h6>
-                  <span class="badge badge-success px-2 py-1" style="font-size: 11px;">Total: {{ number_format($summary['pembelian_bbm']['total_volume_kl'] ?? 0, 2, ',', '.') }} KL</span>
+                  <span class="badge badge-success px-2 py-1" style="font-size: 11px;">Total: <?php echo e(number_format($summary['pembelian_bbm']['total_volume_kl'] ?? 0, 2, ',', '.')); ?> KL</span>
                 </div>
                 <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
                   <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
                     <thead class="thead-light"><tr><th>No</th><th>Tanggal</th><th>Tipe</th><th class="text-right">Volume (L)</th><th class="text-right">Volume (KL)</th></tr></thead>
                     <tbody>
-                      @forelse($summary['pembelian_bbm']['details'] ?? [] as $idx => $bbm)
-                        <tr><td>{{ $idx + 1 }}</td><td class="font-weight-bold">{{ $bbm['tgl'] }}</td><td><span class="badge badge-success">{{ $bbm['tipe'] ?? 'Penerimaan' }}</span></td><td class="text-right font-weight-bold">{{ number_format($bbm['jumlah_liter'] ?? ($bbm['jumlah_kl'] * 1000), 0, ',', '.') }} L</td><td class="text-right text-success">{{ number_format($bbm['jumlah_kl'], 3, ',', '.') }} KL</td></tr>
-                      @empty
+                      <?php $__empty_1 = true; $__currentLoopData = $summary['pembelian_bbm']['details'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $idx => $bbm): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <tr><td><?php echo e($idx + 1); ?></td><td class="font-weight-bold"><?php echo e($bbm['tgl']); ?></td><td><span class="badge badge-success"><?php echo e($bbm['tipe'] ?? 'Penerimaan'); ?></span></td><td class="text-right font-weight-bold"><?php echo e(number_format($bbm['jumlah_liter'] ?? ($bbm['jumlah_kl'] * 1000), 0, ',', '.')); ?> L</td><td class="text-right text-success"><?php echo e(number_format($bbm['jumlah_kl'], 3, ',', '.')); ?> KL</td></tr>
+                      <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr><td colspan="5" class="text-center text-muted py-3">Tidak ada data penerimaan BBM.</td></tr>
-                      @endforelse
+                      <?php endif; ?>
                     </tbody>
                   </table>
                 </div>
@@ -1212,10 +1225,10 @@
 
     </div>
 
-    {{-- Raw Excel Sheet Container View with Mini Search Bar --}}
+    
     <div id="excel-table-wrapper" style="display: none;">
       
-      {{-- Mini Search Bar for Sheet --}}
+      
       <div class="excel-search-bar">
         <div class="d-flex align-items-center gap-2">
           <i class="fas fa-table text-primary"></i>
@@ -1237,13 +1250,13 @@
         </div>
       </div>
 
-      {{-- Container Table Sheet Excel Mentah --}}
+      
       <div id="excel-table-container" class="excel-sheet-viewport">
-        {{-- HTML table generated via JS --}}
+        
       </div>
     </div>
 
-    {{-- Pesan Error Jika Berkas Gagal Dibaca --}}
+    
     <div id="excel-error" class="alert alert-danger m-3" style="display: none; border-radius: 8px;">
       Gagal membaca isi berkas Excel. Berkas mungkin korup atau format tidak didukung. Silakan gunakan tombol <strong>Unduh File Excel Asli</strong> di atas untuk membuka secara lokal.
     </div>
@@ -1252,12 +1265,12 @@
 
 </div>
 
-{{-- Library SheetJS CDN --}}
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const fileBase64 = @json($fileBase64);
+    const fileBase64 = <?php echo json_encode($fileBase64, 15, 512) ?>;
     const loadingEl = document.getElementById('excel-loading');
     const sheetsNavEl = document.getElementById('excel-sheets-nav');
     const summaryContainerEl = document.getElementById('excel-summary-container');
@@ -1276,9 +1289,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    const currentShopAliases = @json($currentShopAliasesData ?? []);
-    const allOtherShops = @json($allOtherShopsData ?? []);
-    const currentPeriod = @json($backdateExcelFile->bulan_tahun);
+    const currentShopAliases = <?php echo json_encode($currentShopAliasesData, 15, 512) ?>;
+    const allOtherShops = <?php echo json_encode($allOtherShopsData, 15, 512) ?>;
+    const currentPeriod = <?php echo json_encode($backdateExcelFile->bulan_tahun, 15, 512) ?>;
 
     function parsePeriodFromSheet(sName) {
         const s = sName.toLowerCase().trim();
@@ -1570,4 +1583,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts._new_admin', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH C:\xampp\htdocs\Pertashop App_Laravel\sal-pertashop\resources\views/backdate_excel/show.blade.php ENDPATH**/ ?>
