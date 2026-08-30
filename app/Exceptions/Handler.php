@@ -26,5 +26,17 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+
+        // Penanganan otomatis saat token CSRF / sesi kedaluwarsa (Error 419)
+        $this->renderable(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => 'Sesi Anda telah kedaluwarsa. Silakan muat ulang halaman.',
+                ], 419);
+            }
+
+            return redirect()->route('login')
+                ->with('error', 'Sesi login telah kedaluwarsa karena tidak ada aktivitas atau halaman terlalu lama terbuka. Silakan login kembali.');
+        });
     }
 }

@@ -1,627 +1,729 @@
+@php
+    // Adapter mapping jika data dipassing sebagai $summary, $shop, $period dari Controller
+    if (isset($summary)) {
+        $hal1 = $summary['hal1'] ?? [];
+        $hal2 = $summary['hal2'] ?? [];
+        $hal3 = $summary['hal3'] ?? [];
+        $hal4 = $summary['hal4'] ?? [];
+        $segments = $hal1['segments'] ?? [];
+
+        $outlet_name = $outlet_name ?? ($shop->nama ?? 'Pertashop');
+        $outlet_code = $outlet_code ?? ($shop->kode ?? '-');
+        
+        $pObj = isset($period) ? \Carbon\Carbon::parse($period . '-01') : now();
+        $period = $periodFormatted ?? $pObj->translatedFormat('F Y');
+
+        $hpp = $hpp ?? (!empty($segments) ? ($segments[0]['harga_beli'] ?? 11376.29) : ($hal1['final_harga_beli'] ?? 11376.29));
+        $harga_jual = $harga_jual ?? (!empty($segments) ? ($segments[0]['harga_jual'] ?? 12200) : 12200);
+        $total_liter = $total_liter ?? ($hal1['total_liter_terjual'] ?? 0);
+        $omset_harian = $omset_harian ?? ($hal1['rata_rata_omset_harian'] ?? 0);
+        $laba_kotor = $laba_kotor ?? ($hal1['grand_total_laba_kotor'] ?? 0);
+
+        if (!isset($batches) && !empty($segments)) {
+            $batches = [];
+            foreach ($segments as $s) {
+                $batches[] = [
+                    'hpp' => $s['harga_beli'] ?? $hpp,
+                    'jual' => $s['harga_jual'] ?? $harga_jual,
+                    'stok_awal' => $s['stok_awal'] ?? 0,
+                    'do_masuk' => $s['bbm_datang'] ?? 0,
+                    'liter_terjual' => $s['jumlah_penjualan'] ?? 0,
+                    'stok_akhir' => $s['stok_akhir_fisik'] ?? 0,
+                    'laba_kotor' => $s['laba_kotor'] ?? 0,
+                ];
+            }
+        }
+
+        $total_beban = $total_beban ?? ($hal2['total_biaya'] ?? 0);
+        $laba_bersih = $laba_bersih ?? ($hal2['laba_bersih'] ?? 0);
+        $alokasi_modal = $alokasi_modal ?? ($hal2['alokasi_penambahan_modal'] ?? 0);
+        $saldo_dibagi = $saldo_dibagi ?? ($hal2['total_saldo_laba_dibagi'] ?? 0);
+
+        $expDetails = $hal2['pengeluaran_details'] ?? [];
+        $beban_gaji = $beban_gaji ?? ($expDetails['gaji_operator'] ?? 0);
+        $beban_admin = $beban_admin ?? ($expDetails['gaji_admin'] ?? 0);
+        $beban_curah = $beban_curah ?? ($expDetails['biaya_curah'] ?? 0);
+        $beban_transfer = $beban_transfer ?? ($expDetails['biaya_tf'] ?? 0);
+        $beban_listrik = $beban_listrik ?? ($expDetails['listrik'] ?? 0);
+        $beban_air = $beban_air ?? ($expDetails['air'] ?? 0);
+        $beban_cashback = $beban_cashback ?? ($expDetails['cashback'] ?? 0);
+        $beban_internet = $beban_internet ?? ($expDetails['internet'] ?? 0);
+        $beban_atk = $beban_atk ?? ($expDetails['atk'] ?? 0);
+        $beban_lain = $beban_lain ?? ($expDetails['lain_lain'] ?? 0);
+
+        if (!isset($investors) && !empty($hal2['investor_distributions'])) {
+            $investors = [];
+            foreach ($hal2['investor_distributions'] as $inv) {
+                $investors[] = [
+                    'name' => $inv['nama'] ?? 'Investor',
+                    'percentage' => $inv['persen'] ?? 0,
+                    'amount' => $inv['nominal'] ?? 0,
+                    'bank' => $inv['nama_bank'] ?? 'Mandiri',
+                    'account_number' => $inv['no_rekening'] ?? '-',
+                ];
+            }
+        }
+
+        $modal_awal = $modal_awal ?? ($hal3['saldo_awal_modal'] ?? ($shop->modal_awal ?? 60000000));
+        $aset_do = $aset_do ?? ($hal3['do_di_pertamina'] ?? 0);
+        $aset_bank = $aset_bank ?? ($hal3['uang_di_bank'] ?? 0);
+        $aset_kas = $aset_kas ?? ($hal3['kas_kecil'] ?? 0);
+        $aset_stok = $aset_stok ?? ($hal3['sisa_stok_pertashop_rp'] ?? 0);
+        $aset_belum_setor = $aset_belum_setor ?? ($hal3['hasil_belum_disetor'] ?? 0);
+        $aset_piutang = $aset_piutang ?? ($hal3['piutang'] ?? 0);
+        $subtotal_aset = $subtotal_aset ?? ($hal3['subtotal_a'] ?? $modal_awal);
+
+        $bunga_bank = $bunga_bank ?? ($hal3['bunga_bank'] ?? 0);
+        $pajak_bank = $pajak_bank ?? ($hal3['pajak_bank'] ?? 0);
+        $modal_akhir = $modal_akhir ?? ($hal3['total_saldo_akhir_modal'] ?? ($modal_awal + $alokasi_modal));
+
+        if (!isset($modal_history) && !empty($hal4['capital_recaps'])) {
+            $modal_history = [];
+            $mNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+            foreach ($hal4['capital_recaps'] as $rec) {
+                $yr = intval($rec['tahun'] ?? 0);
+                $mo = intval($rec['bulan'] ?? 0);
+                if ($yr >= 2020 && $yr <= 2100 && $mo >= 1 && $mo <= 12) {
+                    $modal_history[] = [
+                        'period' => ($mNames[$mo] ?? '') . ' ' . $yr,
+                        'modal_awal' => $rec['nilai_modal_awal'] ?? 0,
+                        'profit_10' => $rec['penambahan_keuntungan'] ?? 0,
+                        'tax_fee' => $rec['penyusutan_pajak_bank'] ?? 0,
+                        'modal_akhir' => $rec['posisi_akhir_modal'] ?? 0,
+                        'liter_equivalent' => $rec['konversi_liter'] ?? 0,
+                    ];
+                }
+            }
+        }
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<title>Laporan Pertashop — {{ $shop->nama ?? 'Outlet' }}</title>
-<style>
-  @page { margin: 18mm 15mm 18mm 15mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+    <meta charset="UTF-8">
+    <title>Laporan Resmi - {{ $outlet_name ?? ($data['outlet_name'] ?? 'Pertashop') }}</title>
+    <style>
+        /* Konfigurasi Ukuran Kertas & Margin */
+        @page {
+            margin: 14mm 16mm;
+            size: A4 portrait; /* Ganti ke landscape jika data kolom sangat banyak */
+        }
 
-  body {
-    font-family: 'DejaVu Sans', Arial, sans-serif;
-    font-size: 9px;
-    color: #1a1a1a;
-    line-height: 1.35;
-  }
+        * {
+            box-sizing: border-box;
+            font-family: 'DejaVu Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
 
-  .page-break { page-break-after: always; }
+        body {
+            font-size: 8.5pt;
+            color: #1e293b;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
 
-  /* ── Header Bar ───────────────────────────────────────── */
-  .report-header {
-    border-bottom: 2.5px solid #1e293b;
-    padding-bottom: 6px;
-    margin-bottom: 12px;
-    display: table;
-    width: 100%;
-  }
-  .report-header .left { display: table-cell; vertical-align: middle; width: 70%; }
-  .report-header .right { display: table-cell; vertical-align: middle; text-align: right; width: 30%; }
-  .report-header h2 { font-size: 13px; color: #0f172a; margin-bottom: 2px; }
-  .report-header .subtitle { font-size: 9.5px; color: #64748b; }
-  .report-header .badge {
-    display: inline-block; background: #1e293b; color: #fff;
-    font-size: 8px; padding: 3px 8px; border-radius: 4px;
-    font-weight: 700; letter-spacing: 0.5px;
-  }
+        /* Utility & Spacing */
+        .page-break {
+            page-break-after: always;
+        }
+        .avoid-break {
+            page-break-inside: avoid;
+        }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 14px; }
+        .mb-4 { margin-bottom: 20px; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .text-muted { color: #64748b; }
+        .text-primary { color: #0f4c81; }
 
-  /* ── Tables ───────────────────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  th, td { padding: 4px 6px; border: 0.5px solid #cbd5e1; font-size: 8.5px; }
-  th {
-    background: #f1f5f9; color: #334155; font-weight: 700;
-    text-align: center; font-size: 8px; text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-  td.right, th.right { text-align: right; }
-  td.center { text-align: center; }
-  td.bold { font-weight: 700; }
+        /* Header / Kop Dokumen */
+        .header-container {
+            border-bottom: 2px solid #0f4c81;
+            padding-bottom: 8px;
+            margin-bottom: 14px;
+        }
+        .company-title {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #0f4c81;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        .report-subtitle {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #334155;
+            margin: 3px 0 0 0;
+        }
+        .outlet-info {
+            font-size: 8pt;
+            color: #64748b;
+            margin-top: 2px;
+        }
 
-  .section-title {
-    background: #1e293b; color: #ffffff;
-    font-size: 9.5px; font-weight: 700; padding: 5px 8px;
-    margin: 12px 0 6px; border-radius: 3px;
-    letter-spacing: 0.3px;
-  }
+        /* Grid Cards Summary (2 Kolom) */
+        .grid-2 {
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 8px 10px;
+            background-color: #ffffff;
+        }
+        .card-title {
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #475569;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        .card-highlight {
+            background-color: #f0fdf4;
+            border-color: #bbf7d0;
+        }
 
-  .subsection-title {
-    background: #e2e8f0; color: #0f172a;
-    font-size: 8.5px; font-weight: 700; padding: 4px 8px;
-    margin: 8px 0 4px; border-radius: 2px;
-  }
+        /* Tabel Standar Korporat */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+            margin-bottom: 10px;
+        }
+        th {
+            background-color: #1e293b;
+            color: #ffffff;
+            font-weight: bold;
+            padding: 5px 7px;
+            text-align: left;
+            border: 1px solid #1e293b;
+            font-size: 7.5pt;
+            text-transform: uppercase;
+        }
+        td {
+            padding: 4.5px 7px;
+            border: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+        tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+        .table-subtotal td {
+            background-color: #f1f5f9;
+            font-weight: bold;
+        }
+        .table-total td {
+            background-color: #e2e8f0;
+            font-weight: bold;
+            font-size: 8.5pt;
+        }
 
-  .grand-total-row td {
-    background: #1e293b; color: #ffffff;
-    font-weight: 700; font-size: 9.5px;
-    border: none; padding: 6px 8px;
-  }
+        /* Section Title */
+        .section-header {
+            font-size: 9pt;
+            font-weight: bold;
+            color: #0f4c81;
+            border-left: 3px solid #0f4c81;
+            padding-left: 6px;
+            margin: 12px 0 6px 0;
+            text-transform: uppercase;
+        }
 
-  .highlight-row td { background: #fef3c7; font-weight: 600; }
-  .laba-row td { background: #dcfce7; font-weight: 700; color: #166534; }
-  .rugi-row td { background: #fecaca; font-weight: 700; color: #991b1b; }
-  .total-row td { font-weight: 700; background: #f8fafc; border-top: 1.5px solid #94a3b8; }
+        /* Area Tanda Tangan */
+        .signature-table {
+            width: 100%;
+            margin-top: 15px;
+            border: none;
+        }
+        .signature-table td {
+            border: none;
+            background: transparent !important;
+            text-align: center;
+            vertical-align: top;
+            padding: 0 10px;
+        }
+        .sign-space {
+            height: 55px; /* Ruang untuk tanda tangan & cap */
+        }
+        .sign-line {
+            border-bottom: 1px solid #334155;
+            font-weight: bold;
+            padding-bottom: 2px;
+            display: inline-block;
+            min-width: 150px;
+        }
 
-  /* ── Signature Area ──────────────────────────────────── */
-  .signature-area { margin-top: 20px; }
-  .signature-area table { border: none; }
-  .signature-area td {
-    border: none; text-align: center; padding: 6px 10px;
-    vertical-align: top; width: 33.33%;
-  }
-  .sig-line { border-bottom: 1px solid #1a1a1a; width: 120px; margin: 40px auto 4px; }
-
-  /* ── Footer ──────────────────────────────────────────── */
-  .page-footer {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    text-align: center; font-size: 7px; color: #94a3b8;
-    border-top: 0.5px solid #e2e8f0; padding-top: 3px;
-  }
-
-  .rp { font-family: 'DejaVu Sans', Arial; }
-  .text-muted { color: #64748b; font-size: 7.5px; }
-  .text-sm { font-size: 8px; }
-  .mt-4 { margin-top: 12px; }
-  .mb-2 { margin-bottom: 6px; }
-</style>
+        /* Footer Info */
+        .doc-footer {
+            font-size: 7pt;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 4px;
+            margin-top: 15px;
+        }
+    </style>
 </head>
 <body>
 
-@php
-  $hal1 = $summary['hal1'] ?? [];
-  $hal2 = $summary['hal2'] ?? [];
-  $hal3 = $summary['hal3'] ?? [];
-  $hal4 = $summary['hal4'] ?? [];
-  $segments = $hal1['segments'] ?? [];
-  $periodLabel = \Carbon\Carbon::parse(($period ?? now()->format('Y-m')) . '-01')->translatedFormat('F Y');
-  $grandLabaKotor = $hal1['grand_total_laba_kotor'] ?? 0;
-  $totalLiter = $hal1['total_liter_terjual'] ?? 0;
-  $omsetHarian = $hal1['rata_rata_omset_harian'] ?? 0;
-  $expenses = $hal2['pengeluaran_details'] ?? [];
-  $investors = $hal2['investor_distributions'] ?? [];
-@endphp
 
-{{-- ════════════════════════════════════════════════════════════════
-     HALAMAN 1: Laporan Stok, Penjualan & Laba Kotor per Batch DO
-     ════════════════════════════════════════════════════════════════ --}}
-<div>
-  <div class="report-header">
-    <div class="left">
-      <h2>LAPORAN STOK, PENJUALAN & LABA KOTOR</h2>
-      <div class="subtitle">Pertashop {{ $shop->nama ?? '-' }} — Kode: {{ $shop->kode ?? '-' }}</div>
+    {{-- HALAMAN 1: OPERASIONAL STOK, PENJUALAN & LABA KOTOR               --}}
+ 
+    <div class="header-container">
+        <table style="margin: 0; border: none;">
+            <tr>
+                <td style="border: none; padding: 0;" class="text-left">
+                    <h1 class="company-title">PT. SERAYU AGUNG MANDIRI</h1>
+                    <div class="report-subtitle">LAPORAN OPERASIONAL STOK & PENJUALAN</div>
+                    <div class="outlet-info">{{ $outlet_name ?? 'Pertashop' }} (Kode: {{ $outlet_code ?? '-' }}) • Periode: {{ $period ?? 'Bulan Berjalan' }}</div>
+                </td>
+                <td style="border: none; padding: 0; width: 140px;" class="text-right">
+                    <div style="display: inline-block; background: #0f4c81; color: #fff; padding: 4px 8px; border-radius: 3px; font-weight: bold; font-size: 8pt;">
+                        HALAMAN 1
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
-    <div class="right">
-      <div class="badge">HALAMAN 1</div>
-      <div class="subtitle mt-4">Periode: {{ $periodLabel }}</div>
-    </div>
-  </div>
 
-  @foreach($segments as $seg)
-  @php $segIdx = $seg['segmen_index'] ?? 1; @endphp
-  <div class="subsection-title">
-    I. PEMBELIAN {{ $segIdx }}
-    @if(!empty($seg['start_datetime_label']) || !empty($seg['end_datetime_label']))
-      <span class="text-muted" style="font-weight:400; margin-left:8px;">
-        Tot. Awal ({{ $seg['start_datetime_label'] ?? '-' }}) → Tot. Akhir ({{ $seg['end_datetime_label'] ?? '-' }})
-      </span>
-    @endif
-  </div>
-  <table>
-    <tr>
-      <td style="width:28%">Harga Beli per Liter</td>
-      <td class="right" style="width:22%"><span class="rp">Rp</span> {{ number_format($seg['harga_beli'] ?? 0, 2, ',', '.') }}</td>
-      <td style="width:28%">Harga Jual per Liter</td>
-      <td class="right" style="width:22%"><span class="rp">Rp</span> {{ number_format($seg['harga_jual'] ?? 0, 2, ',', '.') }}</td>
-    </tr>
-  </table>
-  <table>
-    <thead>
-      <tr><th colspan="2">KOMPONEN</th><th>VOLUME (ℓ)</th><th>NILAI (Rp)</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td colspan="2">a. Stok Awal</td>
-        <td class="right">{{ number_format($seg['stok_awal'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['stok_awal_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td colspan="2">b. BBM Datang (DO)</td>
-        <td class="right">{{ number_format($seg['bbm_datang'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['bbm_datang_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="2">Jumlah Pembelian (a + b)</td>
-        <td class="right">{{ number_format($seg['jumlah_pembelian'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['jumlah_pembelian_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr><td colspan="4" style="padding:2px; border:none;"></td></tr>
-      <tr>
-        <td colspan="2">c. Totalisator Awal</td>
-        <td class="right">{{ number_format($seg['totalisator_awal'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right">—</td>
-      </tr>
-      <tr>
-        <td colspan="2">d. Totalisator Akhir</td>
-        <td class="right">{{ number_format($seg['totalisator_akhir'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right">—</td>
-      </tr>
-      <tr>
-        <td colspan="2">e. Total Penjualan (d − c)</td>
-        <td class="right">{{ number_format($seg['total_penjualan'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right">—</td>
-      </tr>
-      <tr>
-        <td colspan="2">f. Test Pump / Tera</td>
-        <td class="right">{{ number_format($seg['test_pump'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right">—</td>
-      </tr>
-      <tr class="highlight-row">
-        <td colspan="2">Jumlah Penjualan Bersih (e − f)</td>
-        <td class="right">{{ number_format($seg['jumlah_penjualan'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['jumlah_penjualan_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr><td colspan="4" style="padding:2px; border:none;"></td></tr>
-      <tr>
-        <td colspan="2">Sisa Stok Teoretis</td>
-        <td class="right">{{ number_format($seg['sisa_stok_teoretis'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['sisa_stok_teoretis_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td colspan="2">Stok Akhir Fisik @if($seg['stok_akhir_cm'] ?? 0 > 0)({{ number_format($seg['stok_akhir_cm'], 1) }} cm)@endif</td>
-        <td class="right">{{ number_format($seg['stok_akhir_fisik'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['stok_akhir_fisik_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td colspan="2">Losses / Gain @if(($seg['losses_gain_persen'] ?? 0) > 0)({{ number_format($seg['losses_gain_persen'], 2) }}%)@endif</td>
-        <td class="right">{{ number_format($seg['losses_gain'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['losses_gain_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr class="{{ ($seg['laba_kotor'] ?? 0) >= 0 ? 'laba-row' : 'rugi-row' }}">
-        <td colspan="2">LABA KOTOR BATCH {{ $segIdx }}</td>
-        <td class="right">—</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($seg['laba_kotor'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-    </tbody>
-  </table>
-  @endforeach
-
-  <table>
-    <tr class="grand-total-row">
-      <td style="width:50%">GRAND TOTAL LABA KOTOR</td>
-      <td class="right" style="width:50%"><span class="rp">Rp</span> {{ number_format($grandLabaKotor, 0, ',', '.') }}</td>
-    </tr>
-  </table>
-
-  <table style="margin-top:6px;">
-    <tr>
-      <td>Total Liter Terjual</td>
-      <td class="right">{{ number_format($totalLiter, 2, ',', '.') }} ℓ</td>
-      <td>Rata-rata Omset Harian</td>
-      <td class="right">{{ number_format($omsetHarian, 2, ',', '.') }} ℓ/hari</td>
-    </tr>
-  </table>
-</div>
-
-<div class="page-break"></div>
-
-{{-- ════════════════════════════════════════════════════════════════
-     HALAMAN 2: Sisa DO di Mees & Riwayat Margin Harga
-     ════════════════════════════════════════════════════════════════ --}}
-<div>
-  <div class="report-header">
-    <div class="left">
-      <h2>SISA DO DI MEES & RIWAYAT PERUBAHAN MARGIN</h2>
-      <div class="subtitle">Pertashop {{ $shop->nama ?? '-' }} — Periode: {{ $periodLabel }}</div>
-    </div>
-    <div class="right">
-      <div class="badge">HALAMAN 2</div>
-    </div>
-  </div>
-
-  @php $doMees = $hal1['sisa_do_mees'] ?? []; @endphp
-  <div class="section-title">SISA DO DI MEES PERTAMINA</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Stok Awal (KL)</th><th>Setor (KL)</th><th>Setoran Tunai</th>
-        <th>Jumlah (KL)</th><th>Datang (KL)</th><th>Sisa (KL)</th><th>Harga Beli 1KL</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="center">{{ number_format($doMees['stok_awal_kl'] ?? 0, 2, ',', '.') }}</td>
-        <td class="center">{{ number_format($doMees['setor_kl'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($doMees['setoran_tunai'] ?? 0, 0, ',', '.') }}</td>
-        <td class="center">{{ number_format($doMees['jumlah_kl'] ?? 0, 2, ',', '.') }}</td>
-        <td class="center">{{ number_format($doMees['datang_kl'] ?? 0, 2, ',', '.') }}</td>
-        <td class="center">{{ number_format($doMees['sisa_kl'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($doMees['harga_beli_1kl'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  @php $marginHistory = $hal1['margin_history'] ?? []; @endphp
-  @if(count($marginHistory) > 0)
-  <div class="section-title" style="margin-top:16px;">RIWAYAT PERUBAHAN MARGIN HARGA BBM</div>
-  <table>
-    <thead>
-      <tr>
-        <th>No</th><th>Tanggal Berlaku</th><th>Harga Beli (Rp)</th><th>Harga Jual (Rp)</th>
-        <th>Margin (Rp)</th><th>Perubahan</th><th>Arah</th>
-      </tr>
-    </thead>
-    <tbody>
-      @foreach($marginHistory as $idx => $mh)
-      <tr>
-        <td class="center">{{ $idx + 1 }}</td>
-        <td>{{ $mh['tanggal'] ?? '-' }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($mh['harga_beli'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($mh['harga_jual'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($mh['margin'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($mh['diff'] ?? 0, 2, ',', '.') }}</td>
-        <td class="center">{{ $mh['arah'] ?? '-' }}</td>
-      </tr>
-      @endforeach
-    </tbody>
-  </table>
-  @endif
-
-  <div style="margin-top:14px;">
-    <table>
-      <tr>
-        <td><strong>Sisa Stok Akhir Fisik</strong></td>
-        <td class="right">{{ number_format($hal1['final_stok_liter'] ?? 0, 2, ',', '.') }} ℓ</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal1['final_stok_rp'] ?? 0, 0, ',', '.') }}</td>
-        <td>HPP Terakhir: <span class="rp">Rp</span> {{ number_format($hal1['final_harga_beli'] ?? 0, 2, ',', '.') }}/ℓ</td>
-      </tr>
+    <!-- Parameter & Performa Penjualan -->
+    <table class="grid-2">
+        <tr>
+            <td style="border: none; padding: 0 5px 0 0; width: 50%; vertical-align: top;">
+                <div class="card">
+                    <div class="card-title">Parameter Harga BBM (Pertamax)</div>
+                    <table style="margin: 0;">
+                        <tr>
+                            <td style="border: none; padding: 2px 0;">Harga Beli (HPP) Terakhir</td>
+                            <td style="border: none; padding: 2px 0;" class="text-right font-bold">Rp {{ number_format($hpp ?? 0, 2, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 2px 0;">Harga Jual Eceran</td>
+                            <td style="border: none; padding: 2px 0;" class="text-right font-bold">Rp {{ number_format($harga_jual ?? 0, 2, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 2px 0; color: #166534;">Margin per Liter</td>
+                            <td style="border: none; padding: 2px 0; color: #166534;" class="text-right font-bold">Rp {{ number_format(($harga_jual ?? 0) - ($hpp ?? 0), 2, ',', '.') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+            <td style="border: none; padding: 0 0 0 5px; width: 50%; vertical-align: top;">
+                <div class="card card-highlight">
+                    <div class="card-title" style="color: #166534;">Volume & Performa Penjualan</div>
+                    <table style="margin: 0;">
+                        <tr>
+                            <td style="border: none; padding: 2px 0;">Total Volume Terjual</td>
+                            <td style="border: none; padding: 2px 0;" class="text-right font-bold">{{ number_format($total_liter ?? 0, 2, ',', '.') }} ℓ</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 2px 0;">Rata-rata Omset Harian</td>
+                            <td style="border: none; padding: 2px 0;" class="text-right font-bold">{{ number_format($omset_harian ?? 0, 2, ',', '.') }} ℓ/hari</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 2px 0;">Grand Total Laba Kotor</td>
+                            <td style="border: none; padding: 2px 0; color: #166534;" class="text-right font-bold">Rp {{ number_format($laba_kotor ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
     </table>
-  </div>
-</div>
 
-<div class="page-break"></div>
-
-{{-- ════════════════════════════════════════════════════════════════
-     HALAMAN 3: Perhitungan Laba Bersih & Profit Sharing
-     ════════════════════════════════════════════════════════════════ --}}
-<div>
-  <div class="report-header">
-    <div class="left">
-      <h2>PERHITUNGAN LABA BERSIH & PROFIT SHARING</h2>
-      <div class="subtitle">Pertashop {{ $shop->nama ?? '-' }} — Periode: {{ $periodLabel }}</div>
-    </div>
-    <div class="right">
-      <div class="badge">HALAMAN 3</div>
-    </div>
-  </div>
-
-  <table>
-    <tr class="grand-total-row">
-      <td>Grand Total Laba Kotor (dari Halaman 1)</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($grandLabaKotor, 0, ',', '.') }}</td>
-    </tr>
-  </table>
-
-  <div class="section-title">RINCIAN BEBAN OPERASIONAL (11 POS)</div>
-  <table>
-    <thead>
-      <tr><th style="width:30px">No</th><th>Pos Biaya</th><th style="width:35%">Nominal (Rp)</th></tr>
-    </thead>
-    <tbody>
-      @php
-        $expenseItems = [
-          ['Gaji 1 Operator', $expenses['gaji_operator'] ?? 0],
-          ['Gaji Admin', $expenses['gaji_admin'] ?? 0],
-          ['Ongkos Bongkar / Biaya Curah', $expenses['biaya_curah'] ?? 0],
-          ['Biaya Transfer Bank', $expenses['biaya_tf'] ?? 0],
-          ['Listrik', $expenses['listrik'] ?? 0],
-          ['Air Bersih', $expenses['air'] ?? 0],
-          ['Cashback Pengecer', $expenses['cashback'] ?? 0],
-          ['Internet / Kuota', $expenses['internet'] ?? 0],
-          ['Fotocopy & ATK', $expenses['atk'] ?? 0],
-          ['Biaya Operasional Lain-lain', $expenses['lain_lain'] ?? 0],
-        ];
-        if (!empty($expenses['lain_lain_notes'])) {
-          $expenseItems[9][0] .= ' (' . $expenses['lain_lain_notes'] . ')';
-        }
-      @endphp
-      @foreach($expenseItems as $idx => $item)
-      <tr>
-        <td class="center">{{ $idx + 1 }}</td>
-        <td>{{ $item[0] }}</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($item[1], 0, ',', '.') }}</td>
-      </tr>
-      @endforeach
-      <tr class="total-row">
-        <td colspan="2">TOTAL BIAYA OPERASIONAL</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['total_biaya'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <table style="margin-top:8px;">
-    <tr class="{{ ($hal2['laba_bersih'] ?? 0) >= 0 ? 'laba-row' : 'rugi-row' }}">
-      <td style="width:65%">LABA BERSIH (Laba Kotor − Total Biaya)</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['laba_bersih'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    <tr>
-      <td>Alokasi Penambahan Modal Dasar (10%)</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['alokasi_penambahan_modal'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    <tr>
-      <td>Saldo Laba Bersih yang Dibagi (90%)</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['saldo_laba_bersih_90'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    @if(($hal2['saldo_laba_sebelumnya'] ?? 0) > 0)
-    <tr>
-      <td>Saldo Laba Periode Sebelumnya (Hold)</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['saldo_laba_sebelumnya'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    @endif
-    <tr class="highlight-row">
-      <td>Total Saldo Laba Bersih yg Dibagi</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-  </table>
-
-  <div class="section-title" style="margin-top:12px;">PEMBAGIAN LABA BERSIH (PROFIT SHARING)</div>
-  <table>
-    <thead>
-      <tr>
-        <th>No</th><th>Nama Pemegang Saham</th><th>Persentase</th><th>Nominal (Rp)</th>
-        <th>Bank</th><th>No. Rekening</th><th>a/n</th>
-      </tr>
-    </thead>
-    <tbody>
-      @foreach($investors as $idx => $inv)
-      <tr>
-        <td class="center">{{ $idx + 1 }}</td>
-        <td>{{ $inv['nama'] ?? '-' }}</td>
-        <td class="center">{{ number_format($inv['persen'] ?? 0, 0) }}%</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($inv['nominal'] ?? 0, 0, ',', '.') }}</td>
-        <td>{{ $inv['nama_bank'] ?? '-' }}</td>
-        <td>{{ $inv['no_rekening'] ?? '-' }}</td>
-        <td>{{ $inv['atas_nama_rekening'] ?? '-' }}</td>
-      </tr>
-      @endforeach
-    </tbody>
-  </table>
-
-  <div class="signature-area">
+    <!-- Rincian Batch Pembelian & Penjualan -->
+    <div class="section-header">Rincian Perhitungan Batch Penjualan</div>
     <table>
-      <tr>
-        <td>
-          <div style="font-size:8px; color:#64748b;">Mengetahui,</div>
-          <div style="font-weight:700;">Direktur PT. SAM</div>
-          <div class="sig-line"></div>
-          <div style="font-size:8px;">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>
-        </td>
-        <td>
-          <div style="font-size:8px; color:#64748b;">Menyetujui,</div>
-          <div style="font-weight:700;">Komisaris</div>
-          <div class="sig-line"></div>
-          <div style="font-size:8px;">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>
-        </td>
-        <td>
-          <div style="font-size:8px; color:#64748b;">Dibuat Oleh,</div>
-          <div style="font-weight:700;">Admin Pertashop</div>
-          <div class="sig-line"></div>
-          <div style="font-size:8px;">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>
-        </td>
-      </tr>
+        <thead>
+            <tr>
+                <th style="width: 25%;">Komponen Alur</th>
+                <th style="width: 25%;">Keterangan / Meteran</th>
+                <th style="width: 25%; text-align: right;">Volume (Liter)</th>
+                <th style="width: 25%; text-align: right;">Valuasi / Nominal (Rp)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if(isset($batches) && count($batches) > 0)
+                @foreach($batches as $index => $b)
+                    <tr class="table-subtotal">
+                        <td colspan="4">BATCH PEMBELIAN #{{ $index + 1 }} (HPP: Rp {{ number_format($b['hpp'] ?? 0, 2, ',', '.') }} | Jual: Rp {{ number_format($b['jual'] ?? 0, 2, ',', '.') }})</td>
+                    </tr>
+                    <tr>
+                        <td>a. Stok Awal Tangki</td>
+                        <td>Fisik Awal Periode</td>
+                        <td class="text-right">{{ number_format($b['stok_awal'] ?? 0, 2, ',', '.') }} ℓ</td>
+                        <td class="text-right">Rp {{ number_format(($b['stok_awal'] ?? 0) * ($b['hpp'] ?? 0), 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td>b. BBM Datang (DO)</td>
+                        <td>Penerimaan Tangki Pertamina</td>
+                        <td class="text-right">{{ number_format($b['do_masuk'] ?? 0, 2, ',', '.') }} ℓ</td>
+                        <td class="text-right">Rp {{ number_format(($b['do_masuk'] ?? 0) * ($b['hpp'] ?? 0), 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td>c. Penjualan Bersih</td>
+                        <td>Totalisator - Test Pump</td>
+                        <td class="text-right font-bold">{{ number_format($b['liter_terjual'] ?? 0, 2, ',', '.') }} ℓ</td>
+                        <td class="text-right font-bold">Rp {{ number_format(($b['liter_terjual'] ?? 0) * ($b['jual'] ?? 0), 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td>d. Sisa Stok Akhir</td>
+                        <td>Fisik Akhir / Sisa Tangki</td>
+                        <td class="text-right">{{ number_format($b['stok_akhir'] ?? 0, 2, ',', '.') }} ℓ</td>
+                        <td class="text-right">Rp {{ number_format(($b['stok_akhir'] ?? 0) * ($b['hpp'] ?? 0), 0, ',', '.') }}</td>
+                    </tr>
+                    <tr style="background: #f0fdf4;">
+                        <td colspan="3" class="font-bold text-right" style="color: #166534;">Subtotal Laba Kotor Batch #{{ $index + 1 }}</td>
+                        <td class="text-right font-bold" style="color: #166534;">Rp {{ number_format($b['laba_kotor'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td>Stok Awal + DO Masuk</td>
+                    <td>Penerimaan BBM</td>
+                    <td class="text-right">{{ number_format($total_liter ?? 0, 2, ',', '.') }} ℓ</td>
+                    <td class="text-right">Rp {{ number_format(($total_liter ?? 0) * ($hpp ?? 0), 0, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td>Penjualan Bersih</td>
+                    <td>Totalisator Dispenser</td>
+                    <td class="text-right font-bold">{{ number_format($total_liter ?? 0, 2, ',', '.') }} ℓ</td>
+                    <td class="text-right font-bold">Rp {{ number_format(($total_liter ?? 0) * ($harga_jual ?? 0), 0, ',', '.') }}</td>
+                </tr>
+            @endif
+            <tr class="table-total">
+                <td colspan="3" class="text-right">GRAND TOTAL LABA KOTOR OPERASIONAL</td>
+                <td class="text-right text-primary">Rp {{ number_format($laba_kotor ?? 0, 0, ',', '.') }}</td>
+            </tr>
+        </tbody>
     </table>
-  </div>
-</div>
 
-<div class="page-break"></div>
-
-{{-- ════════════════════════════════════════════════════════════════
-     HALAMAN 4: Posisi Modal Kerja (Neraca Likuiditas)
-     ════════════════════════════════════════════════════════════════ --}}
-<div>
-  <div class="report-header">
-    <div class="left">
-      <h2>POSISI MODAL KERJA</h2>
-      <div class="subtitle">Pertashop {{ $shop->nama ?? '-' }} — Akhir Periode: {{ $periodLabel }}</div>
+    <div class="doc-footer">
+        Dokumen ini dibuat otomatis oleh Sistem Informasi Pertashop • Dicetak pada {{ date('d/m/Y H:i') }} WIB
     </div>
-    <div class="right">
-      <div class="badge">HALAMAN 4</div>
+
+    <div class="page-break"></div>
+ 
+    {{-- HALAMAN 2: BEBAN OPERASIONAL, LABA BERSIH & PROFIT SHARING        --}}
+ 
+    <div class="header-container">
+        <table style="margin: 0; border: none;">
+            <tr>
+                <td style="border: none; padding: 0;" class="text-left">
+                    <h1 class="company-title">PT. SERAYU AGUNG MANDIRI</h1>
+                    <div class="report-subtitle">LAPORAN BEBAN OPERASIONAL & PROFIT SHARING</div>
+                    <div class="outlet-info">{{ $outlet_name ?? 'Pertashop' }} • Periode: {{ $period ?? 'Bulan Berjalan' }}</div>
+                </td>
+                <td style="border: none; padding: 0; width: 140px;" class="text-right">
+                    <div style="display: inline-block; background: #0f4c81; color: #fff; padding: 4px 8px; border-radius: 3px; font-weight: bold; font-size: 8pt;">
+                        HALAMAN 2
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
-  </div>
 
-  <div class="section-title">A. SALDO AWAL MODAL KERJA</div>
-  <table>
-    <tr class="highlight-row">
-      <td style="width:60%"><strong>Saldo Awal Modal</strong></td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['saldo_awal_modal'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-  </table>
+    <!-- Ringkasan Laba Bersih Top Card -->
+    <table class="grid-2">
+        <tr>
+            <td style="border: none; padding: 0 5px 0 0; width: 33.3%;">
+                <div class="card">
+                    <div class="card-title">A. Total Laba Kotor</div>
+                    <div class="font-bold" style="font-size: 10pt; color: #0f4c81;">Rp {{ number_format($laba_kotor ?? 0, 0, ',', '.') }}</div>
+                </div>
+            </td>
+            <td style="border: none; padding: 0 5px; width: 33.3%;">
+                <div class="card">
+                    <div class="card-title">B. Total Beban Biaya</div>
+                    <div class="font-bold" style="font-size: 10pt; color: #b91c1c;">Rp {{ number_format($total_beban ?? 0, 0, ',', '.') }}</div>
+                </div>
+            </td>
+            <td style="border: none; padding: 0 0 0 5px; width: 33.3%;">
+                <div class="card card-highlight">
+                    <div class="card-title" style="color: #166534;">C. Laba Bersih (A - B)</div>
+                    <div class="font-bold" style="font-size: 10pt; color: #166534;">Rp {{ number_format($laba_bersih ?? 0, 0, ',', '.') }}</div>
+                </div>
+            </td>
+        </tr>
+    </table>
 
-  <div class="subsection-title">Rincian Posisi Aset</div>
-  <table>
-    <thead>
-      <tr><th>Komponen</th><th>Nominal (Rp)</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>DO yang Masih Ada di Pertamina</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['do_di_pertamina'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Uang di Bank</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['uang_di_bank'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Kas Kecil</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['kas_kecil'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Sisa Stok yang Masih Ada di Pertashop</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['sisa_stok_pertashop_rp'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Hasil Penjualan Belum Disetor</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['hasil_belum_disetor'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Piutang</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['piutang'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr class="total-row">
-        <td>Subtotal A</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['subtotal_a'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-    </tbody>
-  </table>
+    <!-- Tabel 11 Pos Beban Operasional -->
+    <div class="section-header">Rincian Pos Beban Operasional Bulanan</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 8%; text-align: center;">No</th>
+                <th style="width: 62%;">Pos Pengeluaran Operasional</th>
+                <th style="width: 30%; text-align: right;">Nominal Biaya (Rp)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @php
+                $expenses_list = $expenses ?? [
+                    ['name' => 'Gaji Operator', 'amount' => $beban_gaji ?? 0],
+                    ['name' => 'Gaji Admin', 'amount' => $beban_admin ?? 0],
+                    ['name' => 'Ongkos Bongkar / Biaya Curah', 'amount' => $beban_curah ?? 0],
+                    ['name' => 'Biaya Transfer Bank & Adm', 'amount' => $beban_transfer ?? 0],
+                    ['name' => 'Tagihan Listrik / PLN', 'amount' => $beban_listrik ?? 0],
+                    ['name' => 'Air Bersih / PDAM', 'amount' => $beban_air ?? 0],
+                    ['name' => 'Cashback Pengecer BBM', 'amount' => $beban_cashback ?? 0],
+                    ['name' => 'Biaya Internet & CCTV', 'amount' => $beban_internet ?? 0],
+                    ['name' => 'Fotocopy, ATK & Perlengkapan', 'amount' => $beban_atk ?? 0],
+                    ['name' => 'Biaya Operasional Lain-lain', 'amount' => $beban_lain ?? 0],
+                ];
+            @endphp
+            @foreach($expenses_list as $idx => $exp)
+                <tr>
+                    <td class="text-center">{{ $idx + 1 }}</td>
+                    <td>{{ $exp['name'] }}</td>
+                    <td class="text-right">Rp {{ number_format($exp['amount'] ?? 0, 0, ',', '.') }}</td>
+                </tr>
+            @endforeach
+            <tr class="table-total">
+                <td colspan="2" class="text-right">TOTAL BEBAN OPERASIONAL (B)</td>
+                <td class="text-right" style="color: #b91c1c;">Rp {{ number_format($total_beban ?? 0, 0, ',', '.') }}</td>
+            </tr>
+        </tbody>
+    </table>
 
-  <div class="section-title">B. PENAMBAHAN / PENGURANGAN</div>
-  <table>
-    <tbody>
-      <tr>
-        <td style="width:60%">Bunga Bank (+)</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['bunga_bank'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr>
-        <td>Pajak Bank (−)</td>
-        <td class="right"><span class="rp">Rp</span> ({{ number_format(abs($hal3['pajak_bank'] ?? 0), 0, ',', '.') }})</td>
-      </tr>
-      <tr>
-        <td>Profit Sharing yang Dibagikan (−)</td>
-        <td class="right"><span class="rp">Rp</span> ({{ number_format(abs($hal3['profit_sharing_dibagi'] ?? 0), 0, ',', '.') }})</td>
-      </tr>
-      <tr>
-        <td>Penambahan Keuntungan Bulan Ini (+)</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['penambahan_keuntungan'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-      <tr class="total-row">
-        <td>Subtotal B</td>
-        <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['subtotal_b'] ?? 0, 0, ',', '.') }}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <table style="margin-top:8px;">
-    <tr>
-      <td style="width:60%"><strong>C. Subtotal (A + B)</strong></td>
-      <td class="right"><strong><span class="rp">Rp</span> {{ number_format($hal3['subtotal_c'] ?? 0, 0, ',', '.') }}</strong></td>
-    </tr>
-    <tr class="grand-total-row">
-      <td>D. TOTAL SALDO AKHIR MODAL KERJA</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal3['total_saldo_akhir_modal'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-  </table>
-</div>
-
-<div class="page-break"></div>
-
-{{-- ════════════════════════════════════════════════════════════════
-     HALAMAN 5: Rekapitulasi Pertumbuhan Modal Historis
-     ════════════════════════════════════════════════════════════════ --}}
-<div>
-  <div class="report-header">
-    <div class="left">
-      <h2>REKAPITULASI PERTUMBUHAN MODAL</h2>
-      <div class="subtitle">Pertashop {{ $shop->nama ?? '-' }} — s/d Periode: {{ $periodLabel }}</div>
+    <!-- Alokasi Modal & Tabel Bagi Hasil Investor -->
+    <div class="section-header">Distribusi Profit Sharing & Alokasi Modal</div>
+    <div class="card mb-3" style="background: #f8fafc;">
+        <table style="margin: 0; font-size: 8pt;">
+            <tr>
+                <td style="border: none; padding: 3px 0;">• Cadangan Penambahan Modal Dasar (10%)</td>
+                <td style="border: none; padding: 3px 0;" class="text-right font-bold">Rp {{ number_format($alokasi_modal ?? (($laba_bersih ?? 0) * 0.1), 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 3px 0; color: #166534;">• Saldo Laba Bersih yang Siap Dibagi ke Investor (90%)</td>
+                <td style="border: none; padding: 3px 0; color: #166534;" class="text-right font-bold">Rp {{ number_format($saldo_dibagi ?? (($laba_bersih ?? 0) * 0.9), 0, ',', '.') }}</td>
+            </tr>
+        </table>
     </div>
-    <div class="right">
-      <div class="badge">HALAMAN 5</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%; text-align: center;">No</th>
+                <th style="width: 25%;">Nama Pemegang Saham</th>
+                <th style="width: 10%; text-align: center;">Porsi</th>
+                <th style="width: 20%; text-align: right;">Hak Bagi Hasil (Rp)</th>
+                <th style="width: 25%;">Bank & No. Rekening</th>
+                <th style="width: 15%; text-align: center;">Checklist</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if(isset($investors) && count($investors) > 0)
+                @foreach($investors as $i => $inv)
+                    <tr>
+                        <td class="text-center">{{ $i + 1 }}</td>
+                        <td class="font-bold">{{ $inv['name'] }}</td>
+                        <td class="text-center">{{ $inv['percentage'] }}%</td>
+                        <td class="text-right font-bold">Rp {{ number_format($inv['amount'] ?? 0, 0, ',', '.') }}</td>
+                        <td>{{ $inv['bank'] ?? 'Bank' }} - {{ $inv['account_number'] ?? '-' }}</td>
+                        <td class="text-center">[ &nbsp; &nbsp; ] Transfer</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="font-bold">PT. SAM (Pengelola)</td>
+                    <td class="text-center">100%</td>
+                    <td class="text-right font-bold">Rp {{ number_format($saldo_dibagi ?? 0, 0, ',', '.') }}</td>
+                    <td>Rekening Operasional SAM</td>
+                    <td class="text-center">[ &nbsp; &nbsp; ] Transfer</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
+
+    <!-- Area Tanda Tangan -->
+    <div class="avoid-break" style="margin-top: 20px;">
+        <table class="signature-table">
+            <tr>
+                <td style="width: 33%;">
+                    <div>Dibuat Oleh,</div>
+                    <div class="text-muted" style="font-size: 7.5pt;">Admin Operasional</div>
+                    <div class="sign-space"></div>
+                    <div class="sign-line">{{ $admin_name ?? 'Dwi Yuliarto' }}</div>
+                </td>
+                <td style="width: 33%;">
+                    <div>Mengetahui,</div>
+                    <div class="text-muted" style="font-size: 7.5pt;">Direktur PT. SAM</div>
+                    <div class="sign-space"></div>
+                    <div class="sign-line">Adlai Budiarto T.</div>
+                </td>
+                <td style="width: 33%;">
+                    <div>Menyetujui,</div>
+                    <div class="text-muted" style="font-size: 7.5pt;">Perwakilan Investor</div>
+                    <div class="sign-space"></div>
+                    <div class="sign-line">( .................................... )</div>
+                </td>
+            </tr>
+        </table>
     </div>
-  </div>
 
-  @php $recaps = $hal4['capital_recaps'] ?? []; @endphp
-  @if(count($recaps) > 0)
-  <table>
-    <thead>
-      <tr>
-        <th>Thn Ke</th><th>Bulan</th><th>Nilai Modal Awal</th>
-        <th>Penyusutan / Rugi</th><th>Pajak Bank</th><th>Penambahan Keuntungan</th>
-        <th>Bunga Bank</th><th>Nett</th><th>Akumulasi</th>
-        <th>Posisi Akhir</th><th>Harga Beli</th><th>Konversi (ℓ)</th>
-      </tr>
-    </thead>
-    <tbody>
-      @php
-        $monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-      @endphp
-      @foreach($recaps as $rec)
-      <tr>
-        <td class="center">{{ $rec['tahun_ke'] ?? '' }}</td>
-        <td class="center">{{ ($monthNames[$rec['bulan'] ?? 0] ?? '') . ' ' . ($rec['tahun'] ?? '') }}</td>
-        <td class="right">{{ number_format($rec['nilai_modal_awal'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['penyusutan_rugi'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['penyusutan_pajak_bank'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['penambahan_keuntungan'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['penambahan_bunga_bank'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['nilai_penambahan_penyusutan'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['akumulasi_penambahan_penyusutan'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['posisi_akhir_modal'] ?? 0, 0, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['harga_beli_pertamax'] ?? 0, 2, ',', '.') }}</td>
-        <td class="right">{{ number_format($rec['konversi_liter'] ?? 0, 2, ',', '.') }}</td>
-      </tr>
-      @endforeach
-    </tbody>
-  </table>
-  @else
-  <div style="text-align:center; padding:30px; color:#94a3b8; font-size:10px;">
-    Belum ada data historis rekapitulasi modal untuk outlet ini.
-  </div>
-  @endif
+    <div class="doc-footer">
+        Dokumen ini dibuat otomatis oleh Sistem Informasi Pertashop • Dicetak pada {{ date('d/m/Y H:i') }} WIB
+    </div>
 
-  <table style="margin-top:12px;">
-    <tr>
-      <td style="width:55%">Modal Awal Dasar</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal4['modal_awal_dasar'] ?? 60000000, 0, ',', '.') }}</td>
-    </tr>
-    <tr>
-      <td>Total Akumulasi Penambahan / Penyusutan</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal4['total_akumulasi_modal'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    <tr>
-      <td>Persentase Penambahan Modal</td>
-      <td class="right">{{ number_format($hal4['persen_penambahan_modal'] ?? 0, 2, ',', '.') }}%</td>
-    </tr>
-    <tr class="grand-total-row">
-      <td>GRAND TOTAL POSISI AKHIR MODAL</td>
-      <td class="right"><span class="rp">Rp</span> {{ number_format($hal4['grand_total_modal'] ?? 0, 0, ',', '.') }}</td>
-    </tr>
-    <tr>
-      <td>Persentase Grand Total</td>
-      <td class="right">{{ number_format($hal4['persen_grand_total'] ?? 100, 2, ',', '.') }}%</td>
-    </tr>
-  </table>
+    <div class="page-break"></div>
 
-  <div style="margin-top:20px; text-align:center; font-size:8px; color:#94a3b8;">
-    Dokumen ini dicetak secara otomatis oleh Sistem Informasi Pertashop Indonesia (SIPERI)<br>
-    pada {{ now()->translatedFormat('l, d F Y — H:i') }} WIB
-  </div>
-</div>
+   
+    {{-- HALAMAN 3: POSISI MODAL KERJA & REKAP HISTORIS                   --}}
+ 
+    <div class="header-container">
+        <table style="margin: 0; border: none;">
+            <tr>
+                <td style="border: none; padding: 0;" class="text-left">
+                    <h1 class="company-title">PT. SERAYU AGUNG MANDIRI</h1>
+                    <div class="report-subtitle">POSISI MODAL KERJA & HISTORI PERTUMBUHAN</div>
+                    <div class="outlet-info">{{ $outlet_name ?? 'Pertashop' }} • Posisi Periode: {{ $period ?? 'Bulan Berjalan' }}</div>
+                </td>
+                <td style="border: none; padding: 0; width: 140px;" class="text-right">
+                    <div style="display: inline-block; background: #0f4c81; color: #fff; padding: 4px 8px; border-radius: 3px; font-weight: bold; font-size: 8pt;">
+                        HALAMAN 3
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Layout 2 Kolom Modal Kerja -->
+    <table class="grid-2">
+        <tr>
+            <!-- Kolom Kiri: Rincian Aset Lancar -->
+            <td style="border: none; padding: 0 6px 0 0; width: 50%; vertical-align: top;">
+                <div class="section-header" style="margin-top: 0;">A. Posisi Aset Lancar (Likuiditas)</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Komponen Aset</th>
+                            <th style="text-align: right;">Nilai (Rp)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1. Sisa DO di Pertamina</td>
+                            <td class="text-right">Rp {{ number_format($aset_do ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>2. Saldo Kas di Bank</td>
+                            <td class="text-right">Rp {{ number_format($aset_bank ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>3. Kas Kecil di Outlet (Tunai)</td>
+                            <td class="text-right">Rp {{ number_format($aset_kas ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>4. Valuasi Fisik Sisa BBM</td>
+                            <td class="text-right">Rp {{ number_format($aset_stok ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>5. Hasil Jual Belum Setor</td>
+                            <td class="text-right">Rp {{ number_format($aset_belum_setor ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>6. Piutang Usaha</td>
+                            <td class="text-right">Rp {{ number_format($aset_piutang ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr class="table-total">
+                            <td>Subtotal Aset Lancar</td>
+                            <td class="text-right">Rp {{ number_format($subtotal_aset ?? $modal_awal ?? 60000000, 0, ',', '.') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+
+            <!-- Kolom Kanan: Penyesuaian Modal & Hasil Akhir -->
+            <td style="border: none; padding: 0 0 0 6px; width: 50%; vertical-align: top;">
+                <div class="section-header" style="margin-top: 0;">B. Rekonsiliasi Saldo Modal</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Penyesuaian Modal</th>
+                            <th style="text-align: right;">Nominal (Rp)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>• Saldo Awal Modal Bulan Lalu</td>
+                            <td class="text-right font-bold">Rp {{ number_format($modal_awal ?? 60000000, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>• Bunga Bank Periode Ini (+)</td>
+                            <td class="text-right">Rp {{ number_format($bunga_bank ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>• Pajak & Biaya Bank (-)</td>
+                            <td class="text-right" style="color: #b91c1c;">Rp ({{ number_format($pajak_bank ?? 0, 0, ',', '.') }})</td>
+                        </tr>
+                        <tr>
+                            <td>• Penambahan Alokasi Modal 10% (+)</td>
+                            <td class="text-right" style="color: #166534;">Rp {{ number_format($alokasi_modal ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <td>• Profit Sharing Didistribusikan (-)</td>
+                            <td class="text-right" style="color: #b91c1c;">Rp ({{ number_format($saldo_dibagi ?? 0, 0, ',', '.') }})</td>
+                        </tr>
+                        <tr class="table-total" style="background: #f0fdf4;">
+                            <td style="color: #166534;">TOTAL MODAL AKHIR BULAN</td>
+                            <td class="text-right font-bold" style="color: #166534;">Rp {{ number_format($modal_akhir ?? ($modal_awal ?? 60000000) + ($alokasi_modal ?? 0), 0, ',', '.') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Rekapitulasi Historis Modal Kumulatif -->
+    <div class="section-header">Histori Akumulasi Pertumbuhan Modal Dasar</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 6%; text-align: center;">No</th>
+                <th style="width: 14%;">Periode</th>
+                <th style="width: 16%; text-align: right;">Modal Awal</th>
+                <th style="width: 16%; text-align: right;">Penambahan 10%</th>
+                <th style="width: 14%; text-align: right;">Beban Pajak/Bank</th>
+                <th style="width: 18%; text-align: right;">Posisi Akhir Modal</th>
+                <th style="width: 16%; text-align: right;">Konversi (Liter)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if(isset($modal_history) && count($modal_history) > 0)
+                @foreach($modal_history as $idx => $hist)
+                    <tr>
+                        <td class="text-center">{{ $idx + 1 }}</td>
+                        <td>{{ $hist['period'] }}</td>
+                        <td class="text-right">Rp {{ number_format($hist['modal_awal'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right text-primary">+Rp {{ number_format($hist['profit_10'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($hist['tax_fee'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right font-bold">Rp {{ number_format($hist['modal_akhir'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">{{ number_format($hist['liter_equivalent'] ?? 0, 2, ',', '.') }} ℓ</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td class="text-center">1</td>
+                    <td>{{ $period ?? 'Bulan Berjalan' }}</td>
+                    <td class="text-right">Rp {{ number_format($modal_awal ?? 60000000, 0, ',', '.') }}</td>
+                    <td class="text-right text-primary">+Rp {{ number_format($alokasi_modal ?? 0, 0, ',', '.') }}</td>
+                    <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($pajak_bank ?? 0, 0, ',', '.') }}</td>
+                    <td class="text-right font-bold">Rp {{ number_format($modal_akhir ?? ($modal_awal ?? 60000000) + ($alokasi_modal ?? 0), 0, ',', '.') }}</td>
+                    <td class="text-right">{{ number_format((($modal_akhir ?? 60000000) / ($hpp ?: 1)), 2, ',', '.') }} ℓ</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
+
+    <div class="doc-footer">
+        Dokumen ini dibuat otomatis oleh Sistem Informasi Pertashop • Dicetak pada {{ date('d/m/Y H:i') }} WIB
+    </div>
 
 </body>
 </html>

@@ -216,6 +216,10 @@
     background:#eef7f0; border:1px solid #bfe0c9; color:var(--green-deep);
     font-size:12.5px; padding:10px 12px; border-radius:10px; margin-bottom:16px;
   }
+  .alert-error{
+    background:#fdf2f2; border:1px solid #f8b4b4; color:#9b1c1c;
+    font-size:12.5px; padding:10px 12px; border-radius:10px; margin-bottom:16px;
+  }
 
   .foot{
     position:absolute; bottom:22px; left:0; right:0; text-align:center; z-index:2;
@@ -266,6 +270,11 @@
       {{-- Notifikasi sukses, misal setelah reset password --}}
       @if (session('status'))
         <div class="alert-success">{{ session('status') }}</div>
+      @endif
+
+      {{-- Notifikasi pesan error / sesi expired --}}
+      @if (session('error'))
+        <div class="alert-error">{{ session('error') }}</div>
       @endif
 
       <form method="POST" action="{{ route('authenticate') }}">
