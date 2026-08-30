@@ -31,9 +31,9 @@ class BackdateExcelFileController extends Controller
             }
         }
 
-        // Load active files grouped by shop
+        // Load active files grouped by shop ordered chronologically (oldest to newest)
         $shops->load(['backdateExcelFiles' => function ($q) {
-            $q->orderBy('bulan_tahun', 'desc')->orderBy('created_at', 'desc');
+            $q->orderBy('bulan_tahun', 'asc')->orderBy('created_at', 'asc');
         }]);
 
         // Load trashed files for accessible shops

@@ -1178,11 +1178,18 @@ class BackdateExcelSummaryService
             // Deteksi outlet dari NAMA FILE terlebih dahulu (sangat akurat)
             $fileLevelShop = self::detectOutletFromSheet($fileIdentifier, [], $shops);
 
-            // Fase 1: Scan semua sheet → identifikasi outlet
-            $shopSheetGroups = []; // shop_id => [sheet_indices]
+            // Fase 1: Scan semua sheet → identifikasi outlet dan partisi per periode/bulan
+            $shopPeriodGroups = []; // "shopId_period" => ['shop' => Shop, 'period' => '...', 'sheet_names' => [...]]
 
             foreach ($spreadsheet->getAllSheets() as $sheetIdx => $sheet) {
                 $sheetTitle = $sheet->getTitle();
+                $sheetTitleLow = strtolower(trim($sheetTitle));
+
+                // Lewati sheet pembantu/transaksional non-laporan bulanan
+                if (str_contains($sheetTitleLow, 'cek qris') || str_contains($sheetTitleLow, 'p. yusuf') || str_contains($sheetTitleLow, 'qris')) {
+                    continue;
+                }
+
                 $headerRows = [];
                 try {
                     $rows = $sheet->toArray(null, true, false, false);
@@ -1197,7 +1204,7 @@ class BackdateExcelSummaryService
                 if ($sheetShop) {
                     $detectedShop = $sheetShop;
                 } elseif ($fileLevelShop) {
-                    // 2. Jika sheet title tidak menyebut toko lain tapi nama file sudah spesifik (misal: 'GUMELAR 2026.xlsx'), gunakan nama file!
+                    // 2. Jika sheet title tidak menyebut toko lain tapi nama file sudah spesifik (misal: 'PENJUALAN PS.SUMINGKIR.xlsx'), gunakan nama file!
                     $detectedShop = $fileLevelShop;
                 } else {
                     // 3. Fallback: deteksi dari isi header sel hanya jika nama file & sheet title tidak spesifik
@@ -1205,46 +1212,38 @@ class BackdateExcelSummaryService
                 }
 
                 if ($detectedShop) {
-                    if (!isset($shopSheetGroups[$detectedShop->id])) {
-                        $shopSheetGroups[$detectedShop->id] = [
+                    // Ekstrak periode spesifik untuk sheet ini (misal: 'jul25' -> 2025-07, 'Juni 26' -> 2026-06)
+                    $sheetPeriod = self::parsePeriodFromSheetName($sheetTitle);
+                    if ($sheetPeriod === 'Multi-Periode') {
+                        $sheetPeriod = self::parsePeriodFromSheetName($fileIdentifier);
+                    }
+
+                    $groupKey = $detectedShop->id . '_' . $sheetPeriod;
+
+                    if (!isset($shopPeriodGroups[$groupKey])) {
+                        $shopPeriodGroups[$groupKey] = [
                             'shop' => $detectedShop,
-                            'sheet_indices' => [],
+                            'period' => $sheetPeriod,
                             'sheet_names' => [],
                         ];
                     }
-                    $shopSheetGroups[$detectedShop->id]['sheet_indices'][] = $sheetIdx;
-                    $shopSheetGroups[$detectedShop->id]['sheet_names'][] = $sheetTitle;
+                    $shopPeriodGroups[$groupKey]['sheet_names'][] = $sheetTitle;
                 }
             }
 
-            // Fase 2: Per outlet yang terdeteksi, jalankan extraction engine
-            foreach ($shopSheetGroups as $shopId => $group) {
+            // Fase 2: Per outlet dan per periode yang terpartisi, jalankan extraction engine
+            foreach ($shopPeriodGroups as $group) {
                 $shop = $group['shop'];
+                $period = $group['period'];
 
-                // Deteksi periode dari sheet names atau nama file
-                $detectedPeriod = null;
-                foreach ($group['sheet_names'] as $sName) {
-                    $p = self::parsePeriodFromSheetName($sName);
-                    if ($p !== 'Multi-Periode') {
-                        $detectedPeriod = $p;
-                        break;
-                    }
-                }
-                if (!$detectedPeriod) {
-                    $p = self::parsePeriodFromSheetName($fileIdentifier);
-                    if ($p !== 'Multi-Periode') {
-                        $detectedPeriod = $p;
-                    }
-                }
+                // Gunakan extract() dengan objek $spreadsheet yang sudah dimuat
+                $summary = self::extract($spreadsheet, $shop, $period);
 
-                // Gunakan extract() dengan objek $spreadsheet yang sudah dimuat (tanpa baca ulang dari disk)
-                $summary = self::extract($spreadsheet, $shop, $detectedPeriod);
-
-                $results[$shopId] = [
+                $results[] = [
                     'shop' => $shop,
-                    'shop_id' => $shopId,
+                    'shop_id' => $shop->id,
                     'shop_nama' => $shop->nama,
-                    'period' => $detectedPeriod ?? 'Multi-Periode',
+                    'period' => $period ?? 'Multi-Periode',
                     'summary' => $summary,
                     'matched_sheets' => $group['sheet_names'],
                 ];
@@ -1260,7 +1259,7 @@ class BackdateExcelSummaryService
                 $detectedPeriod = self::parsePeriodFromSheetName($fileIdentifier);
                 $summary = self::extract($spreadsheet, $fileLevelShop, $detectedPeriod);
 
-                $results[$fileLevelShop->id] = [
+                $results[] = [
                     'shop' => $fileLevelShop,
                     'shop_id' => $fileLevelShop->id,
                     'shop_nama' => $fileLevelShop->nama,
@@ -1269,6 +1268,11 @@ class BackdateExcelSummaryService
                     'matched_sheets' => $allSheetNames,
                 ];
             }
+
+            // Urutkan partisi hasil secara kronologis: dari yang paling lama ke paling baru (ASC)
+            usort($results, function ($a, $b) {
+                return strcmp($a['period'], $b['period']);
+            });
 
         } catch (\Throwable $e) {
             Log::error("extractMultiShopFromFile Error: {$filePath} — " . $e->getMessage());
