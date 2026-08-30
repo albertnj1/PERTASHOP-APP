@@ -98,9 +98,12 @@ Route::middleware('auth')->group(function () {
         Route::get('payroll-systems', [PayrollSystemController::class, 'index'])->name('payroll-systems.index');
         Route::get('payroll-systems/by-shop/{shop}', [PayrollSystemController::class, 'byShop'])->name('payroll-systems.by-shop');
 
-        // Arsip Upload File Excel Backdate (per Pertashop Container)
+        // Arsip Upload File Excel Backdate (per Pertashop Container) & Engine v2
         Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');
         Route::post('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'store'])->name('backdate-excel-files.store');
+        Route::post('backdate-excel-files/upload-multi', [\App\Http\Controllers\BackdateExcelFileController::class, 'storeMulti'])->name('backdate-excel-files.upload-multi');
+        Route::get('backdate-excel-files/{backdateExcelFile}/download-pdf', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadPdf'])->name('backdate-excel-files.download-pdf');
+        Route::get('backdate-excel-files/{backdateExcelFile}/download-report-excel', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadReportExcel'])->name('backdate-excel-files.download-report-excel');
         Route::delete('backdate-excel-files/delete-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'deleteAll'])->name('backdate-excel-files.delete-all');
         Route::post('backdate-excel-files/restore-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'restoreAll'])->name('backdate-excel-files.restore-all');
         Route::delete('backdate-excel-files/empty-trash', [\App\Http\Controllers\BackdateExcelFileController::class, 'emptyTrash'])->name('backdate-excel-files.empty-trash');

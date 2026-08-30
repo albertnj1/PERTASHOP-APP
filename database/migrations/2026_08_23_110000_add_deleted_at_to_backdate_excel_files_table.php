@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('backdate_excel_files', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        if (!Schema::hasColumn('backdate_excel_files', 'deleted_at')) {
+            Schema::table('backdate_excel_files', function (Blueprint $table) {
+                $table->softDeletes();
+            });
+        }
     }
 
     /**

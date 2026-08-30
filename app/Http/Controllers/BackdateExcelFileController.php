@@ -36,8 +36,13 @@ class BackdateExcelFileController extends Controller
             $q->orderBy('bulan_tahun', 'desc')->orderBy('created_at', 'desc');
         }]);
 
-        // Load trashed files for accessible shops
-        $trashedQuery = BackdateExcelFile::onlyTrashed()->with(['shop', 'user']);
+        // Load trashed files for accessible shops safely (compatible with or without SoftDeletes trait active)
+        if (method_exists(BackdateExcelFile::class, 'onlyTrashed')) {
+            $trashedQuery = BackdateExcelFile::onlyTrashed()->with(['shop', 'user']);
+        } else {
+            $trashedQuery = BackdateExcelFile::whereNotNull('deleted_at')->with(['shop', 'user']);
+        }
+
         if ($user->role !== 'superadmin' && !empty($shopIds)) {
             $trashedQuery->whereIn('shop_id', $shopIds);
         }
@@ -404,15 +409,27 @@ class BackdateExcelFileController extends Controller
             ->with('success', "Berhasil memindahkan {$count} berkas dari {$targetName} ke Tempat Sampah.");
     }
 
+    private function getTrashedQuery()
+    {
+        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(BackdateExcelFile::class))) {
+            return BackdateExcelFile::onlyTrashed();
+        }
+        return BackdateExcelFile::whereNotNull('deleted_at');
+    }
+
     /**
      * Pulihkan Berkas Excel Dari Tempat Sampah
      */
     public function restore($id)
     {
-        $file = BackdateExcelFile::onlyTrashed()->findOrFail($id);
+        $file = $this->getTrashedQuery()->findOrFail($id);
         $this->authorizeShopAccess($file->shop_id);
 
-        $file->restore();
+        if (method_exists($file, 'restore')) {
+            $file->restore();
+        } else {
+            $file->update(['deleted_at' => null]);
+        }
 
         return redirect()->route('backdate-excel-files.index')
             ->with('success', "Berkas Excel '{$file->original_filename}' berhasil dipulihkan dari Tempat Sampah.");
@@ -427,7 +444,7 @@ class BackdateExcelFileController extends Controller
         $shops = $this->getAccessibleShops();
         $shopIds = $shops->pluck('id')->toArray();
 
-        $query = BackdateExcelFile::onlyTrashed();
+        $query = $this->getTrashedQuery();
         if ($user->role !== 'superadmin' && !empty($shopIds)) {
             $query->whereIn('shop_id', $shopIds);
         }
@@ -437,7 +454,11 @@ class BackdateExcelFileController extends Controller
             return redirect()->back()->with('error', 'Tidak ada berkas di Tempat Sampah untuk dipulihkan.');
         }
 
-        $query->restore();
+        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(BackdateExcelFile::class))) {
+            $query->restore();
+        } else {
+            $query->update(['deleted_at' => null]);
+        }
 
         return redirect()->route('backdate-excel-files.index')
             ->with('success', "Berhasil memulihkan {$count} berkas dari Tempat Sampah.");
@@ -448,7 +469,7 @@ class BackdateExcelFileController extends Controller
      */
     public function forceDelete($id)
     {
-        $file = BackdateExcelFile::onlyTrashed()->findOrFail($id);
+        $file = $this->getTrashedQuery()->findOrFail($id);
         $this->authorizeShopAccess($file->shop_id);
 
         $filename = $file->original_filename;
@@ -460,7 +481,11 @@ class BackdateExcelFileController extends Controller
             Storage::disk('public')->delete($file->file_path);
         }
 
-        $file->forceDelete();
+        if (method_exists($file, 'forceDelete')) {
+            $file->forceDelete();
+        } else {
+            $file->delete();
+        }
 
         return redirect()->route('backdate-excel-files.index')
             ->with('success', "Berkas Excel '{$filename}' telah dihapus secara permanen dari server.");
@@ -479,7 +504,7 @@ class BackdateExcelFileController extends Controller
         $shops = $this->getAccessibleShops();
         $shopIds = $shops->pluck('id')->toArray();
 
-        $query = BackdateExcelFile::onlyTrashed();
+        $query = $this->getTrashedQuery();
         if ($user->role !== 'superadmin' && !empty($shopIds)) {
             $query->whereIn('shop_id', $shopIds);
         }
@@ -498,11 +523,247 @@ class BackdateExcelFileController extends Controller
             } elseif (Storage::disk('public')->exists($file->file_path)) {
                 Storage::disk('public')->delete($file->file_path);
             }
-            $file->forceDelete();
+            if (method_exists($file, 'forceDelete')) {
+                $file->forceDelete();
+            } else {
+                $file->delete();
+            }
         }
 
         return redirect()->route('backdate-excel-files.index')
             ->with('success', "Tempat Sampah berhasil dikosongkan ({$count} berkas dihapus permanen).");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  BACKDATE V2: Multi-File Upload, Processing Engine & Dual Export
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * AJAX Multi-File Upload & Processing (1–12 files sekaligus).
+     * Mengembalikan JSON response dengan status per-file dan per-outlet.
+     */
+    public function storeMulti(Request $request)
+    {
+        // Mengabaikan batas 60 detik khusus untuk proses multi-upload ini (0 = unlimited)
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+        ini_set('memory_limit', '1024M');
+
+        $request->validate([
+            'files'     => 'required|array|min:1|max:12',
+            'files.*'   => 'file|mimes:xlsx,xls|max:20480',
+        ], [
+            'files.required' => 'Silakan pilih minimal 1 file Excel.',
+            'files.max'      => 'Maksimal 12 file dalam satu kali upload.',
+            'files.*.mimes'  => 'Format file harus .xlsx atau .xls.',
+            'files.*.max'    => 'Ukuran per file maksimal 20 MB.',
+        ]);
+
+        $user = Auth::user();
+        $shops = $this->getAccessibleShops();
+        $uploadedFiles = $request->file('files');
+        $totalFiles = count($uploadedFiles);
+
+        $storedPaths = [];
+        $fileRecords = [];
+        $errors = [];
+
+        // Fase 1: Simpan semua file ke storage
+        foreach ($uploadedFiles as $idx => $file) {
+            try {
+                $originalFilename = $file->getClientOriginalName();
+                $extension = $file->getClientOriginalExtension();
+                $savedFilename = 'multi_' . time() . '_' . $idx . '.' . $extension;
+                $folderPath = 'backdate_excel/multi_upload';
+                $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
+                $fullPath = Storage::disk('public')->path($storedPath);
+
+                $storedPaths[] = [
+                    'fullPath' => $fullPath,
+                    'storedPath' => $storedPath,
+                    'originalFilename' => $originalFilename,
+                    'fileSize' => $file->getSize(),
+                ];
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'file' => $file->getClientOriginalName(),
+                    'error' => 'Gagal menyimpan file: ' . $e->getMessage(),
+                ];
+            }
+        }
+
+        // Fase 2: Jalankan extraction engine pada semua file (beserta metadata nama file)
+        $processingResults = [];
+
+        try {
+            $processingResults = BackdateExcelSummaryService::processMultipleFiles($storedPaths, $shops);
+        } catch (\Throwable $e) {
+            \Log::error("storeMulti processing error: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memproses file: ' . $e->getMessage(),
+                'errors' => $errors,
+            ], 500);
+        }
+
+        // Fase 3: Simpan hasil ke database per outlet
+        $successOutlets = [];
+
+        foreach ($processingResults as $shopId => $result) {
+            $shop = $result['shop'];
+            $period = $result['period'] ?? 'Multi-Periode';
+            $summary = $result['summary'] ?? [];
+
+            // Gunakan storedPath dan originalFilename khusus outlet ini jika tersedia
+            $outletStoredPath = $result['stored_path'] ?? ($storedPaths[0]['storedPath'] ?? '');
+            $outletOriginalFilename = $result['original_filename'] ?? implode(', ', array_column($storedPaths, 'originalFilename'));
+            $outletFileSize = $result['file_size'] ?? ($storedPaths[0]['fileSize'] ?? 0);
+
+            try {
+                $bef = BackdateExcelFile::create([
+                    'shop_id'            => $shopId,
+                    'bulan_tahun'        => $period,
+                    'original_filename'  => $outletOriginalFilename,
+                    'file_path'          => $outletStoredPath,
+                    'file_size'          => $outletFileSize,
+                    'keterangan'         => '[Backdate v2 Multi-Upload] Berkas diproses otomatis',
+                    'user_id'            => Auth::id(),
+                    'processing_status'  => 'completed',
+                    'processing_result'  => $summary,
+                    'processed_at'       => now(),
+                ]);
+
+                // Auto-sync ke MonthlyReport & CapitalRecap
+                try {
+                    \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                } catch (\Throwable $e) {
+                    \Log::warning("Auto-sync backdate v2 failed for shop {$shopId}: " . $e->getMessage());
+                }
+
+                $hal1 = $summary['hal1'] ?? [];
+                $hal2 = $summary['hal2'] ?? [];
+
+                $successOutlets[] = [
+                    'shop_id'       => $shopId,
+                    'shop_nama'     => $shop->nama,
+                    'shop_kode'     => $shop->kode ?? '',
+                    'period'        => $period,
+                    'period_label'  => $this->formatPeriodLabel($period),
+                    'record_id'     => $bef->id,
+                    'matched_sheets' => $result['matched_sheets'] ?? [],
+                    'source_files'  => $result['source_files'] ?? [],
+                    'ringkasan'     => [
+                        'total_liter'      => $hal1['total_liter_terjual'] ?? 0,
+                        'laba_kotor'       => $hal1['grand_total_laba_kotor'] ?? 0,
+                        'total_biaya'      => $hal2['total_biaya'] ?? 0,
+                        'laba_bersih'      => $hal2['laba_bersih'] ?? 0,
+                        'segments_count'   => count($hal1['segments'] ?? []),
+                    ],
+                ];
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'file' => $shop->nama,
+                    'error' => 'Gagal menyimpan hasil: ' . $e->getMessage(),
+                ];
+            }
+        }
+
+        return response()->json([
+            'success'    => true,
+            'message'    => count($successOutlets) . ' Pertashop berhasil diproses dari ' . $totalFiles . ' file.',
+            'outlets'    => $successOutlets,
+            'errors'     => $errors,
+            'total_files_uploaded' => $totalFiles,
+            'total_outlets_processed' => count($successOutlets),
+        ]);
+    }
+
+    /**
+     * Download Laporan PDF Resmi (5 halaman A4) dari data processing result.
+     */
+    public function downloadPdf(BackdateExcelFile $backdateExcelFile)
+    {
+        $this->authorizeShopAccess($backdateExcelFile->shop_id);
+        $backdateExcelFile->load('shop');
+
+        $shop = $backdateExcelFile->shop;
+        $period = $backdateExcelFile->bulan_tahun;
+        $summary = $backdateExcelFile->processing_result;
+
+        // Fallback: jika processing_result kosong, re-parse dari file
+        if (empty($summary)) {
+            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
+            if (file_exists($fullPath)) {
+                $summary = BackdateExcelSummaryService::extract($fullPath, $shop, $period);
+
+                // Simpan untuk next time
+                $backdateExcelFile->update([
+                    'processing_result' => $summary,
+                    'processing_status' => 'completed',
+                    'processed_at' => now(),
+                ]);
+            }
+        }
+
+        if (empty($summary)) {
+            return redirect()->back()->with('error', 'Data laporan belum tersedia. Silakan upload ulang atau sinkronkan file.');
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.backdate_report', compact('shop', 'period', 'summary'))
+            ->setPaper('a4', 'portrait');
+
+        $shopSlug = \Illuminate\Support\Str::slug($shop->nama ?? 'pertashop');
+        $dateSlug = \Illuminate\Support\Str::slug($period);
+        $filename = "Laporan_Resmi_{$shopSlug}_{$dateSlug}.pdf";
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Download Master Excel bersih & terstandarisasi dari data processing result.
+     */
+    public function downloadReportExcel(BackdateExcelFile $backdateExcelFile)
+    {
+        $this->authorizeShopAccess($backdateExcelFile->shop_id);
+        $backdateExcelFile->load('shop');
+
+        $shop = $backdateExcelFile->shop;
+        $period = $backdateExcelFile->bulan_tahun;
+        $summary = $backdateExcelFile->processing_result;
+
+        // Fallback: re-parse jika kosong
+        if (empty($summary)) {
+            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
+            if (file_exists($fullPath)) {
+                $summary = BackdateExcelSummaryService::extract($fullPath, $shop, $period);
+                $backdateExcelFile->update([
+                    'processing_result' => $summary,
+                    'processing_status' => 'completed',
+                    'processed_at' => now(),
+                ]);
+            }
+        }
+
+        if (empty($summary)) {
+            return redirect()->back()->with('error', 'Data laporan belum tersedia.');
+        }
+
+        $excelPath = \App\Services\BackdateExcelExportService::generate($summary, $shop, $period);
+
+        $shopSlug = \Illuminate\Support\Str::slug($shop->nama ?? 'pertashop');
+        $dateSlug = \Illuminate\Support\Str::slug($period);
+        $downloadName = "Master_Excel_{$shopSlug}_{$dateSlug}.xlsx";
+
+        return response()->download($excelPath, $downloadName)->deleteFileAfterSend(true);
+    }
+
+    private function formatPeriodLabel(string $period): string
+    {
+        try {
+            return \Carbon\Carbon::parse($period . '-01')->translatedFormat('F Y');
+        } catch (\Throwable $e) {
+            return $period;
+        }
     }
 
     private function getAccessibleShops()

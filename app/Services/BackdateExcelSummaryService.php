@@ -42,14 +42,14 @@ class BackdateExcelSummaryService
     }
 
     /**
-     * Mengekstrak data lengkap 4 Halaman Laporan dari file Excel backdate.
+     * Mengekstrak data lengkap 4 Halaman Laporan dari file Excel backdate atau objek Spreadsheet.
      *
-     * @param string $filePath Absolute path file Excel (.xlsx / .xls)
+     * @param string|\PhpOffice\PhpSpreadsheet\Spreadsheet $filePathOrSpreadsheet Absolute path file Excel (.xlsx / .xls) atau objek Spreadsheet
      * @param \App\Models\Shop|null $targetShop Toko target
      * @param string|null $targetPeriod Periode target (YYYY-MM)
      * @return array
      */
-    public static function extract(string $filePath, ?Shop $targetShop = null, ?string $targetPeriod = null): array
+    public static function extract($filePathOrSpreadsheet, ?Shop $targetShop = null, ?string $targetPeriod = null): array
     {
         $summary = [
             'hal1' => [
@@ -118,16 +118,18 @@ class BackdateExcelSummaryService
             'matched_sheet_name'     => null,
         ];
 
-        if (!file_exists($filePath)) {
-            return $summary;
-        }
-
         try {
-            $reader = IOFactory::createReaderForFile($filePath);
-            if (method_exists($reader, 'setReadDataOnly')) {
+            if ($filePathOrSpreadsheet instanceof \PhpOffice\PhpSpreadsheet\Spreadsheet) {
+                $spreadsheet = $filePathOrSpreadsheet;
+            } else {
+                $filePath = (string)$filePathOrSpreadsheet;
+                if (!file_exists($filePath)) {
+                    return $summary;
+                }
+                $reader = IOFactory::createReaderForFile($filePath);
                 $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($filePath);
             }
-            $spreadsheet = $reader->load($filePath);
 
             // Determine Target Shop & Period
             if (!$targetPeriod) {
@@ -946,12 +948,15 @@ class BackdateExcelSummaryService
     /**
      * Menghasilkan daftar kata kunci, kode, dan akronim (KMT, KLT, KLB, PGL, GML, SMK, dll.) untuk Pertashop.
      */
+    /**
+     * Menghasilkan daftar kata kunci, kode, dan akronim (KMT, KLT, KLB, PGL, GML, SMK, dll.) untuk Pertashop.
+     */
     public static function getShopAliases(Shop $shop): array
     {
         $aliases = [];
         $namaLower = strtolower(trim($shop->nama));
-        $kodeLower = strtolower(trim($shop->kode));
-        $kodeClean = str_replace(['.', ' ', '-'], '', $kodeLower);
+        $kodeLower = strtolower(trim($shop->kode ?? ''));
+        $kodeClean = str_replace(['.', ' ', '-', '_'], '', $kodeLower);
 
         $aliases[] = $namaLower;
         if ($kodeLower) $aliases[] = $kodeLower;
@@ -963,20 +968,316 @@ class BackdateExcelSummaryService
         }
 
         $knownMap = [
-            'kemutug'   => 'kmt',
-            'kalitapen'  => 'klt',
-            'kalibenda'  => 'klb',
-            'pageralang' => 'pgl',
-            'gumelar'    => 'gml',
-            'sumingkir'  => 'smk',
+            'kemutug'   => ['kmt', '53143', '531.43', '4p.531.43', '4p53143', 'kemutug lor'],
+            'kalitapen' => ['klt', '53119', '531.19', '4p.531.19', '4p53119'],
+            'kalibenda' => ['klb', '53134', '531.34', '4p.531.34', '4p53134'],
+            'pageralang'=> ['pgl', '53164', '531.64', '4p.531.64', '4p53164'],
+            'gumelar'   => ['gml', '53158', '531.58', '4p.531.58', '4p53158'],
+            'sumingkir' => ['smk', '53240', '532.40', '4p.532.40', '4p53240', '53.4.40', '53440', '53.440'],
         ];
 
-        foreach ($knownMap as $key => $abbr) {
+        foreach ($knownMap as $key => $abbrs) {
             if (str_contains($namaLower, $key)) {
-                $aliases[] = $abbr;
+                $aliases = array_merge($aliases, (array)$abbrs);
             }
         }
 
         return array_values(array_unique($aliases));
+    }
+
+    /**
+     * Peta kode outlet Pertamina resmi (termasuk variasi format / typo) → keyword nama outlet.
+     */
+    public static function getPertaminaCodeMap(): array
+    {
+        return [
+            '4P.531.43' => 'kemutug',
+            '4P.53143'  => 'kemutug',
+            '53143'     => 'kemutug',
+            '531.43'    => 'kemutug',
+
+            '4P.531.19' => 'kalitapen',
+            '4P.53119'  => 'kalitapen',
+            '53119'     => 'kalitapen',
+            '531.19'    => 'kalitapen',
+
+            '4P.531.34' => 'kalibenda',
+            '4P.53134'  => 'kalibenda',
+            '53134'     => 'kalibenda',
+            '531.34'    => 'kalibenda',
+
+            '4P.531.64' => 'pageralang',
+            '4P.53164'  => 'pageralang',
+            '53164'     => 'pageralang',
+            '531.64'    => 'pageralang',
+
+            '4P.531.58' => 'gumelar',
+            '4P.53158'  => 'gumelar',
+            '53158'     => 'gumelar',
+            '531.58'    => 'gumelar',
+
+            '4P.532.40' => 'sumingkir',
+            '4P.53240'  => 'sumingkir',
+            '4p - 53.4.40' => 'sumingkir',
+            '53.4.40'   => 'sumingkir',
+            '53240'     => 'sumingkir',
+            '532.40'    => 'sumingkir',
+            '53440'     => 'sumingkir',
+        ];
+    }
+
+    /**
+     * Deteksi outlet dari teks (nama sheet / nama file) dan isi header sel.
+     * Mengembalikan Shop atau null jika tidak terdeteksi.
+     *
+     * @param string $textToScan Nama sheet atau nama file
+     * @param array $headerCells Baris-baris awal sheet (array of rows)
+     * @param \Illuminate\Support\Collection $shops
+     * @return \App\Models\Shop|null
+     */
+    public static function detectOutletFromSheet(string $textToScan, array $headerCells, $shops): ?Shop
+    {
+        $titleLower = strtolower($textToScan);
+        $titleClean = str_replace(['.', ' ', '-', '_', '(', ')'], '', $titleLower);
+
+        // Gabungkan header cells jadi satu string untuk scanning
+        $headerStr = '';
+        foreach (array_slice($headerCells, 0, 20) as $row) {
+            if (is_array($row)) {
+                $headerStr .= ' ' . implode(' ', array_filter(array_map(function ($v) {
+                    return is_string($v) ? $v : '';
+                }, $row)));
+            }
+        }
+        $headerStrLower = strtolower($headerStr);
+        $headerStrClean = str_replace(['.', ' ', '-', '_', '(', ')'], '', $headerStrLower);
+
+        // 1. Cek Kode Pertamina di header & title
+        $pertaminaCodes = self::getPertaminaCodeMap();
+        foreach ($pertaminaCodes as $code => $outletKeyword) {
+            $codeClean = str_replace(['.', ' ', '-', '_'], '', strtolower($code));
+            if (
+                str_contains($titleLower, strtolower($code)) ||
+                str_contains($titleClean, $codeClean) ||
+                str_contains($headerStrLower, strtolower($code)) ||
+                str_contains($headerStrClean, $codeClean)
+            ) {
+                foreach ($shops as $shop) {
+                    if (str_contains(strtolower($shop->nama), $outletKeyword)) {
+                        return $shop;
+                    }
+                }
+            }
+        }
+
+        // 2. Cek nama & alias outlet di title & header
+        $genericStopwords = ['ps', 'ps.', 'pertashop', 'desa', 'kec', 'kecamatan', 'kab', 'kabupaten',
+            'toko', 'outlet', 'gaji', 'penjualan', 'laporan', 'daily', 'sheet', 'laba', 'modal',
+            'rekap', 'stok', 'bersih', 'kotor', 'profit', 'sales', 'report', 'pt', 'sam', 'xlsx', 'xls'];
+
+        foreach ($shops as $shop) {
+            $aliases = self::getShopAliases($shop);
+            $validAliases = array_filter($aliases, function ($alias) use ($genericStopwords) {
+                return strlen($alias) >= 3 && !in_array(strtolower($alias), $genericStopwords);
+            });
+
+            foreach ($validAliases as $alias) {
+                $aliasClean = str_replace(['.', ' ', '-', '_'], '', strtolower($alias));
+                if (
+                    str_contains($titleLower, strtolower($alias)) ||
+                    str_contains($titleClean, $aliasClean) ||
+                    str_contains($headerStrLower, strtolower($alias)) ||
+                    str_contains($headerStrClean, $aliasClean)
+                ) {
+                    return $shop;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * MESIN UTAMA V2: Membaca 1 file Excel dan mengekstrak data per-outlet.
+     *
+     * @param string $filePath Path absolut file Excel
+     * @param \Illuminate\Support\Collection|null $shops Daftar outlet (jika null, ambil semua dari DB)
+     * @param string $originalFilename Nama berkas asli (misal: "08. Sales Report Kemutug Lor...")
+     * @return array
+     */
+    public static function extractMultiShopFromFile(string $filePath, $shops = null, string $originalFilename = ''): array
+    {
+        if (!file_exists($filePath)) {
+            return [];
+        }
+
+        if ($shops === null) {
+            $shops = Shop::all();
+        }
+
+        $results = [];
+
+        try {
+            $reader = IOFactory::createReaderForFile($filePath);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($filePath);
+
+            $fileIdentifier = $originalFilename ?: basename($filePath);
+
+            // Deteksi outlet dari NAMA FILE terlebih dahulu (sangat akurat)
+            $fileLevelShop = self::detectOutletFromSheet($fileIdentifier, [], $shops);
+
+            // Fase 1: Scan semua sheet → identifikasi outlet
+            $shopSheetGroups = []; // shop_id => [sheet_indices]
+
+            foreach ($spreadsheet->getAllSheets() as $sheetIdx => $sheet) {
+                $sheetTitle = $sheet->getTitle();
+                $headerRows = [];
+                try {
+                    $rows = $sheet->toArray(null, true, false, false);
+                    $headerRows = array_slice($rows, 0, 20);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+
+                // Cek apakah sheet spesifik merujuk ke toko tertentu
+                $detectedShop = self::detectOutletFromSheet($sheetTitle, $headerRows, $shops);
+
+                // Fallback ke outlet dari nama file jika sheet title generic (misal: Sheet1, Laporan, Penjualan)
+                if (!$detectedShop && $fileLevelShop) {
+                    $detectedShop = $fileLevelShop;
+                }
+
+                if ($detectedShop) {
+                    if (!isset($shopSheetGroups[$detectedShop->id])) {
+                        $shopSheetGroups[$detectedShop->id] = [
+                            'shop' => $detectedShop,
+                            'sheet_indices' => [],
+                            'sheet_names' => [],
+                        ];
+                    }
+                    $shopSheetGroups[$detectedShop->id]['sheet_indices'][] = $sheetIdx;
+                    $shopSheetGroups[$detectedShop->id]['sheet_names'][] = $sheetTitle;
+                }
+            }
+
+            // Fase 2: Per outlet yang terdeteksi, jalankan extraction engine
+            foreach ($shopSheetGroups as $shopId => $group) {
+                $shop = $group['shop'];
+
+                // Deteksi periode dari sheet names atau nama file
+                $detectedPeriod = null;
+                foreach ($group['sheet_names'] as $sName) {
+                    $p = self::parsePeriodFromSheetName($sName);
+                    if ($p !== 'Multi-Periode') {
+                        $detectedPeriod = $p;
+                        break;
+                    }
+                }
+                if (!$detectedPeriod) {
+                    $p = self::parsePeriodFromSheetName($fileIdentifier);
+                    if ($p !== 'Multi-Periode') {
+                        $detectedPeriod = $p;
+                    }
+                }
+
+                // Gunakan extract() dengan objek $spreadsheet yang sudah dimuat (tanpa baca ulang dari disk)
+                $summary = self::extract($spreadsheet, $shop, $detectedPeriod);
+
+                $results[$shopId] = [
+                    'shop' => $shop,
+                    'shop_id' => $shopId,
+                    'shop_nama' => $shop->nama,
+                    'period' => $detectedPeriod ?? 'Multi-Periode',
+                    'summary' => $summary,
+                    'matched_sheets' => $group['sheet_names'],
+                ];
+            }
+
+            // Fase 3: Jika masih kosong tapi ada fileLevelShop, jalankan untuk toko itu
+            if (empty($results) && $fileLevelShop) {
+                $allSheetNames = [];
+                foreach ($spreadsheet->getAllSheets() as $sh) {
+                    $allSheetNames[] = $sh->getTitle();
+                }
+
+                $detectedPeriod = self::parsePeriodFromSheetName($fileIdentifier);
+                $summary = self::extract($spreadsheet, $fileLevelShop, $detectedPeriod);
+
+                $results[$fileLevelShop->id] = [
+                    'shop' => $fileLevelShop,
+                    'shop_id' => $fileLevelShop->id,
+                    'shop_nama' => $fileLevelShop->nama,
+                    'period' => $detectedPeriod ?? 'Multi-Periode',
+                    'summary' => $summary,
+                    'matched_sheets' => $allSheetNames,
+                ];
+            }
+
+        } catch (\Throwable $e) {
+            Log::error("extractMultiShopFromFile Error: {$filePath} — " . $e->getMessage());
+        }
+
+        return $results;
+    }
+
+    /**
+     * Proses batch dari beberapa file sekaligus (1–12 files).
+     * Mengembalikan array gabungan hasil per outlet.
+     *
+     * @param array $fileItems Array of file paths ATAU array of ['fullPath' => ..., 'originalFilename' => ..., 'storedPath' => ..., 'fileSize' => ...]
+     * @param \Illuminate\Support\Collection|null $shops
+     * @param callable|null $progressCallback fn(int $fileIndex, int $totalFiles, string $filename)
+     * @return array [shop_id => ['shop' => Shop, 'period' => '...', 'summary' => [...], 'source_files' => [...], 'stored_path' => '...', 'original_filename' => '...']]
+     */
+    public static function processMultipleFiles(array $fileItems, $shops = null, ?callable $progressCallback = null): array
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+        ini_set('memory_limit', '1024M');
+
+        if ($shops === null) {
+            $shops = Shop::all();
+        }
+
+        $mergedResults = [];
+        $totalFiles = count($fileItems);
+
+        foreach ($fileItems as $fileIdx => $item) {
+            $filePath = is_array($item) ? ($item['fullPath'] ?? '') : $item;
+            $originalFilename = is_array($item) ? ($item['originalFilename'] ?? basename($filePath)) : basename($filePath);
+            $storedPath = is_array($item) ? ($item['storedPath'] ?? '') : '';
+            $fileSize = is_array($item) ? ($item['fileSize'] ?? 0) : 0;
+
+            if ($progressCallback) {
+                $progressCallback($fileIdx + 1, $totalFiles, $originalFilename);
+            }
+
+            $fileResults = self::extractMultiShopFromFile($filePath, $shops, $originalFilename);
+
+            foreach ($fileResults as $shopId => $result) {
+                if (!isset($mergedResults[$shopId])) {
+                    $mergedResults[$shopId] = $result;
+                    $mergedResults[$shopId]['source_files'] = [$originalFilename];
+                    $mergedResults[$shopId]['stored_path'] = $storedPath;
+                    $mergedResults[$shopId]['original_filename'] = $originalFilename;
+                    $mergedResults[$shopId]['file_size'] = $fileSize;
+                } else {
+                    // Update dengan data file terbaru jika relevan
+                    $mergedResults[$shopId]['summary'] = $result['summary'];
+                    $mergedResults[$shopId]['period'] = $result['period'];
+                    $mergedResults[$shopId]['matched_sheets'] = array_merge(
+                        $mergedResults[$shopId]['matched_sheets'],
+                        $result['matched_sheets']
+                    );
+                    $mergedResults[$shopId]['source_files'][] = $originalFilename;
+                    $mergedResults[$shopId]['stored_path'] = $storedPath ?: $mergedResults[$shopId]['stored_path'];
+                    $mergedResults[$shopId]['original_filename'] = $originalFilename;
+                    $mergedResults[$shopId]['file_size'] = $fileSize ?: $mergedResults[$shopId]['file_size'];
+                }
+            }
+        }
+
+        return $mergedResults;
     }
 }

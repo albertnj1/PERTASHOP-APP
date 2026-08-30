@@ -18,6 +18,15 @@ class BackdateExcelFile extends Model
         'file_size',
         'keterangan',
         'user_id',
+        'processing_status',
+        'processing_result',
+        'error_message',
+        'processed_at',
+    ];
+
+    protected $casts = [
+        'processing_result' => 'array',
+        'processed_at' => 'datetime',
     ];
 
     public function shop()
