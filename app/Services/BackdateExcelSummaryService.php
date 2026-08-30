@@ -12,59 +12,65 @@ use App\Models\Investor;
 class BackdateExcelSummaryService
 {
     /**
-     * Parse flexible number from various Indonesian/Excel formats.
+     * Standardized & safe numeric sanitizer for Indonesian & Excel formats.
      */
-    public static function parseFlexibleNumber($val): float
+    public static function cleanNumeric($value): float
     {
-        if ($val === null || $val === '') {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+        if (empty($value) || $value === '-' || $value === '#DIV/0!' || $value === '#VALUE!' || $value === '#N/A' || $value === '#REF!' || $value === '#NAME?') {
             return 0.0;
         }
-        if (is_numeric($val)) {
-            return (float)$val;
-        }
         
-        $val = trim((string)$val);
+        $val = trim((string)$value);
         $isNegative = false;
         if (preg_match('/^\(.*\)$/', $val) || str_starts_with($val, '-')) {
             $isNegative = true;
         }
 
-        $val = str_replace(["Rp", " ", "(", ")", ",-", ".-", "-", "è", "à", "L", "ℓ", "KL"], "", $val);
-        $val = trim($val, ".,");
-        if ($val === '') return 0.0;
+        $clean = str_replace(["Rp", " ", "(", ")", ",-", ".-", "-", "è", "à", "L", "ℓ", "KL"], "", $val);
+        $clean = trim($clean, ".,");
+        if ($clean === '') return 0.0;
         
-        // Handle mixed separators: e.g. "11.376,29" or "1,234,567.89"
-        if (str_contains($val, '.') && str_contains($val, ',')) {
-            $lastDot = strrpos($val, '.');
-            $lastComma = strrpos($val, ',');
+        // Handle Indonesian vs US decimal separators
+        if (strpos($clean, ',') !== false && strpos($clean, '.') !== false) {
+            $lastDot = strrpos($clean, '.');
+            $lastComma = strrpos($clean, ',');
             if ($lastComma > $lastDot) {
-                // Indonesian: 1.234.567,89 -> remove dots, replace comma with dot
-                $val = str_replace('.', '', $val);
-                $val = str_replace(',', '.', $val);
+                // Indonesian: 1.234.567,89 -> 1234567.89
+                $clean = str_replace('.', '', $clean);
+                $clean = str_replace(',', '.', $clean);
             } else {
-                // US: 1,234,567.89 -> remove commas
-                $val = str_replace(',', '', $val);
+                // US: 1,234,567.89 -> 1234567.89
+                $clean = str_replace(',', '', $clean);
             }
-        } elseif (str_contains($val, ',')) {
-            // Comma only
-            if (preg_match('/^\d{1,3}(,\d{3})+$/', $val)) {
-                $val = str_replace(',', '', $val);
+        } elseif (strpos($clean, ',') !== false) {
+            if (preg_match('/^\d{1,3}(,\d{3})+$/', $clean)) {
+                $clean = str_replace(',', '', $clean);
             } else {
-                $val = str_replace(',', '.', $val);
+                $clean = str_replace(',', '.', $clean);
             }
-        } elseif (str_contains($val, '.')) {
-            // Dot only: check if it represents a thousand separator (e.g. 12.200, 550.000)
-            if (preg_match('/^\d{1,3}(\.\d{3})+$/', $val)) {
-                $val = str_replace('.', '', $val);
-            } elseif (substr_count($val, '.') > 1) {
-                $parts = explode('.', $val);
+        } elseif (strpos($clean, '.') !== false) {
+            if (preg_match('/^\d{1,3}(\.\d{3})+$/', $clean)) {
+                $clean = str_replace('.', '', $clean);
+            } elseif (substr_count($clean, '.') > 1) {
+                $parts = explode('.', $clean);
                 $last = array_pop($parts);
-                $val = implode('', $parts) . '.' . $last;
+                $clean = implode('', $parts) . '.' . $last;
             }
         }
 
-        $floatVal = (float)$val;
+        $floatVal = (float) $clean;
         return $isNegative ? -$floatVal : $floatVal;
+    }
+
+    /**
+     * Alias for backward compatibility
+     */
+    public static function parseFlexibleNumber($val): float
+    {
+        return self::cleanNumeric($val);
     }
 
     /**
@@ -292,18 +298,22 @@ class BackdateExcelSummaryService
                         // Stok Awal
                         if (str_contains($rowStrLow, 'stok awal') && !str_contains($rowStrLow, 'sisa')) {
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ\s*x\s*Rp\s*([0-9\.,]+)\s*(?:->|&rarr;|\=)?\s*(?:Rp\s*)?([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['stok_awal'] = self::parseFlexibleNumber($m[1]);
-                                $currentSegment['stok_awal_rp'] = self::parseFlexibleNumber($m[3]);
+                                $currentSegment['stok_awal'] = self::cleanNumeric($m[1]);
+                                $currentSegment['stok_awal_rp'] = self::cleanNumeric($m[3]);
                             } elseif (preg_match('/([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['stok_awal'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['stok_awal'] = self::cleanNumeric($m[1]);
                                 $currentSegment['stok_awal_rp'] = $currentSegment['stok_awal'] * $currentSegment['harga_beli'];
                             }
                         }
 
-                        // BBM Datang
-                        if (str_contains($rowStrLow, 'bbm datang')) {
+                        // BBM Datang (Fuzzy DO Ingestion - Jalur 2)
+                        if (str_contains($rowStrLow, 'datang') || str_contains($rowStrLow, 'do datang') || str_contains($rowStrLow, 'bbm datang') || str_contains($rowStrLow, 'pgrl datang')) {
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $vol = self::parseFlexibleNumber($m[1]);
+                                $vol = self::cleanNumeric($m[1]);
+                                $currentSegment['bbm_datang'] += $vol;
+                                $currentSegment['bbm_datang_rp'] += ($vol * $currentSegment['harga_beli']);
+                            } elseif (preg_match('/([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
+                                $vol = self::cleanNumeric($m[1]);
                                 $currentSegment['bbm_datang'] += $vol;
                                 $currentSegment['bbm_datang_rp'] += ($vol * $currentSegment['harga_beli']);
                             }
@@ -312,10 +322,10 @@ class BackdateExcelSummaryService
                         // Jumlah Pembelian
                         if (str_contains($rowStrLow, 'jumlah pembelian')) {
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['jumlah_pembelian'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['jumlah_pembelian'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['jumlah_pembelian_rp'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['jumlah_pembelian_rp'] = self::cleanNumeric($m[1]);
                             }
                         }
 
@@ -325,7 +335,7 @@ class BackdateExcelSummaryService
                                 $currentSegment['end_datetime_label'] = trim($m[1]);
                             }
                             if (preg_match('/=\s*([0-9\.,]+)/', $rowStr, $m)) {
-                                $currentSegment['totalisator_akhir'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['totalisator_akhir'] = self::cleanNumeric($m[1]);
                             }
                         }
 
@@ -335,74 +345,74 @@ class BackdateExcelSummaryService
                                 $currentSegment['start_datetime_label'] = trim($m[1]);
                             }
                             if (preg_match('/=\s*([0-9\.,]+)/', $rowStr, $m)) {
-                                $currentSegment['totalisator_awal'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['totalisator_awal'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Total Penjualan (a-b)
                         if (str_contains($rowStrLow, 'total penjualan') && !str_contains($rowStrLow, 'bersih') && !str_contains($rowStrLow, 'laba')) {
                             if (preg_match('/=\s*([0-9\.,]+)/', $rowStr, $m)) {
-                                $currentSegment['total_penjualan'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['total_penjualan'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Percobaan Test Pump
                         if (str_contains($rowStrLow, 'percobaan') || str_contains($rowStrLow, 'test pump')) {
                             if (preg_match('/=\s*([0-9\.,]+)/', $rowStr, $m)) {
-                                $currentSegment['test_pump'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['test_pump'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Jumlah Penjualan (c-d)
                         if (str_contains($rowStrLow, 'jumlah penjualan') && !str_contains($rowStrLow, 'bersih')) {
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['jumlah_penjualan'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['jumlah_penjualan'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['jumlah_penjualan_rp'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['jumlah_penjualan_rp'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Sisa Stock Teoretis
                         if (str_contains($rowStrLow, 'sisa stock') && !str_contains($rowStrLow, 'akhir') && !str_contains($rowStrLow, 'do')) {
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['sisa_stok_teoretis'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['sisa_stok_teoretis'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['sisa_stok_teoretis_rp'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['sisa_stok_teoretis_rp'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Losses / Gain
                         if (str_contains($rowStrLow, 'losses') || str_contains($rowStrLow, 'gain')) {
                             if (preg_match('/\(([0-9\.,]+)\)\s*%/i', $rowStr, $m)) {
-                                $currentSegment['losses_gain_persen'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['losses_gain_persen'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/=\s*\(?([-\d\.,]+)\)?\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['losses_gain'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['losses_gain'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) {
-                                $currentSegment['losses_gain_rp'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['losses_gain_rp'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Jumlah Penjualan Bersih
                         if (str_contains($rowStrLow, 'penjualan bersih')) {
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['jumlah_penjualan_bersih'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['jumlah_penjualan_bersih'] = self::cleanNumeric($m[1]);
                             }
                         }
 
                         // Sisa Stok Akhir
                         if (str_contains($rowStrLow, 'sisa stok akhir') || str_contains($rowStrLow, 'sisa stock akhir')) {
                             if (preg_match('/([0-9\.,]+)\s*cm/i', $rowStr, $m)) {
-                                $currentSegment['stok_akhir_cm'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['stok_akhir_cm'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/=\s*([0-9\.,]+)\s*ℓ/i', $rowStr, $m)) {
-                                $currentSegment['stok_akhir_fisik'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['stok_akhir_fisik'] = self::cleanNumeric($m[1]);
                             }
                             if (preg_match('/(?:->|&rarr;|=)\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) {
-                                $currentSegment['stok_akhir_fisik_rp'] = self::parseFlexibleNumber($m[1]);
+                                $currentSegment['stok_akhir_fisik_rp'] = self::cleanNumeric($m[1]);
                             }
                         }
                     }
@@ -452,7 +462,7 @@ class BackdateExcelSummaryService
 
             $finalStokLiter = !empty($segments) ? end($segments)['stok_akhir_fisik'] : 0;
             $finalStokRp = !empty($segments) ? end($segments)['stok_akhir_fisik_rp'] : 0;
-            $finalHargaBeli = !empty($segments) ? end($segments)['harga_beli'] : 11376.29;
+            $finalHargaBeli = !empty($segments) ? end($segments)['harga_beli'] : ($hargaBeliList[1] ?? 11376.29);
 
             $summary['hal1'] = [
                 'segments'               => $segments,
@@ -505,10 +515,6 @@ class BackdateExcelSummaryService
                 'total_biaya'     => 0,
             ];
 
-            $labaBersihKlt = 0;
-            $alokasiModal10 = 0;
-            $labaDibagi90 = 0;
-            $totalSaldoLabaDibagi = 0;
             $investorsKlt = [];
 
             if ($kltSheet) {
@@ -529,7 +535,7 @@ class BackdateExcelSummaryService
                             break;
                         }
                         if (is_string($cVal) && (str_contains($cVal, 'Rp') || preg_match('/^[0-9.,-]+$/', trim($cVal)))) {
-                            $parsed = self::parseFlexibleNumber($cVal);
+                            $parsed = self::cleanNumeric($cVal);
                             if ($parsed != 0) {
                                 $rowNum = $parsed;
                                 break;
@@ -538,33 +544,27 @@ class BackdateExcelSummaryService
                     }
 
                     if ($rowNum !== null) {
-                        // Expenses parsing
-                        if (str_contains($rowStrLow, 'gaji') && (str_contains($rowStrLow, 'operator') || str_contains($rowStrLow, 'thr'))) {
+                        // Expenses parsing by keyword matching (Rule 2.B)
+                        if (preg_match('/gaji.*(operator|karyawan|thr)/i', $rowStrLow) || (str_contains($rowStrLow, 'gaji') && !str_contains($rowStrLow, 'admin'))) {
                             $pengeluaranDetails['gaji_operator'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'gaji admin')) {
+                        } elseif (preg_match('/gaji.*admin|admin/i', $rowStrLow) && !str_contains($rowStrLow, 'operator')) {
                             $pengeluaranDetails['gaji_admin'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'curah') || str_contains($rowStrLow, 'bongkar')) {
+                        } elseif (preg_match('/curah|ongkos bongkar|bongkar/i', $rowStrLow)) {
                             $pengeluaranDetails['biaya_curah'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'transfer') || str_contains($rowStrLow, 'biaya transfer')) {
+                        } elseif (preg_match('/transfer|adm bank|biaya tf/i', $rowStrLow)) {
                             $pengeluaranDetails['biaya_tf'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'listrik') || str_contains($rowStrLow, 'pulsa listrik')) {
+                        } elseif (preg_match('/listrik|pln|pulsa listrik/i', $rowStrLow)) {
                             $pengeluaranDetails['listrik'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'air bersih') || str_contains($rowStrLow, 'air')) {
+                        } elseif (preg_match('/air bersih|pdam|air/i', $rowStrLow)) {
                             $pengeluaranDetails['air'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'cashback')) {
+                        } elseif (preg_match('/cashback|bakulan/i', $rowStrLow)) {
                             $pengeluaranDetails['cashback'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'internet') || str_contains($rowStrLow, 'wifi')) {
+                        } elseif (preg_match('/internet|cctv|modem|wifi/i', $rowStrLow)) {
                             $pengeluaranDetails['internet'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'atk') || str_contains($rowStrLow, 'fotocopy')) {
+                        } elseif (preg_match('/atk|fotocopy|kertas|perlengkapan/i', $rowStrLow)) {
                             $pengeluaranDetails['atk'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'lain2') || str_contains($rowStrLow, 'lain-lain') || str_contains($rowStrLow, 'fee pak yusup') || str_contains($rowStrLow, 'iuran')) {
+                        } elseif (preg_match('/lain|vixal|genset|iuran|yusup|keamanan/i', $rowStrLow)) {
                             $pengeluaranDetails['lain_lain'] += $rowNum;
-                        } elseif (str_contains($rowStrLow, 'total biaya') || str_contains($rowStrLow, 'b. total biaya')) {
-                            $pengeluaranDetails['total_biaya'] = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'alokasi') || str_contains($rowStrLow, '10%')) {
-                            $alokasiModal10 = $rowNum;
-                        } elseif (str_contains($rowStrLow, 'saldo laba bersih (90%)') || str_contains($rowStrLow, 'laba bersih final')) {
-                            $labaDibagi90 = $rowNum;
                         }
                     }
 
@@ -582,7 +582,7 @@ class BackdateExcelSummaryService
                             $nomStr = trim((string)($r[11] ?? $r[12] ?? $r[13] ?? ''));
                             if (!empty($name) && str_contains($percentStr, '%')) {
                                 $percent = floatval(str_replace('%', '', $percentStr));
-                                $nom = self::parseFlexibleNumber($nomStr);
+                                $nom = self::cleanNumeric($nomStr);
                                 $investorsKlt[] = [
                                     'nama' => trim($name, " \t\n\r\0\x0B*."),
                                     'persen' => $percent,
@@ -594,37 +594,34 @@ class BackdateExcelSummaryService
                 }
             }
 
-            // 3. TOTAL BEBAN OPERASIONAL (Sesuai Aturan User #3)
-            $calcTotalBiaya = $pengeluaranDetails['gaji_operator'] + $pengeluaranDetails['gaji_admin'] +
-                $pengeluaranDetails['biaya_curah'] + $pengeluaranDetails['biaya_tf'] + $pengeluaranDetails['listrik'] +
-                $pengeluaranDetails['air'] + $pengeluaranDetails['cashback'] + $pengeluaranDetails['internet'] +
-                $pengeluaranDetails['atk'] + $pengeluaranDetails['lain_lain'];
+            // 3. TOTAL BEBAN OPERASIONAL (Rule 2.B)
+            $calcTotalBiaya = array_sum([
+                $pengeluaranDetails['gaji_operator'],
+                $pengeluaranDetails['gaji_admin'],
+                $pengeluaranDetails['biaya_curah'],
+                $pengeluaranDetails['biaya_tf'],
+                $pengeluaranDetails['listrik'],
+                $pengeluaranDetails['air'],
+                $pengeluaranDetails['cashback'],
+                $pengeluaranDetails['internet'],
+                $pengeluaranDetails['atk'],
+                $pengeluaranDetails['lain_lain']
+            ]);
+            $pengeluaranDetails['total_biaya'] = $calcTotalBiaya;
 
-            if ($pengeluaranDetails['total_biaya'] <= 0) {
-                $pengeluaranDetails['total_biaya'] = $calcTotalBiaya;
-            }
-
-            // 2. PERHITUNGAN LABA BERSIH (Sesuai Aturan User #2)
-            // Rumus: Laba Bersih = Grand Total Laba Kotor - Total Beban Operasional
-            $labaBersihKlt = $grandLabaKotor - $pengeluaranDetails['total_biaya'];
-
-            if ($alokasiModal10 <= 0 && $labaBersihKlt > 0) {
-                $alokasiModal10 = round($labaBersihKlt * 0.10);
-            }
-            if ($labaDibagi90 <= 0 && $labaBersihKlt > 0) {
-                $labaDibagi90 = round($labaBersihKlt * 0.90);
-            }
-            if ($totalSaldoLabaDibagi <= 0) {
-                $totalSaldoLabaDibagi = $labaDibagi90;
-            }
+            // 4. SANITY ASSERTION LAYER - LABA BERSIH & ALOKASI (Rule 2.E)
+            $calculatedLabaBersih = $grandLabaKotor - $calcTotalBiaya;
+            $alokasiModal10 = ($calculatedLabaBersih > 0) ? round($calculatedLabaBersih * 0.10) : 0;
+            $labaDibagi90 = ($calculatedLabaBersih > 0) ? round($calculatedLabaBersih * 0.90) : 0;
+            $totalSaldoLabaDibagi = $labaDibagi90;
 
             // Build full investor distributions with accounts
             $investorDists = self::buildInvestorDistributionsInternal($targetShop, $totalSaldoLabaDibagi, $investorsKlt);
 
             $summary['hal2'] = [
                 'pengeluaran_details'      => $pengeluaranDetails,
-                'total_biaya'              => $pengeluaranDetails['total_biaya'],
-                'laba_bersih'              => $labaBersihKlt,
+                'total_biaya'              => $calcTotalBiaya,
+                'laba_bersih'              => $calculatedLabaBersih,
                 'alokasi_penambahan_modal' => $alokasiModal10,
                 'saldo_laba_bersih_90'     => $labaDibagi90,
                 'saldo_laba_sebelumnya'    => 0,
@@ -665,40 +662,40 @@ class BackdateExcelSummaryService
                     $rowStrLow = strtolower($rowStr);
 
                     if (str_contains($rowStrLow, 'saldo awal modal')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $saldoAwalModal = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $saldoAwalModal = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'do yang masih ada')) {
-                        if (preg_match('/:\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $doDiPertamina = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/:\s*Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $doDiPertamina = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'uang di bank')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $uangDiBank = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $uangDiBank = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'kas kecil')) {
-                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $kasKecil = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $kasKecil = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'sisa stok yang masih ada')) {
-                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $sisaStokModalRp = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $sisaStokModalRp = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'belum disetor')) {
-                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $hasilBelumDisetor = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $hasilBelumDisetor = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'piutang')) {
-                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $piutang = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $piutang = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'bunga bank')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $bungaBank = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $bungaBank = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'pajak bank')) {
-                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $pajakBank = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*\(?([-\d\.,]+)\)?/i', $rowStr, $m)) $pajakBank = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'profit sharing')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $profitSharingHal3 = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $profitSharingHal3 = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'penambahan / pengurangan modal') || str_contains($rowStrLow, 'keuntungan bulan ini')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $penambahanModalHal3 = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $penambahanModalHal3 = self::cleanNumeric($m[1]);
                     }
                     if (str_contains($rowStrLow, 'total saldo akhir modal') || str_contains($rowStrLow, 'd. total')) {
-                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $totalSaldoAkhirModal = self::parseFlexibleNumber($m[1]);
+                        if (preg_match('/Rp\s*([0-9\.,]+)/i', $rowStr, $m)) $totalSaldoAkhirModal = self::cleanNumeric($m[1]);
                     }
                 }
             }
@@ -707,7 +704,12 @@ class BackdateExcelSummaryService
                 $saldoAwalModal = $modalAwalOutlet;
             }
 
-            $subtotalA = $saldoAwalModal;
+            // Dynamic sum of all current asset components
+            $subtotalA = $doDiPertamina + $uangDiBank + $kasKecil + $sisaStokModalRp + $hasilBelumDisetor + $piutang;
+            if ($subtotalA == 0) {
+                $subtotalA = $sisaStokModalRp > 0 ? $sisaStokModalRp : $saldoAwalModal;
+            }
+
             $subtotalB = $bungaBank - $pajakBank - $profitSharingHal3 + $penambahanModalHal3;
             $subtotalC = $subtotalA + $subtotalB;
             if ($totalSaldoAkhirModal <= 0) {
@@ -791,19 +793,19 @@ class BackdateExcelSummaryService
                         continue;
                     }
 
-                    $mAwal = self::parseFlexibleNumber($r[$colMap['modal_awal']] ?? 0);
-                    $rugi = self::parseFlexibleNumber($r[$colMap['rugi']] ?? 0);
-                    $pajak = self::parseFlexibleNumber($r[$colMap['pajak']] ?? 0);
-                    $keuntungan = self::parseFlexibleNumber($r[$colMap['keuntungan']] ?? 0);
-                    $bunga = self::parseFlexibleNumber($r[$colMap['bunga']] ?? 0);
-                    $net = self::parseFlexibleNumber($r[$colMap['net']] ?? ($rugi + $pajak + $keuntungan + $bunga));
-                    $akumulasi = self::parseFlexibleNumber($r[$colMap['akumulasi']] ?? 0);
-                    $posAkhir = self::parseFlexibleNumber($r[$colMap['posisi_akhir']] ?? ($mAwal + $net));
-                    $hBeli = self::parseFlexibleNumber($r[$colMap['harga_beli']] ?? 11451.29);
-                    $konv = self::parseFlexibleNumber($r[$colMap['konversi']] ?? ($hBeli > 0 ? $posAkhir / $hBeli : 0));
+                    $mAwal = self::cleanNumeric($r[$colMap['modal_awal']] ?? 0);
+                    $rugi = self::cleanNumeric($r[$colMap['rugi']] ?? 0);
+                    $pajak = self::cleanNumeric($r[$colMap['pajak']] ?? 0);
+                    $keuntungan = self::cleanNumeric($r[$colMap['keuntungan']] ?? 0);
+                    $bunga = self::cleanNumeric($r[$colMap['bunga']] ?? 0);
+                    $net = self::cleanNumeric($r[$colMap['net']] ?? ($rugi + $pajak + $keuntungan + $bunga));
+                    $akumulasi = self::cleanNumeric($r[$colMap['akumulasi']] ?? 0);
+                    $posAkhir = self::cleanNumeric($r[$colMap['posisi_akhir']] ?? ($mAwal + $net));
+                    $hBeli = self::cleanNumeric($r[$colMap['harga_beli']] ?? 11451.29);
+                    $konv = self::cleanNumeric($r[$colMap['konversi']] ?? ($hBeli > 0 ? $posAkhir / $hBeli : 0));
 
-                    // Skip empty rows
-                    if ($mAwal <= 0 && $rugi == 0 && $keuntungan == 0 && $posAkhir <= 0) {
+                    // Skip blank template rows extending into the future with 0s
+                    if ($rugi == 0 && $pajak == 0 && $keuntungan == 0 && $bunga == 0 && $net == 0 && ($mAwal == $posAkhir || $posAkhir <= 0)) {
                         continue;
                     }
 

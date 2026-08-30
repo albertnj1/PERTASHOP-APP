@@ -71,7 +71,9 @@
         $aset_stok = $aset_stok ?? ($hal3['sisa_stok_pertashop_rp'] ?? 0);
         $aset_belum_setor = $aset_belum_setor ?? ($hal3['hasil_belum_disetor'] ?? 0);
         $aset_piutang = $aset_piutang ?? ($hal3['piutang'] ?? 0);
-        $subtotal_aset = $subtotal_aset ?? ($hal3['subtotal_a'] ?? $modal_awal);
+        
+        // Dynamic sum of real asset components (Bug 2 Fix)
+        $subtotal_aset = ($aset_do ?? 0) + ($aset_bank ?? 0) + ($aset_kas ?? 0) + ($aset_stok ?? 0) + ($aset_belum_setor ?? 0) + ($aset_piutang ?? 0);
 
         $bunga_bank = $bunga_bank ?? ($hal3['bunga_bank'] ?? 0);
         $pajak_bank = $pajak_bank ?? ($hal3['pajak_bank'] ?? 0);
@@ -83,17 +85,34 @@
             foreach ($hal4['capital_recaps'] as $rec) {
                 $yr = intval($rec['tahun'] ?? 0);
                 $mo = intval($rec['bulan'] ?? 0);
-                if ($yr >= 2020 && $yr <= 2100 && $mo >= 1 && $mo <= 12) {
-                    $modal_history[] = [
-                        'period' => ($mNames[$mo] ?? '') . ' ' . $yr,
-                        'modal_awal' => $rec['nilai_modal_awal'] ?? 0,
-                        'profit_10' => $rec['penambahan_keuntungan'] ?? 0,
-                        'tax_fee' => $rec['penyusutan_pajak_bank'] ?? 0,
-                        'modal_akhir' => $rec['posisi_akhir_modal'] ?? 0,
-                        'liter_equivalent' => $rec['konversi_liter'] ?? 0,
-                    ];
+                $p10 = floatval($rec['penambahan_keuntungan'] ?? 0);
+                $tax = floatval($rec['penyusutan_pajak_bank'] ?? 0);
+                $mA = floatval($rec['nilai_modal_awal'] ?? 0);
+                $mZ = floatval($rec['posisi_akhir_modal'] ?? 0);
+
+                // Skip rows without real activity or future empty templates (Bug 1 Fix)
+                if ($yr < 2020 || $yr > 2100 || $mo < 1 || $mo > 12) {
+                    continue;
                 }
+                if ($p10 == 0 && $tax == 0 && ($mA == $mZ || $mZ <= 0)) {
+                    continue;
+                }
+
+                $modal_history[] = [
+                    'period' => ($mNames[$mo] ?? '') . ' ' . $yr,
+                    'modal_awal' => $mA,
+                    'profit_10' => $p10,
+                    'tax_fee' => $tax,
+                    'modal_akhir' => $mZ,
+                    'liter_equivalent' => $rec['konversi_liter'] ?? 0,
+                ];
             }
+        }
+
+        if (isset($modal_history)) {
+            $modal_history = array_values(array_filter($modal_history, function($row) {
+                return !empty($row['period']) && (($row['profit_10'] ?? 0) != 0 || ($row['tax_fee'] ?? 0) != 0 || (($row['modal_awal'] ?? 0) != ($row['modal_akhir'] ?? 0) && ($row['modal_akhir'] ?? 0) > 0));
+            }));
         }
     }
 ?>
@@ -633,7 +652,7 @@
                         </tr>
                         <tr class="table-total">
                             <td>Subtotal Aset Lancar</td>
-                            <td class="text-right">Rp <?php echo e(number_format($subtotal_aset ?? $modal_awal ?? 60000000, 0, ',', '.')); ?></td>
+                            <td class="text-right">Rp <?php echo e(number_format($subtotal_aset ?? 0, 0, ',', '.')); ?></td>
                         </tr>
                     </tbody>
                 </table>
@@ -660,7 +679,7 @@
                         </tr>
                         <tr>
                             <td>• Pajak & Biaya Bank (-)</td>
-                            <td class="text-right" style="color: #b91c1c;">Rp (<?php echo e(number_format($pajak_bank ?? 0, 0, ',', '.')); ?>)</td>
+                            <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format(abs($pajak_bank ?? 0), 0, ',', '.')); ?></td>
                         </tr>
                         <tr>
                             <td>• Penambahan Alokasi Modal 10% (+)</td>
@@ -668,7 +687,7 @@
                         </tr>
                         <tr>
                             <td>• Profit Sharing Didistribusikan (-)</td>
-                            <td class="text-right" style="color: #b91c1c;">Rp (<?php echo e(number_format($saldo_dibagi ?? 0, 0, ',', '.')); ?>)</td>
+                            <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format(abs($saldo_dibagi ?? 0), 0, ',', '.')); ?></td>
                         </tr>
                         <tr class="table-total" style="background: #f0fdf4;">
                             <td style="color: #166534;">TOTAL MODAL AKHIR BULAN</td>
@@ -702,7 +721,7 @@
                         <td><?php echo e($hist['period']); ?></td>
                         <td class="text-right">Rp <?php echo e(number_format($hist['modal_awal'] ?? 0, 0, ',', '.')); ?></td>
                         <td class="text-right text-primary">+Rp <?php echo e(number_format($hist['profit_10'] ?? 0, 0, ',', '.')); ?></td>
-                        <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format($hist['tax_fee'] ?? 0, 0, ',', '.')); ?></td>
+                        <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format(abs($hist['tax_fee'] ?? 0), 0, ',', '.')); ?></td>
                         <td class="text-right font-bold">Rp <?php echo e(number_format($hist['modal_akhir'] ?? 0, 0, ',', '.')); ?></td>
                         <td class="text-right"><?php echo e(number_format($hist['liter_equivalent'] ?? 0, 2, ',', '.')); ?> ℓ</td>
                     </tr>
@@ -713,7 +732,7 @@
                     <td><?php echo e($period ?? 'Bulan Berjalan'); ?></td>
                     <td class="text-right">Rp <?php echo e(number_format($modal_awal ?? 60000000, 0, ',', '.')); ?></td>
                     <td class="text-right text-primary">+Rp <?php echo e(number_format($alokasi_modal ?? 0, 0, ',', '.')); ?></td>
-                    <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format($pajak_bank ?? 0, 0, ',', '.')); ?></td>
+                    <td class="text-right" style="color: #b91c1c;">-Rp <?php echo e(number_format(abs($pajak_bank ?? 0), 0, ',', '.')); ?></td>
                     <td class="text-right font-bold">Rp <?php echo e(number_format($modal_akhir ?? ($modal_awal ?? 60000000) + ($alokasi_modal ?? 0), 0, ',', '.')); ?></td>
                     <td class="text-right"><?php echo e(number_format((($modal_akhir ?? 60000000) / ($hpp ?: 1)), 2, ',', '.')); ?> ℓ</td>
                 </tr>
