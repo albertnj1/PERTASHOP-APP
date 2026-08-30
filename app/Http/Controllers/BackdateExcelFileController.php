@@ -36,12 +36,8 @@ class BackdateExcelFileController extends Controller
             $q->orderBy('bulan_tahun', 'desc')->orderBy('created_at', 'desc');
         }]);
 
-        // Load trashed files for accessible shops safely (compatible with or without SoftDeletes trait active)
-        if (method_exists(BackdateExcelFile::class, 'onlyTrashed')) {
-            $trashedQuery = BackdateExcelFile::onlyTrashed()->with(['shop', 'user']);
-        } else {
-            $trashedQuery = BackdateExcelFile::whereNotNull('deleted_at')->with(['shop', 'user']);
-        }
+        // Load trashed files for accessible shops
+        $trashedQuery = BackdateExcelFile::onlyTrashed()->with(['shop', 'user']);
 
         if ($user->role !== 'superadmin' && !empty($shopIds)) {
             $trashedQuery->whereIn('shop_id', $shopIds);
@@ -411,10 +407,7 @@ class BackdateExcelFileController extends Controller
 
     private function getTrashedQuery()
     {
-        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(BackdateExcelFile::class))) {
-            return BackdateExcelFile::onlyTrashed();
-        }
-        return BackdateExcelFile::whereNotNull('deleted_at');
+        return BackdateExcelFile::onlyTrashed();
     }
 
     /**
