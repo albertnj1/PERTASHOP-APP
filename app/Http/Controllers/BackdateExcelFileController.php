@@ -606,15 +606,16 @@ class BackdateExcelFileController extends Controller
             ], 500);
         }
 
-        // Fase 3: Simpan hasil ke database per outlet
+        // Fase 3: Simpan hasil ke database per file/outlet
         $successOutlets = [];
 
-        foreach ($processingResults as $shopId => $result) {
+        foreach ($processingResults as $result) {
             $shop = $result['shop'];
+            $shopId = $result['shop_id'] ?? $shop->id;
             $period = $result['period'] ?? 'Multi-Periode';
             $summary = $result['summary'] ?? [];
 
-            // Gunakan storedPath dan originalFilename khusus outlet ini jika tersedia
+            // Gunakan storedPath dan originalFilename khusus berkas ini
             $outletStoredPath = $result['stored_path'] ?? ($storedPaths[0]['storedPath'] ?? '');
             $outletOriginalFilename = $result['original_filename'] ?? implode(', ', array_column($storedPaths, 'originalFilename'));
             $outletFileSize = $result['file_size'] ?? ($storedPaths[0]['fileSize'] ?? 0);
@@ -650,8 +651,9 @@ class BackdateExcelFileController extends Controller
                     'period'        => $period,
                     'period_label'  => $this->formatPeriodLabel($period),
                     'record_id'     => $bef->id,
+                    'original_filename' => $outletOriginalFilename,
                     'matched_sheets' => $result['matched_sheets'] ?? [],
-                    'source_files'  => $result['source_files'] ?? [],
+                    'source_files'  => $result['source_files'] ?? [$outletOriginalFilename],
                     'ringkasan'     => [
                         'total_liter'      => $hal1['total_liter_terjual'] ?? 0,
                         'laba_kotor'       => $hal1['grand_total_laba_kotor'] ?? 0,
@@ -662,7 +664,7 @@ class BackdateExcelFileController extends Controller
                 ];
             } catch (\Throwable $e) {
                 $errors[] = [
-                    'file' => $shop->nama,
+                    'file' => $shop->nama . ' (' . $outletOriginalFilename . ')',
                     'error' => 'Gagal menyimpan hasil: ' . $e->getMessage(),
                 ];
             }

@@ -1035,6 +1035,49 @@ class BackdateExcelSummaryService
     }
 
     /**
+     * Deteksi outlet HANYA dari string nama sheet atau nama file (tanpa membaca cell).
+     */
+    public static function detectOutletFromSheetNameOnly(string $textToScan, $shops): ?Shop
+    {
+        $titleLower = strtolower($textToScan);
+        $titleClean = str_replace(['.', ' ', '-', '_', '(', ')'], '', $titleLower);
+
+        // 1. Cek Kode Pertamina di title
+        $pertaminaCodes = self::getPertaminaCodeMap();
+        foreach ($pertaminaCodes as $code => $outletKeyword) {
+            $codeClean = str_replace(['.', ' ', '-', '_'], '', strtolower($code));
+            if (str_contains($titleLower, strtolower($code)) || str_contains($titleClean, $codeClean)) {
+                foreach ($shops as $shop) {
+                    if (str_contains(strtolower($shop->nama), $outletKeyword)) {
+                        return $shop;
+                    }
+                }
+            }
+        }
+
+        // 2. Cek nama & alias outlet di title
+        $genericStopwords = ['ps', 'ps.', 'pertashop', 'desa', 'kec', 'kecamatan', 'kab', 'kabupaten',
+            'toko', 'outlet', 'gaji', 'penjualan', 'laporan', 'daily', 'sheet', 'laba', 'modal',
+            'rekap', 'stok', 'bersih', 'kotor', 'profit', 'sales', 'report', 'pt', 'sam', 'xlsx', 'xls'];
+
+        foreach ($shops as $shop) {
+            $aliases = self::getShopAliases($shop);
+            $validAliases = array_filter($aliases, function ($alias) use ($genericStopwords) {
+                return strlen($alias) >= 3 && !in_array(strtolower($alias), $genericStopwords);
+            });
+
+            foreach ($validAliases as $alias) {
+                $aliasClean = str_replace(['.', ' ', '-', '_'], '', strtolower($alias));
+                if (str_contains($titleLower, strtolower($alias)) || str_contains($titleClean, $aliasClean)) {
+                    return $shop;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Deteksi outlet dari teks (nama sheet / nama file) dan isi header sel.
      * Mengembalikan Shop atau null jika tidak terdeteksi.
      *
@@ -1148,12 +1191,17 @@ class BackdateExcelSummaryService
                     continue;
                 }
 
-                // Cek apakah sheet spesifik merujuk ke toko tertentu
-                $detectedShop = self::detectOutletFromSheet($sheetTitle, $headerRows, $shops);
+                // 1. Cek apakah sheet title secara spesifik menyebut nama/kode toko (misal: 'PS Kemutug Lor', 'PS.Gumelar', 'PS Kalitapen')
+                $sheetShop = self::detectOutletFromSheetNameOnly($sheetTitle, $shops);
 
-                // Fallback ke outlet dari nama file jika sheet title generic (misal: Sheet1, Laporan, Penjualan)
-                if (!$detectedShop && $fileLevelShop) {
+                if ($sheetShop) {
+                    $detectedShop = $sheetShop;
+                } elseif ($fileLevelShop) {
+                    // 2. Jika sheet title tidak menyebut toko lain tapi nama file sudah spesifik (misal: 'GUMELAR 2026.xlsx'), gunakan nama file!
                     $detectedShop = $fileLevelShop;
+                } else {
+                    // 3. Fallback: deteksi dari isi header sel hanya jika nama file & sheet title tidak spesifik
+                    $detectedShop = self::detectOutletFromSheet($sheetTitle, $headerRows, $shops);
                 }
 
                 if ($detectedShop) {
@@ -1248,7 +1296,7 @@ class BackdateExcelSummaryService
             $shops = Shop::all();
         }
 
-        $mergedResults = [];
+        $allResults = [];
         $totalFiles = count($fileItems);
 
         foreach ($fileItems as $fileIdx => $item) {
@@ -1264,29 +1312,15 @@ class BackdateExcelSummaryService
             $fileResults = self::extractMultiShopFromFile($filePath, $shops, $originalFilename);
 
             foreach ($fileResults as $shopId => $result) {
-                if (!isset($mergedResults[$shopId])) {
-                    $mergedResults[$shopId] = $result;
-                    $mergedResults[$shopId]['source_files'] = [$originalFilename];
-                    $mergedResults[$shopId]['stored_path'] = $storedPath;
-                    $mergedResults[$shopId]['original_filename'] = $originalFilename;
-                    $mergedResults[$shopId]['file_size'] = $fileSize;
-                } else {
-                    // Update dengan data file terbaru jika relevan
-                    $mergedResults[$shopId]['summary'] = $result['summary'];
-                    $mergedResults[$shopId]['period'] = $result['period'];
-                    $mergedResults[$shopId]['matched_sheets'] = array_merge(
-                        $mergedResults[$shopId]['matched_sheets'],
-                        $result['matched_sheets']
-                    );
-                    $mergedResults[$shopId]['source_files'][] = $originalFilename;
-                    $mergedResults[$shopId]['stored_path'] = $storedPath ?: $mergedResults[$shopId]['stored_path'];
-                    $mergedResults[$shopId]['original_filename'] = $originalFilename;
-                    $mergedResults[$shopId]['file_size'] = $fileSize ?: $mergedResults[$shopId]['file_size'];
-                }
+                $result['stored_path'] = $storedPath;
+                $result['original_filename'] = $originalFilename;
+                $result['file_size'] = $fileSize;
+                $result['source_files'] = [$originalFilename];
+                $allResults[] = $result;
             }
         }
 
-        return $mergedResults;
+        return $allResults;
     }
 
     /**
