@@ -402,6 +402,14 @@ class BackdateExcelSummaryService
             }
 
             $totalTerjualLiter = collect($segments)->sum('jumlah_penjualan');
+            // Fallback to Daily Sales Sheet parser if KLB format segments not found
+            if (empty($segments)) {
+                $dailySummary = self::parseDailySalesSheet($spreadsheet, $targetShop, $periodObj);
+                if ($dailySummary !== null && !empty($dailySummary['hal1']['segments'])) {
+                    return $dailySummary;
+                }
+            }
+
             $finalStokLiter = !empty($segments) ? end($segments)['stok_akhir_fisik'] : 0;
             $finalStokRp = !empty($segments) ? end($segments)['stok_akhir_fisik_rp'] : 0;
             $finalHargaBeli = !empty($segments) ? end($segments)['harga_beli'] : 15334.81;
@@ -1280,4 +1288,369 @@ class BackdateExcelSummaryService
 
         return $mergedResults;
     }
+
+    /**
+     * Mesin ekstraksi untuk format Sheet Laporan Penjualan Harian (Daily Sales Sheet).
+     */
+    public static function parseDailySalesSheet(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, ?Shop $targetShop, ?Carbon $periodObj): ?array
+    {
+        // Cari sheet harian yang cocok untuk target shop
+        $dailySheet = null;
+        $gajiSheet = null;
+        $targetShopAliases = $targetShop ? self::getShopAliases($targetShop) : [];
+
+        foreach ($spreadsheet->getAllSheets() as $sh) {
+            $title = $sh->getTitle();
+            $titleLow = strtolower($title);
+            $isGaji = str_contains($titleLow, 'gaji');
+
+            if ($targetShop) {
+                // 1. Prioritaskan kecocokan kode Pertamina spesifik (misal 53240, 53143, dst.)
+                $kodeClean = str_replace(['.', ' ', '-', '_'], '', strtolower($targetShop->kode ?? ''));
+                if (!empty($kodeClean) && str_contains(str_replace(['.', ' ', '-', '_'], '', $titleLow), $kodeClean)) {
+                    if ($isGaji) {
+                        $gajiSheet = $sh;
+                    } else {
+                        $dailySheet = $sh;
+                    }
+                    continue;
+                }
+
+                // 2. Cek alias nama toko jika belum ditemukan via kode
+                if (!$dailySheet) {
+                    foreach ($targetShopAliases as $al) {
+                        if (str_contains($titleLow, strtolower($al))) {
+                            if ($isGaji) {
+                                $gajiSheet = $sh;
+                            } else {
+                                $dailySheet = $sh;
+                            }
+                            break;
+                        }
+                    }
+                }
+            } else {
+                if (!$isGaji && (str_contains($titleLow, 'ps') || str_contains($titleLow, 'penjualan') || preg_match('/^(jul|ags|sep|okt|nov|des|jan|feb|mar|apr|mei|jun)/i', $title))) {
+                    $dailySheet = $sh;
+                }
+            }
+        }
+
+        // 3. Jika belum ditemukan (misal file khusus 1 outlet berisi sheet bulanan: jul25, ags25, Juni 26, dst.)
+        if (!$dailySheet && $periodObj) {
+            $monthNum = $periodObj->month;
+            $monthNames = [
+                1 => ['jan', 'januari'],
+                2 => ['feb', 'februari'],
+                3 => ['mar', 'maret'],
+                4 => ['apr', 'april'],
+                5 => ['mei', 'may'],
+                6 => ['jun', 'juni'],
+                7 => ['jul', 'juli'],
+                8 => ['ags', 'agustus', 'agu'],
+                9 => ['sep', 'sept', 'september'],
+                10 => ['okt', 'oktober'],
+                11 => ['nov', 'november'],
+                12 => ['des', 'desember'],
+            ];
+            $validMonths = $monthNames[$monthNum] ?? [];
+
+            foreach ($spreadsheet->getAllSheets() as $sh) {
+                $t = strtolower(trim($sh->getTitle()));
+                if (str_contains($t, 'gaji') || str_contains($t, 'qris') || str_contains($t, 'yusuf')) continue;
+                foreach ($validMonths as $vm) {
+                    if (str_contains($t, $vm)) {
+                        $dailySheet = $sh;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        // Fallback jika hanya 1 sheet di spreadsheet
+        if (!$dailySheet && $spreadsheet->getSheetCount() === 1) {
+            $dailySheet = $spreadsheet->getActiveSheet();
+        }
+
+        if (!$dailySheet) {
+            return null;
+        }
+
+        $rows = $dailySheet->toArray(null, true, false, false);
+        if (count($rows) < 3) {
+            return null;
+        }
+
+        // Scan header kolom
+        $totAwalCol = 3;
+        $totAkhirCol = 4;
+        $volCol = 5;
+        $rpCol = 6;
+        $testPumpCol = 7;
+        $bbmDatangCol = 14;
+        $stokAwalCol = 13;
+        $stokAkhirCol = 18;
+        $lossesCol = 19;
+        $lossesRpCol = 20;
+        $ongkosBongkarCol = 24;
+        $biayaTfCol = 25;
+        $atkCol = 26;
+        $listrikCol = 27;
+        $airCol = 28;
+        $cashbackCol = 29;
+        $internetCol = 30;
+        $lainLainCol = 31;
+        $headerEndIdx = 2;
+
+        for ($rIdx = 0; $rIdx < min(4, count($rows)); $rIdx++) {
+            foreach ($rows[$rIdx] as $cIdx => $val) {
+                if (!is_string($val)) continue;
+                $vLow = strtolower(trim($val));
+                if (str_contains($vLow, 'totalisator awal')) $totAwalCol = $cIdx;
+                if (str_contains($vLow, 'totalisator akhir')) $totAkhirCol = $cIdx;
+                if (str_contains($vLow, 'toritis penjualan') || str_contains($vLow, 'penjualan liter') || str_contains($vLow, 'aktual penjualan')) $volCol = $cIdx;
+                if (str_contains($vLow, 'test pump')) $testPumpCol = $cIdx;
+                if (str_contains($vLow, 'ongkos bongkar')) $ongkosBongkarCol = $cIdx;
+                if (str_contains($vLow, 'biaya transfer')) $biayaTfCol = $cIdx;
+                if (str_contains($vLow, 'fotocopy') || str_contains($vLow, 'atk')) $atkCol = $cIdx;
+                if (str_contains($vLow, 'listrik')) $listrikCol = $cIdx;
+                if (str_contains($vLow, 'air bersih') || str_contains($vLow, 'iuran rt') || str_contains($vLow, 'air')) $airCol = $cIdx;
+                if (str_contains($vLow, 'cashback')) $cashbackCol = $cIdx;
+                if (str_contains($vLow, 'internet')) $internetCol = $cIdx;
+                if (str_contains($vLow, 'lain-lain') || str_contains($vLow, 'lain2')) $lainLainCol = $cIdx;
+                if (str_contains($vLow, 'losses / gain') && !str_contains($vLow, 'persen')) $lossesCol = $cIdx;
+            }
+            if ($totAwalCol !== null && $totAkhirCol !== null) {
+                $headerEndIdx = $rIdx + 1;
+            }
+        }
+        $rpCol = $volCol + 1;
+        $lossesRpCol = $lossesCol + 1;
+
+        // Akumulasi baris-baris harian
+        $totAwalFirst = null;
+        $totAkhirLast = null;
+        $sumVol = 0;
+        $sumRp = 0;
+        $sumTestPump = 0;
+        $sumBbmDatang = 0;
+        $firstStokAwal = null;
+        $lastStokAkhir = null;
+        $sumLosses = 0;
+        $sumLossesRp = 0;
+        $sumOngkosBongkar = 0;
+        $sumBiayaTf = 0;
+        $sumAtk = 0;
+        $sumListrik = 0;
+        $sumAir = 0;
+        $sumCashback = 0;
+        $sumInternet = 0;
+        $sumLainLain = 0;
+        $activeDays = 0;
+
+        for ($rIdx = $headerEndIdx; $rIdx < count($rows); $rIdx++) {
+            $row = $rows[$rIdx];
+            $tglVal = $row[0] ?? null;
+
+            if (is_numeric($tglVal) && $tglVal >= 1 && $tglVal <= 31) {
+                $tAwal = self::parseFlexibleNumber($row[$totAwalCol] ?? 0);
+                $tAkhir = self::parseFlexibleNumber($row[$totAkhirCol] ?? 0);
+                $vol = self::parseFlexibleNumber($row[$volCol] ?? 0);
+                $rp = self::parseFlexibleNumber($row[$rpCol] ?? 0);
+                $tp = self::parseFlexibleNumber($row[$testPumpCol] ?? 0);
+                $bbm = self::parseFlexibleNumber($row[$bbmDatangCol] ?? ($row[15] ?? 0));
+                $stokAwal = self::parseFlexibleNumber($row[$stokAwalCol] ?? 0);
+                $stokAkhir = self::parseFlexibleNumber($row[$stokAkhirCol] ?? ($row[22] ?? 0));
+                $loss = self::parseFlexibleNumber($row[$lossesCol] ?? 0);
+                $lossRp = self::parseFlexibleNumber($row[$lossesRpCol] ?? 0);
+
+                if ($totAwalFirst === null && $tAwal > 0) $totAwalFirst = $tAwal;
+                if ($tAkhir > 0) $totAkhirLast = $tAkhir;
+                if ($firstStokAwal === null && $stokAwal > 0) $firstStokAwal = $stokAwal;
+                if ($stokAkhir > 0) $lastStokAkhir = $stokAkhir;
+
+                $sumVol += $vol;
+                $sumRp += $rp;
+                $sumTestPump += $tp;
+                $sumBbmDatang += $bbm;
+                $sumLosses += $loss;
+                $sumLossesRp += $lossRp;
+                if ($vol > 0) $activeDays++;
+
+                if ($ongkosBongkarCol !== null) $sumOngkosBongkar += self::parseFlexibleNumber($row[$ongkosBongkarCol] ?? 0);
+                if ($biayaTfCol !== null) $sumBiayaTf += self::parseFlexibleNumber($row[$biayaTfCol] ?? 0);
+                if ($atkCol !== null) $sumAtk += self::parseFlexibleNumber($row[$atkCol] ?? 0);
+                if ($listrikCol !== null) $sumListrik += self::parseFlexibleNumber($row[$listrikCol] ?? 0);
+                if ($airCol !== null) $sumAir += self::parseFlexibleNumber($row[$airCol] ?? 0);
+                if ($cashbackCol !== null) $sumCashback += self::parseFlexibleNumber($row[$cashbackCol] ?? 0);
+                if ($internetCol !== null) $sumInternet += self::parseFlexibleNumber($row[$internetCol] ?? 0);
+                if ($lainLainCol !== null) $sumLainLain += self::parseFlexibleNumber($row[$lainLainCol] ?? 0);
+            }
+        }
+
+        if ($sumVol <= 0 && $totAwalFirst === null) {
+            return null;
+        }
+
+        // Ekstraksi Gaji
+        $gajiOperator = 0;
+        if ($gajiSheet) {
+            $gRows = $gajiSheet->toArray(null, true, false, false);
+            foreach ($gRows as $gr) {
+                foreach ($gr as $gc) {
+                    if (is_numeric($gc) && $gc > 100000 && $gc < 20000000) {
+                        $gajiOperator = (float)$gc;
+                    }
+                }
+            }
+        }
+        if ($gajiOperator <= 0) {
+            $gajiOperator = $sumVol * 200; // Standar 200 / liter
+        }
+
+        $hargaJual = $sumVol > 0 ? round($sumRp / $sumVol, 2) : 16150;
+        $hargaBeli = 15334.81; // Standar Pertamax HPP
+        $labaKotor = (($sumVol - $sumTestPump) * ($hargaJual - $hargaBeli)) + $sumLossesRp;
+        $totalBiaya = $gajiOperator + $sumOngkosBongkar + $sumBiayaTf + $sumAtk + $sumListrik + $sumAir + $sumCashback + $sumInternet + $sumLainLain;
+        $labaBersih = $labaKotor - $totalBiaya;
+        $alokasiModal10 = $labaBersih > 0 ? round($labaBersih * 0.10) : 0;
+        $labaDibagi90 = $labaBersih > 0 ? round($labaBersih * 0.90) : 0;
+        $totalSaldoLabaDibagi = $labaDibagi90;
+
+        // Distribusi Investor
+        $investors = self::buildInvestorDistributionsInternal($targetShop, $totalSaldoLabaDibagi, []);
+
+        $segment = [
+            'segmen_index'            => 1,
+            'harga_beli'              => $hargaBeli,
+            'harga_jual'              => $hargaJual,
+            'stok_awal'               => $firstStokAwal ?? 0,
+            'stok_awal_rp'            => ($firstStokAwal ?? 0) * $hargaBeli,
+            'bbm_datang'              => $sumBbmDatang,
+            'bbm_datang_rp'           => $sumBbmDatang * $hargaBeli,
+            'jumlah_pembelian'        => ($firstStokAwal ?? 0) + $sumBbmDatang,
+            'jumlah_pembelian_rp'     => (($firstStokAwal ?? 0) + $sumBbmDatang) * $hargaBeli,
+            'totalisator_awal'        => $totAwalFirst ?? 0,
+            'totalisator_akhir'       => $totAkhirLast ?? 0,
+            'total_penjualan'         => $sumVol,
+            'test_pump'               => $sumTestPump,
+            'jumlah_penjualan'        => $sumVol - $sumTestPump,
+            'jumlah_penjualan_rp'     => ($sumVol - $sumTestPump) * $hargaJual,
+            'sisa_stok_teoretis'      => max(0, (($firstStokAwal ?? 0) + $sumBbmDatang) - ($sumVol - $sumTestPump)),
+            'sisa_stok_teoretis_rp'   => max(0, (($firstStokAwal ?? 0) + $sumBbmDatang) - ($sumVol - $sumTestPump)) * $hargaBeli,
+            'losses_gain'             => $sumLosses,
+            'losses_gain_persen'      => $sumVol > 0 ? abs(round(($sumLosses / $sumVol) * 100, 2)) : 0,
+            'losses_gain_rp'          => $sumLossesRp,
+            'stok_akhir_fisik'        => $lastStokAkhir ?? 0,
+            'stok_akhir_cm'           => 0,
+            'stok_akhir_fisik_rp'     => ($lastStokAkhir ?? 0) * $hargaBeli,
+            'jumlah_penjualan_bersih' => $sumVol - $sumTestPump,
+            'laba_kotor'              => $labaKotor,
+            'start_datetime_label'    => 'Awal Bulan',
+            'end_datetime_label'      => 'Akhir Bulan',
+        ];
+
+        // Ambil Capital Recaps dari DB jika ada
+        $capitalRecaps = [];
+        if ($targetShop) {
+            try {
+                $dbRecaps = \App\Models\CapitalRecap::where('shop_id', $targetShop->id)->orderBy('tahun')->orderBy('bulan')->get();
+                foreach ($dbRecaps as $dr) {
+                    $capitalRecaps[] = [
+                        'tahun_ke'                        => $dr->tahun_ke ?? 1,
+                        'bulan'                           => $dr->bulan,
+                        'tahun'                           => $dr->tahun,
+                        'nilai_modal_awal'                => (float)($dr->nilai_modal_awal ?? 60000000),
+                        'penyusutan_rugi'                 => (float)($dr->penyusutan_rugi ?? 0),
+                        'penyusutan_pajak_bank'           => (float)($dr->penyusutan_pajak_bank ?? 0),
+                        'penambahan_keuntungan'           => (float)($dr->penambahan_keuntungan ?? 0),
+                        'penambahan_bunga_bank'           => (float)($dr->penambahan_bunga_bank ?? 0),
+                        'nilai_penambahan_penyusutan'     => (float)($dr->nilai_penambahan_penyusutan ?? 0),
+                        'akumulasi_penambahan_penyusutan' => (float)($dr->akumulasi_penambahan_penyusutan ?? 0),
+                        'posisi_akhir_modal'              => (float)($dr->posisi_akhir_modal ?? 60000000),
+                        'harga_beli_pertamax'             => (float)($dr->harga_beli_pertamax ?? $hargaBeli),
+                        'konversi_liter'                  => (float)($dr->konversi_liter ?? 0),
+                    ];
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        $modalAwalDasar = $targetShop && $targetShop->modal_awal > 0 ? (float)$targetShop->modal_awal : 60000000;
+
+        return [
+            'hal1' => [
+                'segments'               => [$segment],
+                'grand_total_laba_kotor' => $labaKotor,
+                'total_liter_terjual'    => $sumVol - $sumTestPump,
+                'rata_rata_omset_harian' => $activeDays > 0 ? round(($sumVol - $sumTestPump) / $activeDays, 2) : 0,
+                'sisa_do_mees'           => [
+                    'stok_awal_kl' => 0, 'setor_kl' => 5.0, 'setoran_tunai' => 0,
+                    'jumlah_kl' => 5.0, 'datang_kl' => 5.0, 'sisa_kl' => 0, 'harga_beli_1kl' => $hargaBeli * 1000
+                ],
+                'margin_history'         => $targetShop ? self::getMarginHistory($targetShop, $periodObj ?? Carbon::now()) : [],
+                'final_stok_liter'       => $lastStokAkhir ?? 0,
+                'final_stok_rp'          => ($lastStokAkhir ?? 0) * $hargaBeli,
+                'final_harga_beli'       => $hargaBeli,
+            ],
+            'hal2' => [
+                'pengeluaran_details'    => [
+                    'gaji_operator'   => $gajiOperator,
+                    'gaji_admin'      => 0,
+                    'biaya_curah'     => $sumOngkosBongkar,
+                    'biaya_tf'        => $sumBiayaTf,
+                    'listrik'         => $sumListrik,
+                    'air'             => $sumAir,
+                    'cashback'        => $sumCashback,
+                    'internet'        => $sumInternet,
+                    'atk'             => $sumAtk,
+                    'lain_lain'       => $sumLainLain,
+                    'lain_lain_notes' => '',
+                    'total_biaya'     => $totalBiaya,
+                ],
+                'total_biaya'            => $totalBiaya,
+                'laba_bersih'            => $labaBersih,
+                'alokasi_penambahan_modal' => $alokasiModal10,
+                'saldo_laba_bersih_90'   => $labaDibagi90,
+                'saldo_laba_sebelumnya'  => 0,
+                'total_saldo_laba_dibagi' => $totalSaldoLabaDibagi,
+                'investor_distributions' => $investors,
+            ],
+            'hal3' => [
+                'saldo_awal_modal'        => $modalAwalDasar,
+                'do_di_pertamina'         => 0,
+                'uang_di_bank'            => 0,
+                'kas_kecil'               => 0,
+                'sisa_stok_pertashop_rp'  => ($lastStokAkhir ?? 0) * $hargaBeli,
+                'hasil_belum_disetor'     => 0,
+                'piutang'                 => 0,
+                'subtotal_a'              => $modalAwalDasar,
+                'bunga_bank'              => 0,
+                'pajak_bank'              => 0,
+                'profit_sharing_dibagi'   => $labaDibagi90,
+                'penambahan_keuntungan'   => $alokasiModal10,
+                'subtotal_b'              => $alokasiModal10 - $labaDibagi90,
+                'subtotal_c'              => $modalAwalDasar + $alokasiModal10,
+                'total_saldo_akhir_modal' => $modalAwalDasar + $alokasiModal10,
+            ],
+            'hal4' => [
+                'capital_recaps'          => $capitalRecaps,
+                'modal_awal_dasar'        => $modalAwalDasar,
+                'total_akumulasi_modal'   => $alokasiModal10,
+                'persen_penambahan_modal' => $modalAwalDasar > 0 ? round(($alokasiModal10 / $modalAwalDasar) * 100, 2) : 0,
+                'grand_total_modal'       => $modalAwalDasar + $alokasiModal10,
+                'persen_grand_total'      => 100,
+            ],
+            'totalisator_awal'       => $totAwalFirst ?? 0,
+            'totalisator_akhir'      => $totAkhirLast ?? 0,
+            'jumlah_liter_terjual'   => $sumVol - $sumTestPump,
+            'test_pump'              => ['total_volume' => $sumTestPump, 'total_rp' => 0, 'details' => []],
+            'pembelian_bbm'          => ['total_volume_kl' => $sumBbmDatang / 1000, 'total_volume_liter' => $sumBbmDatang, 'total_nominal' => $sumBbmDatang * $hargaBeli, 'details' => []],
+            'stok_akhir'             => $lastStokAkhir ?? 0,
+            'total_pengeluaran'      => ['total_rp' => $totalBiaya, 'category_totals' => [], 'details' => []],
+            'total_belum_disetorkan' => ['total_rp' => 0, 'details' => []],
+            'matched_sheet_name'     => $dailySheet->getTitle(),
+        ];
+    }
 }
+
+
