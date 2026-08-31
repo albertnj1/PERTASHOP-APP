@@ -20,7 +20,7 @@ class BackdateExcelFileController extends Controller
         $shops = $this->getAccessibleShops();
         $shopIds = $shops->pluck('id')->toArray();
 
-        // Auto-ensure deleted_at column exists in database if migration hasn't been run manually
+        // Auto-ensure required columns exist in database if migrations haven't been run manually on server
         if (!\Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'deleted_at')) {
             try {
                 \Illuminate\Support\Facades\Schema::table('backdate_excel_files', function ($table) {
@@ -28,6 +28,18 @@ class BackdateExcelFileController extends Controller
                 });
             } catch (\Throwable $e) {
                 \Log::warning("Auto migration deleted_at failed: " . $e->getMessage());
+            }
+        }
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')) {
+            try {
+                \Illuminate\Support\Facades\Schema::table('backdate_excel_files', function ($table) {
+                    $table->string('processing_status', 30)->default('pending')->nullable()->after('keterangan');
+                    $table->longText('processing_result')->nullable()->after('processing_status');
+                    $table->text('error_message')->nullable()->after('processing_result');
+                    $table->timestamp('processed_at')->nullable()->after('error_message');
+                });
+            } catch (\Throwable $e) {
+                \Log::warning("Auto migration processing fields failed: " . $e->getMessage());
             }
         }
 
@@ -135,7 +147,12 @@ class BackdateExcelFileController extends Controller
                     $folderPath = 'backdate_excel/pertashop_' . $shop->id;
                     $firstPeriod = $periodsToSave[0];
                     $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '_' . $shop->id . '.' . $extension;
-                    $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
+                    $destinationDir = storage_path('app/public/' . $folderPath);
+                    if (!file_exists($destinationDir)) {
+                        @mkdir($destinationDir, 0777, true);
+                    }
+                    $file->move($destinationDir, $savedFilename);
+                    $storedPath = $folderPath . '/' . $savedFilename;
 
                     foreach ($periodsToSave as $periodStr) {
                         $bef = BackdateExcelFile::create([
@@ -143,7 +160,7 @@ class BackdateExcelFileController extends Controller
                             'bulan_tahun'       => $periodStr,
                             'original_filename' => $originalFilename,
                             'file_path'         => $storedPath,
-                            'file_size'         => $file->getSize(),
+                            'file_size'         => filesize($destinationDir . '/' . $savedFilename),
                             'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
                             'user_id'           => Auth::id(),
                         ]);
@@ -165,7 +182,12 @@ class BackdateExcelFileController extends Controller
                     $folderPath = 'backdate_excel/pertashop_' . $shop->id;
                     $firstPeriod = $periodsToSave[0];
                     $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '_' . $shop->id . '.' . $extension;
-                    $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
+                    $destinationDir = storage_path('app/public/' . $folderPath);
+                    if (!file_exists($destinationDir)) {
+                        @mkdir($destinationDir, 0777, true);
+                    }
+                    $file->move($destinationDir, $savedFilename);
+                    $storedPath = $folderPath . '/' . $savedFilename;
 
                     foreach ($periodsToSave as $periodStr) {
                         $bef = BackdateExcelFile::create([
@@ -173,7 +195,7 @@ class BackdateExcelFileController extends Controller
                             'bulan_tahun'       => $periodStr,
                             'original_filename' => $originalFilename,
                             'file_path'         => $storedPath,
-                            'file_size'         => $file->getSize(),
+                            'file_size'         => filesize($destinationDir . '/' . $savedFilename),
                             'keterangan'        => ($request->keterangan ? $request->keterangan . ' — ' : '') . '[Auto-Split Periode]',
                             'user_id'           => Auth::id(),
                         ]);
@@ -198,7 +220,12 @@ class BackdateExcelFileController extends Controller
         $folderPath = 'backdate_excel/pertashop_' . $shop->id;
         $firstPeriod = $periodsToSave[0];
         $savedFilename = str_replace([' ', '/'], '_', $firstPeriod) . '_' . time() . '.' . $extension;
-        $storedPath = $file->storeAs($folderPath, $savedFilename, 'public');
+        $destinationDir = storage_path('app/public/' . $folderPath);
+        if (!file_exists($destinationDir)) {
+            @mkdir($destinationDir, 0777, true);
+        }
+        $file->move($destinationDir, $savedFilename);
+        $storedPath = $folderPath . '/' . $savedFilename;
 
         foreach ($periodsToSave as $periodStr) {
             $bef = BackdateExcelFile::create([
@@ -206,7 +233,7 @@ class BackdateExcelFileController extends Controller
                 'bulan_tahun'       => $periodStr,
                 'original_filename' => $originalFilename,
                 'file_path'         => $storedPath,
-                'file_size'         => $file->getSize(),
+                'file_size'         => filesize($destinationDir . '/' . $savedFilename),
                 'keterangan'        => $request->keterangan,
                 'user_id'           => Auth::id(),
             ]);
@@ -234,6 +261,25 @@ class BackdateExcelFileController extends Controller
     }
 
     /**
+     * Resolve absolute physical file path safely across local & hosting paths without finfo dependency.
+     */
+    private function resolvePhysicalPath(?string $filePath): string
+    {
+        if (empty($filePath)) {
+            return '';
+        }
+        $storagePath = storage_path('app/public/' . $filePath);
+        if (file_exists($storagePath) && is_file($storagePath)) {
+            return $storagePath;
+        }
+        $publicPath = public_path('storage/' . $filePath);
+        if (file_exists($publicPath) && is_file($publicPath)) {
+            return $publicPath;
+        }
+        return $storagePath;
+    }
+
+    /**
      * Tampil Pratinjau / Detail Isi File Excel Online
      */
     public function show(BackdateExcelFile $backdateExcelFile)
@@ -244,14 +290,10 @@ class BackdateExcelFileController extends Controller
         
         $fileBase64 = null;
         $summary = null;
-        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
+        $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
 
-        if (file_exists($fullPath)) {
+        if (file_exists($fullPath) && is_file($fullPath)) {
             $fileBase64 = base64_encode(file_get_contents($fullPath));
-            $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
-        } elseif (Storage::disk('public')->exists($backdateExcelFile->file_path)) {
-            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-            $fileBase64 = base64_encode(Storage::disk('public')->get($backdateExcelFile->file_path));
             $summary = BackdateExcelSummaryService::extract($fullPath, $backdateExcelFile->shop, $backdateExcelFile->bulan_tahun);
         }
 
@@ -294,12 +336,9 @@ class BackdateExcelFileController extends Controller
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
-        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
-        if (!file_exists($fullPath) && Storage::disk('public')->exists($backdateExcelFile->file_path)) {
-            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-        }
+        $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
 
-        if (!file_exists($fullPath)) {
+        if (!file_exists($fullPath) || !is_file($fullPath)) {
             abort(404, 'Berkas fisik tidak ditemukan di server.');
         }
 
@@ -328,12 +367,9 @@ class BackdateExcelFileController extends Controller
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
-        $fullPath = storage_path('app/public/' . $backdateExcelFile->file_path);
-        if (!file_exists($fullPath) && Storage::disk('public')->exists($backdateExcelFile->file_path)) {
-            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-        }
+        $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
 
-        if (!file_exists($fullPath)) {
+        if (!file_exists($fullPath) || !is_file($fullPath)) {
             return redirect()->back()->with('error', 'Berkas fisik tidak ditemukan di server.');
         }
 
@@ -466,12 +502,17 @@ class BackdateExcelFileController extends Controller
         $this->authorizeShopAccess($file->shop_id);
 
         $filename = $file->original_filename;
-        $fullPath = storage_path('app/public/' . $file->file_path);
+        
+        if (!empty($file->file_path)) {
+            $fullPath = storage_path('app/public/' . $file->file_path);
+            $publicPath = public_path('storage/' . $file->file_path);
 
-        if (file_exists($fullPath)) {
-            @unlink($fullPath);
-        } elseif (Storage::disk('public')->exists($file->file_path)) {
-            Storage::disk('public')->delete($file->file_path);
+            if (file_exists($fullPath) && is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+            if (file_exists($publicPath) && is_file($publicPath)) {
+                @unlink($publicPath);
+            }
         }
 
         if (method_exists($file, 'forceDelete')) {
@@ -510,12 +551,18 @@ class BackdateExcelFileController extends Controller
         }
 
         foreach ($files as $file) {
-            $fullPath = storage_path('app/public/' . $file->file_path);
-            if (file_exists($fullPath)) {
-                @unlink($fullPath);
-            } elseif (Storage::disk('public')->exists($file->file_path)) {
-                Storage::disk('public')->delete($file->file_path);
+            if (!empty($file->file_path)) {
+                $fullPath = storage_path('app/public/' . $file->file_path);
+                $publicPath = public_path('storage/' . $file->file_path);
+
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    @unlink($fullPath);
+                }
+                if (file_exists($publicPath) && is_file($publicPath)) {
+                    @unlink($publicPath);
+                }
             }
+
             if (method_exists($file, 'forceDelete')) {
                 $file->forceDelete();
             } else {
@@ -544,38 +591,55 @@ class BackdateExcelFileController extends Controller
 
         $request->validate([
             'files'     => 'required|array|min:1|max:12',
-            'files.*'   => 'file|mimes:xlsx,xls|max:20480',
+            'files.*'   => 'required|file|max:25600',
         ], [
             'files.required' => 'Silakan pilih minimal 1 file Excel.',
             'files.max'      => 'Maksimal 12 file dalam satu kali upload.',
-            'files.*.mimes'  => 'Format file harus .xlsx atau .xls.',
-            'files.*.max'    => 'Ukuran per file maksimal 20 MB.',
+            'files.*.max'    => 'Ukuran per file maksimal 25 MB.',
         ]);
+
+        $uploadedFiles = $request->file('files');
+        foreach ($uploadedFiles as $fCheck) {
+            $extCheck = strtolower($fCheck->getClientOriginalExtension());
+            if (!in_array($extCheck, ['xlsx', 'xls'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Berkas '{$fCheck->getClientOriginalName()}' bukan file Excel valid (.xlsx / .xls).",
+                    'errors' => [],
+                ], 422);
+            }
+        }
 
         $user = Auth::user();
         $shops = $this->getAccessibleShops();
-        $uploadedFiles = $request->file('files');
         $totalFiles = count($uploadedFiles);
 
         $storedPaths = [];
         $fileRecords = [];
         $errors = [];
 
-        // Fase 1: Simpan semua file ke storage
+        // Fase 1: Simpan semua file ke storage secara native (bebas finfo error)
         foreach ($uploadedFiles as $idx => $file) {
             try {
                 $originalFilename = $file->getClientOriginalName();
-                $extension = $file->getClientOriginalExtension();
+                $extension = strtolower($file->getClientOriginalExtension());
                 $savedFilename = 'multi_' . time() . '_' . $idx . '.' . $extension;
                 $folderPath = 'backdate_excel/multi_upload';
-                $storedPath = Storage::disk('public')->putFileAs($folderPath, $file, $savedFilename);
-                $fullPath = Storage::disk('public')->path($storedPath);
+                $destinationDir = storage_path('app/public/' . $folderPath);
+                
+                if (!file_exists($destinationDir)) {
+                    @mkdir($destinationDir, 0777, true);
+                }
+
+                $file->move($destinationDir, $savedFilename);
+                $storedPath = $folderPath . '/' . $savedFilename;
+                $fullPath = $destinationDir . '/' . $savedFilename;
 
                 $storedPaths[] = [
                     'fullPath' => $fullPath,
                     'storedPath' => $storedPath,
                     'originalFilename' => $originalFilename,
-                    'fileSize' => $file->getSize(),
+                    'fileSize' => file_exists($fullPath) ? filesize($fullPath) : 0,
                 ];
             } catch (\Throwable $e) {
                 $errors[] = [
@@ -603,29 +667,54 @@ class BackdateExcelFileController extends Controller
         $successOutlets = [];
 
         foreach ($processingResults as $result) {
-            $shop = $result['shop'];
-            $shopId = $result['shop_id'] ?? $shop->id;
+            $shop = $result['shop'] ?? null;
+            $shopId = null;
+
+            if ($shop instanceof Shop) {
+                $shopId = $shop->id;
+            } elseif (is_numeric($result['shop_id'] ?? null)) {
+                $shopId = (int)$result['shop_id'];
+                $shop = Shop::find($shopId);
+            }
+
+            // Fallback shop_id jika tidak terdeteksi (jangan sampai null)
+            if (empty($shopId)) {
+                $fallbackShop = $shops->first() ?? Shop::first();
+                if ($fallbackShop) {
+                    $shop = $fallbackShop;
+                    $shopId = $fallbackShop->id;
+                } else {
+                    $shopId = 1;
+                }
+            }
+
+            $shopNama = $shop ? $shop->nama : 'Pertashop #' . $shopId;
+            $shopKode = $shop ? ($shop->kode ?? '') : '';
             $period = $result['period'] ?? 'Multi-Periode';
             $summary = $result['summary'] ?? [];
 
-            // Gunakan storedPath dan originalFilename khusus berkas ini
             $outletStoredPath = $result['stored_path'] ?? ($storedPaths[0]['storedPath'] ?? '');
-            $outletOriginalFilename = $result['original_filename'] ?? implode(', ', array_column($storedPaths, 'originalFilename'));
+            $outletOriginalFilename = $result['original_filename'] ?? ($storedPaths[0]['originalFilename'] ?? 'Laporan_Backdate.xlsx');
             $outletFileSize = $result['file_size'] ?? ($storedPaths[0]['fileSize'] ?? 0);
 
+            $dataToInsert = [
+                'shop_id'            => $shopId,
+                'bulan_tahun'        => $period,
+                'original_filename'  => $outletOriginalFilename,
+                'file_path'          => $outletStoredPath,
+                'file_size'          => $outletFileSize,
+                'keterangan'         => '[Backdate v2 Multi-Upload] Berkas diproses otomatis',
+                'user_id'            => Auth::id() ?? 1,
+            ];
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')) {
+                $dataToInsert['processing_status'] = 'completed';
+                $dataToInsert['processing_result'] = $summary;
+                $dataToInsert['processed_at']      = now();
+            }
+
             try {
-                $bef = BackdateExcelFile::create([
-                    'shop_id'            => $shopId,
-                    'bulan_tahun'        => $period,
-                    'original_filename'  => $outletOriginalFilename,
-                    'file_path'          => $outletStoredPath,
-                    'file_size'          => $outletFileSize,
-                    'keterangan'         => '[Backdate v2 Multi-Upload] Berkas diproses otomatis',
-                    'user_id'            => Auth::id(),
-                    'processing_status'  => 'completed',
-                    'processing_result'  => $summary,
-                    'processed_at'       => now(),
-                ]);
+                $bef = BackdateExcelFile::create($dataToInsert);
 
                 // Auto-sync ke MonthlyReport & CapitalRecap
                 try {
@@ -639,8 +728,8 @@ class BackdateExcelFileController extends Controller
 
                 $successOutlets[] = [
                     'shop_id'       => $shopId,
-                    'shop_nama'     => $shop->nama,
-                    'shop_kode'     => $shop->kode ?? '',
+                    'shop_nama'     => $shopNama,
+                    'shop_kode'     => $shopKode,
                     'period'        => $period,
                     'period_label'  => $this->formatPeriodLabel($period),
                     'record_id'     => $bef->id,
@@ -656,8 +745,9 @@ class BackdateExcelFileController extends Controller
                     ],
                 ];
             } catch (\Throwable $e) {
+                \Log::error("storeMulti insert error on [{$outletOriginalFilename}]: " . $e->getMessage(), ['data' => $dataToInsert]);
                 $errors[] = [
-                    'file' => $shop->nama . ' (' . $outletOriginalFilename . ')',
+                    'file' => $shopNama . ' (' . $outletOriginalFilename . ')',
                     'error' => 'Gagal menyimpan hasil: ' . $e->getMessage(),
                 ];
             }
@@ -687,8 +777,8 @@ class BackdateExcelFileController extends Controller
 
         // Fallback: jika processing_result kosong, re-parse dari file
         if (empty($summary)) {
-            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-            if (file_exists($fullPath)) {
+            $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
+            if (file_exists($fullPath) && is_file($fullPath)) {
                 $summary = BackdateExcelSummaryService::extract($fullPath, $shop, $period);
 
                 // Simpan untuk next time
@@ -728,8 +818,8 @@ class BackdateExcelFileController extends Controller
 
         // Fallback: re-parse jika kosong
         if (empty($summary)) {
-            $fullPath = Storage::disk('public')->path($backdateExcelFile->file_path);
-            if (file_exists($fullPath)) {
+            $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
+            if (file_exists($fullPath) && is_file($fullPath)) {
                 $summary = BackdateExcelSummaryService::extract($fullPath, $shop, $period);
                 $backdateExcelFile->update([
                     'processing_result' => $summary,

@@ -1304,24 +1304,37 @@ class BackdateExcelSummaryService
                 ];
             }
 
-            // Fase 3: Jika masih kosong tapi ada fileLevelShop, jalankan untuk toko itu
-            if (empty($results) && $fileLevelShop) {
-                $allSheetNames = [];
-                foreach ($spreadsheet->getAllSheets() as $sh) {
-                    $allSheetNames[] = $sh->getTitle();
+            // Fase 3: Fallback jika belum ada yang cocok agar tidak ada file yang gagal masuk
+            if (empty($results)) {
+                $targetFallbackShop = $fileLevelShop ?: ($shops->first() ?? null);
+                if ($targetFallbackShop) {
+                    $allSheetNames = [];
+                    foreach ($spreadsheet->getAllSheets() as $sh) {
+                        $allSheetNames[] = $sh->getTitle();
+                    }
+
+                    $detectedPeriod = self::parsePeriodFromSheetName($fileIdentifier);
+                    if ($detectedPeriod === 'Multi-Periode') {
+                        foreach ($allSheetNames as $sn) {
+                            $sp = self::parsePeriodFromSheetName($sn);
+                            if ($sp !== 'Multi-Periode') {
+                                $detectedPeriod = $sp;
+                                break;
+                            }
+                        }
+                    }
+
+                    $summary = self::extract($spreadsheet, $targetFallbackShop, $detectedPeriod);
+
+                    $results[] = [
+                        'shop' => $targetFallbackShop,
+                        'shop_id' => $targetFallbackShop->id,
+                        'shop_nama' => $targetFallbackShop->nama,
+                        'period' => $detectedPeriod ?? 'Multi-Periode',
+                        'summary' => $summary,
+                        'matched_sheets' => $allSheetNames,
+                    ];
                 }
-
-                $detectedPeriod = self::parsePeriodFromSheetName($fileIdentifier);
-                $summary = self::extract($spreadsheet, $fileLevelShop, $detectedPeriod);
-
-                $results[] = [
-                    'shop' => $fileLevelShop,
-                    'shop_id' => $fileLevelShop->id,
-                    'shop_nama' => $fileLevelShop->nama,
-                    'period' => $detectedPeriod ?? 'Multi-Periode',
-                    'summary' => $summary,
-                    'matched_sheets' => $allSheetNames,
-                ];
             }
 
             // Urutkan partisi hasil secara kronologis: dari yang paling lama ke paling baru (ASC)
@@ -1368,14 +1381,18 @@ class BackdateExcelSummaryService
                 $progressCallback($fileIdx + 1, $totalFiles, $originalFilename);
             }
 
-            $fileResults = self::extractMultiShopFromFile($filePath, $shops, $originalFilename);
+            try {
+                $fileResults = self::extractMultiShopFromFile($filePath, $shops, $originalFilename);
 
-            foreach ($fileResults as $shopId => $result) {
-                $result['stored_path'] = $storedPath;
-                $result['original_filename'] = $originalFilename;
-                $result['file_size'] = $fileSize;
-                $result['source_files'] = [$originalFilename];
-                $allResults[] = $result;
+                foreach ($fileResults as $shopId => $result) {
+                    $result['stored_path'] = $storedPath;
+                    $result['original_filename'] = $originalFilename;
+                    $result['file_size'] = $fileSize;
+                    $result['source_files'] = [$originalFilename];
+                    $allResults[] = $result;
+                }
+            } catch (\Throwable $e) {
+                Log::error("processMultipleFiles item error on [{$originalFilename}]: " . $e->getMessage());
             }
         }
 

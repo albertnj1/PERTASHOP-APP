@@ -19,7 +19,6 @@ class OperatorController extends Controller
      */
     public function index(Request $request)
     {
-
         if ($request->ajax()) {
             if (Auth::user()->role == 'admin') {
                 $shop_id = Auth::user()->admin->shop_id;
@@ -40,37 +39,46 @@ class OperatorController extends Controller
                 ->addIndexColumn()
                 ->addColumn('status', function ($row) {
                     if ($row->user && $row->user->is_active) {
-                        return '<span class="badge-modern-success"><i class="fas fa-check-circle mr-1"></i> AKTIF</span>';
+                        return '<span class="badge badge-success px-2 py-1" style="border-radius: 6px;"><i class="fas fa-check-circle mr-1"></i> AKTIF</span>';
                     } else {
-                        return '<span class="badge-modern-secondary"><i class="fas fa-lock mr-1"></i> NON-AKTIF</span>';
+                        return '<span class="badge badge-secondary px-2 py-1" style="border-radius: 6px;"><i class="fas fa-lock mr-1"></i> NON-AKTIF</span>';
                     }
                 })
                 ->addColumn('action', function ($row) {
-                    $button = '<a href="' . route('operators.show', $row->id) . '" class="btn-action-modern btn-info-modern" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white;" title="Preview"><i class="fa fa-eye"></i></a>';
+                    $button = '<div class="btn-group" role="group">';
+                    $button .= '<a href="' . route('operators.show', $row->id) . '" class="btn btn-sm btn-outline-info" title="Preview Profile"><i class="fas fa-eye"></i></a>';
 
-                    if (Auth::user()->role == 'investor') return '<div class="d-flex align-items-center">' . $button . '</div>';
+                    if (Auth::user()->role == 'investor') {
+                        $button .= '</div>';
+                        return $button;
+                    }
                     
                     $isActive = $row->user ? $row->user->is_active : true;
                     
-                    $button .= '<a href="' . route('operators.edit', $row->id) . '" class="btn-action-modern btn-edit-modern" title="Edit"><i class="fa fa-edit"></i></a>';
+                    $button .= '<a href="' . route('operators.edit', $row->id) . '" class="btn btn-sm btn-outline-primary ml-1" title="Edit Data Operator"><i class="fas fa-edit"></i></a>';
                     
                     if ($isActive) {
-                        $button .= '<button class="btn-action-modern btn-lock-modern btn-toggle-status" title="Nonaktifkan (Kunci)" data-id="' . $row->id . '"><i class="fas fa-lock"></i></button>';
+                        $button .= '<button class="btn btn-sm btn-outline-warning ml-1 btn-toggle-status" title="Nonaktifkan Akses" data-id="' . $row->id . '"><i class="fas fa-lock"></i></button>';
                     } else {
-                        $button .= '<button class="btn-action-modern btn-unlock-modern btn-toggle-status" title="Aktifkan Kembali" data-id="' . $row->id . '"><i class="fas fa-unlock"></i></button>';
+                        $button .= '<button class="btn btn-sm btn-outline-success ml-1 btn-toggle-status" title="Aktifkan Akses" data-id="' . $row->id . '"><i class="fas fa-unlock"></i></button>';
                     }
 
-                    $button .= '<button class="btn-action-modern btn-delete-modern btn-delete" title="Hapus Permanen" data-id="' . $row->id . '"><i class="fa fa-trash"></i></button>';
+                    $button .= '<button class="btn btn-sm btn-outline-danger ml-1 btn-delete" title="Hapus Operator" data-id="' . $row->id . '"><i class="fas fa-trash-alt"></i></button>';
+                    $button .= '</div>';
 
-                    return '<div class="d-flex align-items-center">' . $button . '</div>';
+                    return $button;
                 })
                 ->rawColumns(['status', 'action'])
                 ->make(true);
         }
 
         $shops = Shop::all();
+        $operators = Operator::with(['user', 'shop'])->get();
+        $totalOperatorsCount = $operators->count();
+        $activeOperatorsCount = $operators->filter(fn($o) => $o->user?->is_active ?? true)->count();
+        $shopsCoveredCount = $operators->pluck('shop_id')->unique()->filter()->count();
 
-        return view('operator.index', compact('shops'));
+        return view('operator.index', compact('operators', 'shops', 'totalOperatorsCount', 'activeOperatorsCount', 'shopsCoveredCount'));
     }
 
     /**

@@ -14,22 +14,43 @@ class CorporationController extends Controller
      */
     public function index(Request $request)
     {
-        if ($request->ajax()) {
+        $corporations = Corporation::with(['shops.investors'])->get();
 
-            $data = Corporation::all();
-            return DataTables::of($data)
+        if ($request->ajax()) {
+            return DataTables::of($corporations)
                 ->addIndexColumn()
+                ->addColumn('total_outlets', function ($row) {
+                    return $row->shops->count() . ' Outlet';
+                })
+                ->addColumn('total_valuasi', function ($row) {
+                    $total = $row->shops->sum(function($s) {
+                        return $s->investors->sum('pivot.nominal') ?: ($s->modal_awal ?? 0);
+                    });
+                    return 'Rp ' . number_format($total, 0, ',', '.');
+                })
+                ->addColumn('outlets_list', function ($row) {
+                    return $row->shops->pluck('nama')->join(', ') ?: '-';
+                })
                 ->addColumn('action', function ($row) {
-                    $button = '<a href="' . route('corporations.edit', $row->id) . '" class="btn btn-sm btn-info" title="Edit"><i class="fa fa-edit"></i></a>';
-                    $button .= ' <button class="btn btn-sm btn-danger btn-delete" title="hapus" data-id="' . $row->id . '"><i class="fa fa-trash"></i></button>';
+                    $button = '<div class="btn-group" role="group">';
+                    $button .= '<a href="' . route('corporations.edit', $row->id) . '" class="btn btn-sm btn-outline-primary" title="Edit Badan Usaha"><i class="fas fa-edit"></i></a>';
+                    $button .= '<button class="btn btn-sm btn-outline-danger ml-1 btn-delete" title="Hapus Badan Usaha" data-id="' . $row->id . '"><i class="fas fa-trash-alt"></i></button>';
+                    $button .= '</div>';
                     return $button;
                 })
                 ->rawColumns(['action'])
                 ->make(true);
         }
 
+        $totalCorporationsCount = $corporations->count();
+        $totalValuasiAll = $corporations->sum(function($c) {
+            return $c->shops->sum(function($s) {
+                return $s->investors->sum('pivot.nominal') ?: ($s->modal_awal ?? 0);
+            });
+        });
+        $totalOutletsCovered = $corporations->sum(fn($c) => $c->shops->count());
 
-        return view('corporation.index');
+        return view('corporation.index', compact('corporations', 'totalCorporationsCount', 'totalValuasiAll', 'totalOutletsCovered'));
     }
 
     /**
@@ -89,5 +110,22 @@ class CorporationController extends Controller
         return response()->json([
             'message' => 'Data berhasil dihapus.',
         ]);
+    }
+
+    public function toggleStatus(Request $request, Corporation $corporation)
+    {
+        $isActive = $request->input('is_active');
+        $corporation->is_active = $isActive !== null ? (bool)$isActive : !$corporation->is_active;
+        $corporation->save();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'is_active' => (bool)$corporation->is_active,
+                'message' => 'Status Badan Usaha berhasil diperbarui'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Status Badan Usaha berhasil diubah');
     }
 }

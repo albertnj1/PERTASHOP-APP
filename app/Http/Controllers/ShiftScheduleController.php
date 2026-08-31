@@ -99,7 +99,7 @@ class ShiftScheduleController extends Controller
     }
 
     /**
-     * Buat jadwal bulk untuk 1 bulan penuh.
+     * Buat jadwal bulk untuk 1 bulan penuh (dengan opsi pola rotasi otomatis).
      */
     public function bulkStore(Request $request)
     {
@@ -107,7 +107,8 @@ class ShiftScheduleController extends Controller
             'shop_id'      => 'required|exists:shops,id',
             'operator_id'  => 'required|exists:operators,id',
             'bulan'        => 'required|date_format:Y-m',
-            'shift_ke'     => 'required|integer|min:1|max:5',
+            'shift_ke'     => 'nullable|integer|min:1|max:5',
+            'pola'         => 'nullable|string|in:fixed,2p_2s_1l,full_pagi,full_siang',
             'hari_libur'   => 'nullable|array',   // Array tanggal yang dikecualikan
             'hari_libur.*' => 'date',
         ]);
@@ -115,21 +116,43 @@ class ShiftScheduleController extends Controller
         [$year, $month] = explode('-', $validated['bulan']);
         $daysInMonth = Carbon::createFromDate($year, $month, 1)->daysInMonth;
         $excludeDates = collect($validated['hari_libur'] ?? []);
+        $pola = $validated['pola'] ?? 'fixed';
+        $defaultShift = $validated['shift_ke'] ?? 1;
 
         $created = 0;
         $skipped = 0;
 
         for ($day = 1; $day <= $daysInMonth; $day++) {
-            $date = Carbon::createFromDate($year, $month, $day)->toDateString();
+            $carbonDate = Carbon::createFromDate($year, $month, $day);
+            $date = $carbonDate->toDateString();
 
             if ($excludeDates->contains($date)) {
                 $skipped++;
                 continue;
             }
 
+            // Hitung shift berdasarkan pola jika dipilih
+            $shiftToAssign = $defaultShift;
+            if ($pola === '2p_2s_1l') {
+                // Pola 5 hari: Hari 1-2 Shift 1 (Pagi), Hari 3-4 Shift 2 (Siang), Hari 5 Libur
+                $cycleIndex = ($day - 1) % 5;
+                if ($cycleIndex === 0 || $cycleIndex === 1) {
+                    $shiftToAssign = 1;
+                } elseif ($cycleIndex === 2 || $cycleIndex === 3) {
+                    $shiftToAssign = 2;
+                } else {
+                    // Libur
+                    continue;
+                }
+            } elseif ($pola === 'full_pagi') {
+                $shiftToAssign = 1;
+            } elseif ($pola === 'full_siang') {
+                $shiftToAssign = 2;
+            }
+
             $exists = ShiftSchedule::where('operator_id', $validated['operator_id'])
                 ->where('tanggal', $date)
-                ->where('shift_ke', $validated['shift_ke'])
+                ->where('shift_ke', $shiftToAssign)
                 ->exists();
 
             if (!$exists) {
@@ -137,7 +160,8 @@ class ShiftScheduleController extends Controller
                     'shop_id'     => $validated['shop_id'],
                     'operator_id' => $validated['operator_id'],
                     'tanggal'     => $date,
-                    'shift_ke'    => $validated['shift_ke'],
+                    'shift_ke'    => $shiftToAssign,
+                    'status'      => 'dijadwalkan',
                 ]);
                 $created++;
             } else {
@@ -169,7 +193,10 @@ class ShiftScheduleController extends Controller
     public function destroy(ShiftSchedule $shiftSchedule)
     {
         $shiftSchedule->delete();
-        return response()->json(['message' => 'Jadwal shift dihapus.']);
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['message' => 'Jadwal shift dihapus.']);
+        }
+        return back()->with('success', 'Jadwal shift berhasil dihapus.');
     }
 
     /**

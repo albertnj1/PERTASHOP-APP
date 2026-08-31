@@ -59,8 +59,21 @@ class InvestorController extends Controller
         }
 
         $shops = Shop::with('investors.user')->get();
+        $investorsList = Investor::with(['user', 'shops'])
+            ->get()
+            ->sortByDesc(function ($investor) {
+                return $investor->shops->sum('pivot.nominal');
+            })
+            ->values();
 
-        return view('investor.index', compact('shops'));
+        $totalCapitalAll = $investorsList->sum(function ($inv) {
+            return $inv->shops->sum('pivot.nominal');
+        });
+
+        $totalInvestorsCount = $investorsList->count();
+        $totalShopsCount = $shops->count();
+
+        return view('investor.index', compact('shops', 'investorsList', 'totalCapitalAll', 'totalInvestorsCount', 'totalShopsCount'));
     }
 
     /**
@@ -278,5 +291,27 @@ class InvestorController extends Controller
 
         $nameSlug = \Illuminate\Support\Str::slug($investor->name);
         return $pdf->download("Ringkasan_Investasi_{$nameSlug}.pdf");
+    }
+
+    public function toggleStatus(Request $request, Investor $investor)
+    {
+        $isActive = $request->input('is_active');
+        $investor->is_active = $isActive !== null ? (bool)$isActive : !$investor->is_active;
+        $investor->save();
+
+        if ($investor->user) {
+            $investor->user->is_active = $investor->is_active;
+            $investor->user->save();
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'is_active' => (bool)$investor->is_active,
+                'message' => 'Status investor berhasil diperbarui'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Status investor berhasil diubah');
     }
 }

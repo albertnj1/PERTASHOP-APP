@@ -1,258 +1,941 @@
-@extends('layouts.app')
+@extends('layouts._new_admin')
+@section('title', 'Master Data Operator')
 
 @push('style')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 <style>
-    .badge-modern-success {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.75rem;
-        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
-        letter-spacing: 0.5px;
-        display: inline-flex;
-        align-items: center;
-    }
-    .badge-modern-secondary {
-        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-        color: white;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.75rem;
-        box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
-        letter-spacing: 0.5px;
-        display: inline-flex;
-        align-items: center;
-    }
-    .btn-action-modern {
-        border-radius: 8px;
-        border: none;
-        padding: 6px 12px;
-        margin-right: 6px;
-        transition: all 0.2s ease-in-out;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        text-decoration: none;
-    }
-    .btn-action-modern:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        color: white;
-    }
-    .btn-edit-modern { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; }
-    .btn-lock-modern { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; }
-    .btn-unlock-modern { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
-    .btn-delete-modern { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
+  :root {
+    --sb-emerald-dark: #022c22;
+    --sb-emerald-deep: #064e3b;
+    --sb-emerald-main: #006241;
+    --sb-emerald-light: #059669;
+    --sb-emerald-subtle: #ecfdf5;
+  }
+
+  body {
+    background-color: #f8fafc;
+  }
+
+  /* ==========================================================================
+     SHOWCASE WRAPPER & DONUT WHEEL
+     ========================================================================== */
+  .operator-showcase-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 36px 0;
+    padding: 44px 28px 52px;
+    background: radial-gradient(circle at 50% 25%, #d1fae5 0%, #f0fdf4 45%, #f8fafc 85%);
+    border-radius: 28px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow: 0 10px 30px -10px rgba(0, 98, 65, 0.08);
+    overflow: hidden;
+  }
+
+  /* Roda Donut di Background */
+  .operator-wheel-backdrop {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 540px;
+    height: 540px;
+    pointer-events: none;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #operator-wheel-bg {
+    width: 540px !important;
+    height: 540px !important;
+    border-radius: 50%;
+    border: 2px dashed rgba(16, 185, 129, 0.5);
+    transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .operator-wheel-inner {
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Badge Nama Operator di Atas Roda */
+  .operator-wheel-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    padding: 6px 20px;
+    border-radius: 9999px;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    box-shadow: 0 4px 14px rgba(0, 98, 65, 0.12);
+    z-index: 10;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ==========================================================================
+     SWIPER CAROUSEL & CARDS
+     ========================================================================== */
+  .operator-swiper {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    padding-top: 24px;
+    padding-bottom: 38px;
+  }
+
+  .operator-swiper .swiper-slide {
+    width: 390px !important;
+    max-width: 90vw;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+
+  .operator-card {
+    border-radius: 24px;
+    padding: 26px;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    background: #ffffff;
+    color: #1e293b;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+    transform: scale(0.9);
+    opacity: 0.75;
+    min-height: 470px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* Active State (Starbucks Emerald Signature) */
+  .swiper-slide-active .operator-card {
+    background-color: #064e3b !important;
+    color: #ffffff !important;
+    transform: scale(1.06) !important;
+    opacity: 1 !important;
+    box-shadow: 0 25px 50px -12px rgba(6, 78, 59, 0.45), 0 0 0 1px rgba(52, 211, 153, 0.4) !important;
+    border-color: rgba(52, 211, 153, 0.5) !important;
+    z-index: 20;
+  }
+
+  .swiper-slide-active .avatar-box {
+    background-color: #ffffff !important;
+    color: #064e3b !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  }
+
+  .swiper-slide-active .status-pill {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important;
+  }
+
+  .swiper-slide-active .penugasan-box {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .swiper-slide-active .penugasan-title {
+    color: #fef08a !important;
+  }
+
+  .swiper-slide-active .outlet-code-badge {
+    background-color: #10b981 !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+  }
+
+  .swiper-slide-active .activity-box {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .swiper-slide-active .activity-label {
+    color: #a7f3d0 !important;
+  }
+
+  .swiper-slide-active .activity-val {
+    color: #ffffff !important;
+  }
+
+  .swiper-slide-active .operator-subtext {
+    color: #a7f3d0 !important;
+  }
+
+  .swiper-slide-active .btn-action-main {
+    background-color: #ffffff !important;
+    color: #064e3b !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  }
+
+  .swiper-slide-active .btn-action-main:hover {
+    background-color: #d1fae5 !important;
+    color: #064e3b !important;
+  }
+
+  .swiper-slide-active .btn-action-delete {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  }
+
+  .swiper-slide-active .btn-action-delete:hover {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+  }
+
+  /* ==========================================================================
+     VISUAL STATE NON-AKTIF / SUSPEND (ADAPTIF & TERPADU)
+     ========================================================================== */
+  .card-inactive {
+    filter: grayscale(0.85);
+    opacity: 0.55 !important;
+    background-color: #f8fafc !important;
+    border-style: dashed !important;
+  }
+
+  .card-inactive .btn-action-main {
+    background-color: #64748b !important;
+    color: #ffffff !important;
+    cursor: not-allowed;
+  }
+
+  .swiper-slide-active .card-inactive {
+    background-color: #334155 !important;
+    filter: grayscale(0);
+    opacity: 0.85 !important;
+    border-color: rgba(148, 163, 184, 0.4) !important;
+    box-shadow: 0 20px 40px -10px rgba(51, 65, 85, 0.4) !important;
+  }
+
+  .swiper-slide-active .card-inactive .avatar-box {
+    background-color: #475569 !important;
+    color: #f8fafc !important;
+  }
+
+  .swiper-slide-active .card-inactive .penugasan-box {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .swiper-slide-active .card-inactive .penugasan-title {
+    color: #cbd5e1 !important;
+  }
+
+  /* Status Toggle Switch */
+  .status-toggle-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+
+  .status-toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .status-toggle-track {
+    width: 38px;
+    height: 20px;
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .status-toggle-track:after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+
+  .status-toggle-input:checked + .status-toggle-track {
+    background-color: #10b981;
+  }
+
+  .status-toggle-input:checked + .status-toggle-track:after {
+    transform: translateX(18px);
+  }
+
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #10b981;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  /* Card Inner Elements */
+  .avatar-box {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+    background-color: #ecfdf5;
+    color: #065f46;
+    letter-spacing: 0.05em;
+    transition: all 0.3s ease;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    background-color: #ecfdf5;
+    color: #065f46;
+    transition: all 0.3s ease;
+  }
+
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #10b981;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  .penugasan-box {
+    padding: 13px 16px;
+    border-radius: 14px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 14px;
+    transition: all 0.3s ease;
+  }
+
+  .outlet-code-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background-color: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    transition: all 0.3s ease;
+  }
+
+  .btn-action-main {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 11px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background-color: #065f46;
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 4px 12px rgba(6, 95, 70, 0.2);
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+  }
+
+  .btn-action-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 16px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 13px;
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .btn-action-delete:hover {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
+  }
+
+  /* Nav Buttons */
+  .swiper-button-prev, .swiper-button-next {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 6px 16px rgba(0, 98, 65, 0.15) !important;
+    color: #064e3b !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    z-index: 30 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .swiper-button-prev:after, .swiper-button-next:after {
+    font-size: 15px !important;
+    font-weight: 800;
+  }
+
+  .swiper-button-prev:hover, .swiper-button-next:hover {
+    background-color: #064e3b !important;
+    color: #ffffff !important;
+    transform: scale(1.08);
+  }
+
+  .swiper-button-prev { left: 14px !important; }
+  .swiper-button-next { right: 14px !important; }
+
+  /* ==========================================================================
+     TABLE REKAP AUDIT
+     ========================================================================== */
+  .data-list-card {
+    background: #ffffff;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+  }
+
+  .data-list-header {
+    padding: 20px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .table-operator-custom th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-top: none !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 14px 16px;
+  }
+
+  .table-operator-custom td {
+    vertical-align: middle !important;
+    padding: 14px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .table-operator-custom tbody tr:hover {
+    background-color: #f8fafc;
+  }
 </style>
 @endpush
 
 @section('content')
-    <section class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1>Operator</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="/">Home</a></li>
-                        <li class="breadcrumb-item active">Operator</li>
-                    </ol>
-                </div>
-            </div>
+<div class="container-fluid py-2">
+
+  {{-- TOP TITLE & STATS HEADER --}}
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap" style="gap: 16px;">
+    <div>
+      <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 11px; font-weight: 700; border-radius: 12px; padding: 5px 12px; text-transform: uppercase; letter-spacing: 0.05em;">
+        <i class="fas fa-id-badge text-success mr-1"></i> Operator Roster Showcase
+      </span>
+      <h1 class="page-title mt-2 mb-1" style="font-size: 26px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">
+        Master Data Operator
+      </h1>
+      <p class="text-muted mb-0" style="font-size: 13.5px;">
+        Daftar personil operator nozzle, penugasan cabang Pertashop, dan manajemen hak akses sistem.
+      </p>
+    </div>
+
+    <div class="d-flex align-items-center flex-wrap" style="gap: 12px;">
+      @if(Auth::user()->role !== 'investor')
+      <a href="{{ route('operators.create') }}" class="btn font-weight-bold" style="background: var(--sb-emerald-main); color: #ffffff; border-radius: 9999px; padding: 10px 22px; font-size: 13px; box-shadow: 0 4px 14px rgba(0, 98, 65, 0.25);">
+        <i class="fas fa-plus mr-1"></i> Tambah Operator Baru
+      </a>
+      @endif
+    </div>
+  </div>
+
+  {{-- 3 SUMMARY STAT PILLS --}}
+  <div class="row mb-4">
+    <div class="col-md-4 mb-3 mb-md-0">
+      <div class="p-3 d-flex align-items-center justify-content-between" style="background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <div class="d-flex align-items-center" style="gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 14px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            <i class="fas fa-users-cog"></i>
+          </div>
+          <div>
+            <div class="text-muted" style="font-size: 11.5px; font-weight: 600; text-transform: uppercase;">Total Operator Terdaftar</div>
+            <div style="font-size: 20px; font-weight: 800; color: #0f172a;">{{ $totalOperatorsCount }} Personil</div>
+          </div>
         </div>
-    </section>
+        <span class="badge badge-success px-2 py-1" style="border-radius: 8px;">Roster</span>
+      </div>
+    </div>
 
-    <section class="content">
-        <div class="container-fluid">
-            <div class="card card-primary card-outline">
-                <div class="card-header">
-                    <div class=" d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            @if (Auth::user()->role == 'admin')
-                                <h3 class="card-title mr-2">
-                                    {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}</h3>
-                            @else
-                                <select name="shop_id" class="form-control mr-2" style="width: 200px">
-                                    <option value="">-- Semua Pertashop --</option>
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop->id }}">{{ $shop->kode . ' ' . $shop->nama }}</option>
-                                    @endforeach
-                                </select>
-                            @endif
-
-                        </div>
-                        @if(Auth::user()->role !== 'investor')
-                        <a href="{{ route('operators.create') }}" class="btn btn-primary"><i
-                                class="fa fa-plus mr-2"></i>Tambah Operator</a>
-                        @endif
-                    </div>
-                </div>
-                <div class="card-body">
-
-                    <div class="table-responsive-lg">
-                        <table id="table" class="table table-bordered">
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <div class="col-md-4 mb-3 mb-md-0">
+      <div class="p-3 d-flex align-items-center justify-content-between" style="background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <div class="d-flex align-items-center" style="gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 14px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            <i class="fas fa-user-check"></i>
+          </div>
+          <div>
+            <div class="text-muted" style="font-size: 11.5px; font-weight: 600; text-transform: uppercase;">Status Aktif Operasional</div>
+            <div style="font-size: 20px; font-weight: 800; color: #0f172a;">{{ $activeOperatorsCount }} Aktif Bertugas</div>
+          </div>
         </div>
-    </section>
+        <span class="badge badge-warning px-2 py-1 text-white" style="border-radius: 8px; background: #f59e0b;">Siap Kerja</span>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="p-3 d-flex align-items-center justify-content-between" style="background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <div class="d-flex align-items-center" style="gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 14px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            <i class="fas fa-gas-pump"></i>
+          </div>
+          <div>
+            <div class="text-muted" style="font-size: 11.5px; font-weight: 600; text-transform: uppercase;">Distribusi Penugasan</div>
+            <div style="font-size: 20px; font-weight: 800; color: #0f172a;">{{ $shopsCoveredCount }} Cabang Pertashop</div>
+          </div>
+        </div>
+        <span class="badge badge-primary px-2 py-1" style="border-radius: 8px;">100% Terisi</span>
+      </div>
+    </div>
+  </div>
+
+  {{-- =========================================================================
+       SHOWCASE CAROUSEL OPERATOR (CENTERED ROTATING DONUT WHEEL)
+       ========================================================================= --}}
+  <div class="operator-showcase-wrapper">
+
+    <!-- Roda Donut Persentase di Background -->
+    <div class="operator-wheel-backdrop">
+      <div id="operator-wheel-bg">
+        <div class="operator-wheel-inner"></div>
+      </div>
+      
+      <!-- Angka Persentase / Status di Atas Roda -->
+      <div class="operator-wheel-badge">
+        <span style="font-size: 11px; font-weight: 700; color: #065f46; text-transform: uppercase;">Personil Aktif:</span>
+        <span id="operator-wheel-label" style="font-size: 13.5px; font-weight: 900; color: #059669;">Dendi Supriyatno</span>
+      </div>
+    </div>
+
+    <!-- Swiper Carousel -->
+    <div class="swiper operator-swiper">
+      <div class="swiper-wrapper align-items-center">
+
+        @foreach($operators as $op)
+          @php
+            $opName = $op->user->name ?? $op->nama;
+            $initials = strtoupper(substr($opName, 0, 2));
+            $isActive = $op->user ? $op->user->is_active : ($op->is_active ?? true);
+            $shopName = $op->shop->nama ?? 'Belum Ditugaskan';
+            $shopKode = $op->shop->kode ?? '-';
+          @endphp
+          <div class="swiper-slide" 
+               data-operator-name="{{ $opName }}"
+               data-shop-name="{{ $shopName }}">
+            
+            <div class="operator-card {{ !$isActive ? 'card-inactive' : '' }}">
+              
+              <div>
+                <!-- Header: Avatar + Status Pill + Toggle Switch -->
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="d-flex align-items-center" style="gap: 8px;">
+                    <div class="avatar-box shadow-inner">
+                      {{ $initials }}
+                    </div>
+                    <span id="badge-status-{{ $op->id }}" class="status-badge-pill {{ $isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' }}" style="padding: 3px 9px; border-radius: 9999px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                      @if($isActive)
+                        <span class="pulse-dot"></span>
+                        <span class="status-text">Aktif</span>
+                      @else
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; display: inline-block;"></span>
+                        <span class="status-text">Non-Aktif</span>
+                      @endif
+                    </span>
+                  </div>
+
+                  @if(Auth::user()->role !== 'investor')
+                  <label class="status-toggle-label" title="Ubah Status Akses Aktif / Non-Aktif">
+                    <input type="checkbox" 
+                           class="status-toggle-input toggle-status-btn" 
+                           data-id="{{ $op->id }}" 
+                           data-endpoint="{{ route('operators.toggle-status', $op->id) }}" 
+                           {{ $isActive ? 'checked' : '' }}>
+                    <div class="status-toggle-track"></div>
+                  </label>
+                  @endif
+                </div>
+
+                <!-- Nama Operator & Domisili -->
+                <h3 class="font-weight-bold mb-1 text-truncate" style="font-size: 19px; letter-spacing: -0.01em;" title="{{ $opName }}">
+                  {{ $opName }}
+                </h3>
+                <p class="operator-subtext mb-3 text-truncate" style="font-size: 11.5px; color: #64748b;" title="{{ $op->alamat }}">
+                  <i class="fas fa-map-marker-alt mr-1 text-danger"></i> {{ $op->alamat ?: 'Banyumas' }}
+                </p>
+
+                <!-- Box Penugasan Outlet Utama -->
+                <div class="penugasan-box">
+                  <span class="penugasan-title" style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: block; opacity: 0.8; margin-bottom: 4px;">
+                    Penugasan Outlet Utama
+                  </span>
+                  <div class="d-flex align-items-center justify-content-between">
+                    <span style="font-size: 15px; font-weight: 800;" class="text-truncate mr-2">{{ $shopName }}</span>
+                    <span class="outlet-code-badge">{{ $shopKode }}</span>
+                  </div>
+                </div>
+
+                <!-- Rincian Aktivitas / Shift Kerja -->
+                <div class="activity-box pt-2 border-top" style="border-color: #f1f5f9; font-size: 12px;">
+                  <div class="d-flex justify-content-between align-items-center mb-1.5">
+                    <span class="activity-label text-muted">Shift Reguler:</span>
+                    <span class="activity-val font-weight-bold" style="color: #334155;">Shift Pagi / Siang</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="activity-label text-muted">Peran Sistem:</span>
+                    <span class="activity-val font-weight-bold" style="color: #334155;">Petugas Nozzle / Kasir</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tombol Aksi Bersih (Clean UI Action) -->
+              <div class="d-flex pt-3" style="gap: 8px;">
+                @if(Auth::user()->role !== 'investor')
+                <a href="{{ route('operators.edit', $op->id) }}" class="btn-action-main flex-grow-1" title="Edit Data Operator">
+                  <i class="fas fa-edit mr-1"></i> Kelola Operator
+                </a>
+                
+                <button type="button" onclick="confirmDeleteOperator({{ $op->id }}, '{{ addslashes($opName) }}')" class="btn-action-delete" title="Hapus Operator">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+                <form id="delete-operator-form-{{ $op->id }}" action="{{ route('operators.destroy', $op->id) }}" method="POST" style="display: none;">
+                  @csrf
+                  @method('DELETE')
+                </form>
+                @else
+                <a href="{{ route('operators.show', $op->id) }}" class="btn-action-main flex-grow-1" title="Lihat Profil">
+                  <i class="fas fa-eye mr-1"></i> Detail Profil
+                </a>
+                @endif
+              </div>
+
+            </div>
+
+          </div>
+        @endforeach
+
+      </div>
+    </div>
+
+    <!-- Tombol Navigasi Slider -->
+    <div class="swiper-button-prev"></div>
+    <div class="swiper-button-next"></div>
+
+  </div>
+
+  {{-- =========================================================================
+       DATA LIST / TABULAR AUDIT SECTION
+       ========================================================================= --}}
+  <div class="data-list-card">
+    
+    <div class="data-list-header d-flex align-items-center justify-content-between flex-wrap" style="gap: 14px;">
+      <div>
+        <h5 class="mb-1 font-weight-bold" style="font-size: 17px; color: #0f172a;">
+          <i class="fas fa-list-ul mr-2 text-success"></i>Daftar Roster Seluruh Operator Pertashop
+        </h5>
+        <p class="text-muted mb-0" style="font-size: 13px;">
+          Tabel master personil operator, domisili, outlet bertugas, dan status hak akses sistem.
+        </p>
+      </div>
+
+      <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+        <select id="outletFilterSelect" class="form-control form-control-sm font-weight-bold" style="border-radius: 8px; width: 170px;">
+          <option value="">Semua Pertashop</option>
+          @foreach($shops as $s)
+            <option value="{{ $s->nama }}">{{ $s->nama }}</option>
+          @endforeach
+        </select>
+
+        <div class="input-group input-group-sm" style="width: 220px;">
+          <div class="input-group-prepend">
+            <span class="input-group-text bg-white border-right-0" style="border-radius: 8px 0 0 8px;"><i class="fas fa-search text-muted"></i></span>
+          </div>
+          <input type="text" id="operatorSearchInput" class="form-control border-left-0" placeholder="Cari nama / alamat..." style="border-radius: 0 8px 8px 0;">
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover table-operator-custom mb-0" id="operatorMasterTable">
+        <thead>
+          <tr>
+            <th class="text-center" style="width: 50px;">No</th>
+            <th>Nama Operator</th>
+            <th>Alamat Domisili</th>
+            <th>Penugasan Pertashop</th>
+            <th class="text-center">Status</th>
+            <th class="text-center" style="width: 150px;">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($operators as $idx => $op)
+            @php
+              $opName = $op->user->name ?? $op->nama;
+              $isActive = $op->user ? $op->user->is_active : true;
+              $shopName = $op->shop->nama ?? '-';
+              $shopKode = $op->shop->kode ?? '-';
+            @endphp
+            <tr>
+              <td class="text-center align-middle font-weight-bold text-muted">{{ $idx + 1 }}</td>
+              
+              <td class="align-middle font-weight-bold" style="font-size: 14px; color: #0f172a;">
+                <div class="d-flex align-items-center" style="gap: 10px;">
+                  <div style="width: 32px; height: 32px; border-radius: 10px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;">
+                    {{ strtoupper(substr($opName, 0, 2)) }}
+                  </div>
+                  <span>{{ $opName }}</span>
+                </div>
+              </td>
+
+              <td class="align-middle text-muted" style="font-size: 12.5px;">
+                <i class="fas fa-map-marker-alt text-danger mr-1"></i> {{ $op->alamat ?: 'Banyumas' }}
+              </td>
+
+              <td class="align-middle">
+                <span class="badge badge-light border px-2 py-1 font-weight-600" style="font-size: 12px;">
+                  <i class="fas fa-gas-pump text-success mr-1"></i> {{ $shopName }} ({{ $shopKode }})
+                </span>
+              </td>
+
+              <td class="align-middle text-center">
+                @if($isActive)
+                  <span class="badge badge-success px-2 py-1" style="border-radius: 6px; font-size: 11px;"><i class="fas fa-check-circle mr-1"></i>Aktif</span>
+                @else
+                  <span class="badge badge-secondary px-2 py-1" style="border-radius: 6px; font-size: 11px;"><i class="fas fa-lock mr-1"></i>Non-Aktif</span>
+                @endif
+              </td>
+
+              <td class="align-middle text-center">
+                <div class="btn-group" role="group">
+                  <a href="{{ route('operators.show', $op->id) }}" class="btn btn-sm btn-outline-info" title="Detail Profil" style="border-radius: 6px; padding: 4px 8px;">
+                    <i class="fas fa-eye"></i>
+                  </a>
+
+                  @if(Auth::user()->role !== 'investor')
+                  <a href="{{ route('operators.edit', $op->id) }}" class="btn btn-sm btn-outline-primary ml-1" title="Edit Data" style="border-radius: 6px; padding: 4px 8px;">
+                    <i class="fas fa-edit"></i>
+                  </a>
+
+                  <button type="button" onclick="confirmDeleteOperator({{ $op->id }}, '{{ addslashes($opName) }}')" class="btn btn-sm btn-outline-danger ml-1" title="Hapus" style="border-radius: 6px; padding: 4px 8px;">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                  @endif
+                </div>
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
 @endsection
 
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  
+  // =========================================================================
+  // SWIPER INITIALIZATION (CENTERED DONUT WHEEL SYNC)
+  // =========================================================================
+  const swiper = new Swiper('.operator-swiper', {
+    centeredSlides: true,
+    slidesPerView: 'auto',
+    spaceBetween: 28,
+    slideToClickedSlide: true,
+    initialSlide: 0,
+    grabCursor: true,
+    navigation: {
+      nextEl: '.swiper-button-next',
+      prevEl: '.swiper-button-prev',
+    },
+    on: {
+      init: function () {
+        syncOperatorWheel(this);
+      },
+      slideChange: function () {
+        syncOperatorWheel(this);
+      }
+    }
+  });
 
-@push('script')
-    <script>
-        $(document).ready(function() {
-            var dataTable = $('#table').DataTable({
-                processing: true,
-                serverSide: true,
-                ajax: "{{ route('operators.index') }}",
-                columns: [{
-                        title: '#',
-                        data: 'DT_RowIndex',
-                        name: 'DT_RowIndex',
-                        width: '20',
-                    },
-                    {
-                        title: 'Nama',
-                        data: 'user',
-                        name: 'user.name',
-                        render: function(data) {
-                            return data ? data.name : '-';
-                        }
-                    },
-                    {
-                        title: 'Alamat',
-                        data: 'alamat',
-                        name: 'alamat',
-                    },
-                    {
-                        title: 'Pertashop',
-                        data: 'shop',
-                        name: 'shop.nama',
-                        render: function(data) {
-                            return data ? data.nama : '-';
-                        }
-                    },
-                    {
-                        title: 'Status',
-                        data: 'status',
-                        name: 'status',
-                        orderable: false,
-                    },
-                    {
-                        title: 'Aksi',
-                        data: 'action',
-                        name: 'action',
-                        orderable: false,
-                        searchable: false
-                    },
-                ],
-                // order: [
-                //     [0, 'desc']
-                // ],
-                columnDefs: [{
-                        responsivePriority: 1,
-                        targets: 0
-                    },
-                    {
-                        responsivePriority: 2,
-                        targets: -1
-                    }
-                ],
-                responsive: {
-                    details: {
-                        display: DataTable.Responsive.display.modal({
-                            header: function(row) {
-                                var data = row.data();
-                                return 'Detail Operator';
-                            }
-                        }),
-                        renderer: DataTable.Responsive.renderer.tableAll({
-                            tableClass: 'table'
-                        })
-                    }
-                }
-            });
+  function syncOperatorWheel(swiperInstance) {
+    const activeIndex = swiperInstance.realIndex;
+    const activeSlide = swiperInstance.slides[swiperInstance.activeIndex];
+    
+    // 1. Putar Roda Background
+    const wheel = document.getElementById('operator-wheel-bg');
+    if (wheel) {
+      wheel.style.transform = `rotate(${activeIndex * 36}deg)`;
+    }
 
-            $('select[name=shop_id]').on('change', function() {
-                dataTable.ajax.url(`?shop_id=${this.value}`).load();
-            });
+    // 2. Perbarui Nama Operator di Label Atas Roda
+    if (activeSlide) {
+      const operatorName = activeSlide.getAttribute('data-operator-name') || 'Operator';
+      const label = document.getElementById('operator-wheel-label');
+      if (label) {
+        label.innerText = operatorName;
+      }
+    }
+  }
 
+  // =========================================================================
+  // LIVE SEARCH & OUTLET FILTER TABLE
+  // =========================================================================
+  const searchInput = document.getElementById('operatorSearchInput');
+  const outletFilter = document.getElementById('outletFilterSelect');
+  const tableRows = document.querySelectorAll('#operatorMasterTable tbody tr');
 
-            $('#table').on('click', '.btn-delete', function() {
-                var id = $(this).data('id');
+  function filterTable() {
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const selectedOutlet = outletFilter ? outletFilter.value.toLowerCase().trim() : '';
 
-                Swal.fire({
-                    title: 'Apakah Anda yakin?',
-                    text: "Data operator akan dihapus secara permanen!",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: 'Ya, hapus!',
-                    cancelButtonText: 'Batal'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.ajax({
-                            type: "DELETE",
-                            url: "{{ route('operators.index') }}" + "/" + id,
-                            success: function(response) {
-                                dataTable.ajax.reload();
-                                Swal.fire(
-                                    'Terhapus!',
-                                    response.message,
-                                    'success'
-                                );
-                            }
-                        });
-                    }
-                });
-            });
+    tableRows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      const matchesSearch = query === '' || text.includes(query);
+      const matchesOutlet = selectedOutlet === '' || text.includes(selectedOutlet);
 
-            $('#table').on('click', '.btn-toggle-status', function() {
-                var id = $(this).data('id');
+      if (matchesSearch && matchesOutlet) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
 
-                Swal.fire({
-                    title: 'Konfirmasi',
-                    text: "Apakah Anda ingin mengubah status akses operator ini?",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: 'Ya, ubah status!',
-                    cancelButtonText: 'Batal'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.ajax({
-                            type: "PATCH",
-                            url: "/operators/" + id + "/toggle-status",
-                            success: function(response) {
-                                dataTable.ajax.reload();
-                                Swal.fire(
-                                    'Berhasil!',
-                                    response.message,
-                                    'success'
-                                );
-                            },
-                            error: function() {
-                                Swal.fire(
-                                    'Error!',
-                                    'Terjadi kesalahan saat mengubah status.',
-                                    'error'
-                                );
-                            }
-                        });
-                    }
-                })
-            });
+  if (searchInput) searchInput.addEventListener('input', filterTable);
+  if (outletFilter) outletFilter.addEventListener('change', filterTable);
 
-        });
-    </script>
+  // =========================================================================
+  // TOGGLE STATUS AJAX (TANPA RELOAD HALAMAN)
+  // =========================================================================
+  document.querySelectorAll('.toggle-status-btn').forEach(function (toggle) {
+    toggle.addEventListener('change', function () {
+      const isChecked = this.checked;
+      const itemId = this.getAttribute('data-id');
+      const endpoint = this.getAttribute('data-endpoint');
+      const card = this.closest('.operator-card');
+      const badge = document.getElementById(`badge-status-${itemId}`);
+
+      // Optimistic UI Update
+      if (isChecked) {
+        if (card) card.classList.remove('card-inactive');
+        if (badge) {
+          badge.className = 'status-badge-pill bg-emerald-100 text-emerald-800';
+          badge.innerHTML = '<span class="pulse-dot"></span><span class="status-text">Aktif</span>';
+        }
+      } else {
+        if (card) card.classList.add('card-inactive');
+        if (badge) {
+          badge.className = 'status-badge-pill bg-slate-200 text-slate-600';
+          badge.innerHTML = '<span style="width:6px; height:6px; border-radius:50%; background:#94a3b8; display:inline-block;"></span><span class="status-text">Non-Aktif</span>';
+        }
+      }
+
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': token
+        },
+        body: JSON.stringify({ is_active: isChecked ? 1 : 0 })
+      })
+      .then(res => res.json())
+      .catch(err => {
+        console.error('Gagal update status operator:', err);
+        this.checked = !isChecked;
+      });
+    });
+  });
+
+});
+
+// =========================================================================
+// SWEETALERT DELETE CONFIRMATION
+// =========================================================================
+function confirmDeleteOperator(id, name) {
+  const form = document.getElementById('delete-operator-form-' + id);
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: 'Hapus Operator?',
+      text: `Apakah Anda yakin ingin menghapus data personil "${name}"?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> Ya, Hapus',
+      cancelButtonText: 'Batal'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        form.submit();
+      }
+    });
+  } else {
+    if (confirm(`Hapus operator "${name}"?`)) {
+      form.submit();
+    }
+  }
+}
+</script>
 @endpush

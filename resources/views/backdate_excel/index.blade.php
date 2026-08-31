@@ -609,12 +609,24 @@ function startMultiUpload() {
     setTimeout(() => {
       overlay.style.display = 'none';
       if (data.success) {
-        displayProcessingResults(data);
-        clearFileSelection();
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            title: 'Berhasil Diproses!',
+            text: `${data.message} Halaman akan diperbarui untuk menampilkan tabel berkas.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+          }).then(() => {
+            window.location.reload();
+          });
+        } else {
+          alert(data.message + ' Klik OK untuk memperbarui tabel.');
+          window.location.reload();
+        }
       } else {
         alert(data.message || 'Terjadi kesalahan pemrosesan.');
       }
-    }, 800);
+    }, 600);
   })
   .catch(err => {
     clearInterval(progressTimer);

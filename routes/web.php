@@ -197,7 +197,66 @@ Route::middleware('auth')->group(function () {
     Route::get('/capital-recaps/import', [CapitalRecapController::class, 'importForm'])->name('capital-recaps.import');
     Route::post('/capital-recaps/import', [CapitalRecapController::class, 'importStore'])->name('capital-recaps.import.store');
 
-    Route::patch('/operators/{operator}/toggle-status', [OperatorController::class, 'toggleStatus'])->name('operators.toggle-status');
+    Route::match(['post', 'patch'], '/operators/{operator}/toggle-status', [OperatorController::class, 'toggleStatus'])->name('operators.toggle-status');
+    Route::match(['post', 'patch'], '/investors/{investor}/toggle-status', [InvestorController::class, 'toggleStatus'])->name('investors.toggle-status');
+    Route::match(['post', 'patch'], '/shops/{shop}/toggle-status', [ShopController::class, 'toggleStatus'])->name('shops.toggle-status');
+    Route::match(['post', 'patch'], '/corporations/{corporation}/toggle-status', [CorporationController::class, 'toggleStatus'])->name('corporations.toggle-status');
+
+    // Generic API Status Toggle
+    Route::match(['post', 'patch'], '/api/toggle-status/{type}/{id}', function(Request $request, $type, $id) {
+        $isActive = $request->input('is_active');
+        $model = null;
+        
+        switch ($type) {
+            case 'investors':
+            case 'investor':
+                $model = \App\Models\Investor::findOrFail($id);
+                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->save();
+                if ($model->user) {
+                    $model->user->is_active = $model->is_active;
+                    $model->user->save();
+                }
+                break;
+                
+            case 'shops':
+            case 'pertashops':
+            case 'shop':
+                $model = \App\Models\Shop::findOrFail($id);
+                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->save();
+                break;
+                
+            case 'corporations':
+            case 'badan_usaha':
+            case 'corporation':
+                $model = \App\Models\Corporation::findOrFail($id);
+                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->save();
+                break;
+                
+            case 'operators':
+            case 'operator':
+                $model = \App\Models\Operator::findOrFail($id);
+                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->save();
+                if ($model->user) {
+                    $model->user->is_active = $model->is_active;
+                    $model->user->save();
+                }
+                break;
+                
+            default:
+                return response()->json(['error' => 'Invalid model type'], 400);
+        }
+        
+        return response()->json([
+            'status' => 'success',
+            'is_active' => (bool)$model->is_active,
+            'message' => 'Status berhasil diperbarui'
+        ]);
+    })->name('api.toggle-status');
+
     Route::patch('/operators/{operator}/update-credentials', [OperatorController::class, 'updateCredentials'])->name('operators.update-credentials');
     Route::patch('/investors/{investor}/update-credentials', [InvestorController::class, 'updateCredentials'])->name('investors.update-credentials');
 

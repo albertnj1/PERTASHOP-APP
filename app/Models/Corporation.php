@@ -10,4 +10,9 @@ class Corporation extends Model
     use HasFactory;
 
     protected $guarded = ['id'];
+
+    public function shops()
+    {
+        return $this->hasMany(Shop::class);
+    }
 }

@@ -18,28 +18,44 @@ class ShopController extends Controller
     {
         if (Auth::user()->role == 'investor') {
             $shops = Auth::user()->investor 
-                ? Auth::user()->investor->shops()->with('investors.user')->get() 
+                ? Auth::user()->investor->shops()->with(['investors.user', 'operators.user', 'corporation'])->get() 
                 : collect();
             return view('shop.investor_index', compact('shops'));
         }
 
-        if ($request->ajax()) {
+        $shops = Shop::with(['investors.user', 'operators.user', 'corporation'])->get();
 
-            $data = Shop::all();
-            return DataTables::of($data)
+        if ($request->ajax()) {
+            return DataTables::of($shops)
                 ->addIndexColumn()
+                ->addColumn('total_investasi', function ($row) {
+                    $total = $row->investors->sum('pivot.nominal') ?: $row->modal_awal;
+                    return 'Rp ' . number_format($total, 0, ',', '.');
+                })
+                ->addColumn('operators_list', function ($row) {
+                    return $row->operators->map(fn($o) => $o->user->short_name ?? $o->user->name)->join(', ') ?: '-';
+                })
                 ->addColumn('action', function ($row) {
-                    $button = '<a href="' . route('shops.edit', $row->id) . '" class="btn btn-sm btn-info mr-1" title="Edit"><i class="fa fa-edit"></i></a>';
-                    $button .= '<a href="' . route('shops.investors', $row->id) . '" class="btn btn-sm btn-success mr-1" title="Investors"><i class="fa fa-user"></i></a>';
-                    $button .= '<button class="btn btn-sm btn-danger btn-delete" title="hapus" data-id="' . $row->id . '"><i class="fa fa-trash"></i></button>';
+                    $button = '<div class="btn-group" role="group">';
+                    $button .= '<a href="' . route('shops.edit', $row->id) . '" class="btn btn-sm btn-outline-primary" title="Edit Pertashop"><i class="fas fa-edit"></i></a>';
+                    $button .= '<a href="' . route('shops.investors', $row->id) . '" class="btn btn-sm btn-outline-success ml-1" title="Komposisi Investor"><i class="fas fa-users"></i></a>';
+                    $button .= '<a href="' . route('payroll-operator-assignments.index') . '" class="btn btn-sm btn-outline-info ml-1" title="Penugasan Operator"><i class="fas fa-user-tag"></i></a>';
+                    $button .= '<button class="btn btn-sm btn-outline-danger ml-1 btn-delete" title="Hapus Pertashop" data-id="' . $row->id . '"><i class="fas fa-trash-alt"></i></button>';
+                    $button .= '</div>';
                     return $button;
                 })
                 ->rawColumns(['action'])
                 ->make(true);
         }
 
+        $totalShopsCount = $shops->count();
+        $totalInvestasiAll = $shops->sum(function($s) {
+            $invTotal = $s->investors->sum('pivot.nominal');
+            return $invTotal > 0 ? $invTotal : ($s->modal_awal ?? 0);
+        });
+        $totalOperatorsCount = \App\Models\Operator::count();
 
-        return view('shop.index');
+        return view('shop.index', compact('shops', 'totalShopsCount', 'totalInvestasiAll', 'totalOperatorsCount'));
     }
 
     /**
@@ -207,5 +223,22 @@ class ShopController extends Controller
         $shop->investors()->detach($request->id);
 
         return response()->json(['message' => 'Investor berhasil dihapus dari Pertashop.']);
+    }
+
+    public function toggleStatus(Request $request, Shop $shop)
+    {
+        $isActive = $request->input('is_active');
+        $shop->is_active = $isActive !== null ? (bool)$isActive : !$shop->is_active;
+        $shop->save();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'is_active' => (bool)$shop->is_active,
+                'message' => 'Status Pertashop berhasil diperbarui'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Status Pertashop berhasil diubah');
     }
 }
