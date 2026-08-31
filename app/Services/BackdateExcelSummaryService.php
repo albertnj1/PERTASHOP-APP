@@ -1479,39 +1479,34 @@ class BackdateExcelSummaryService
         $totAkhirCol = 4;
         $volCol = 5;
         $rpCol = 6;
-        $testPumpCol = 7;
-        $bbmDatangCol = 14;
-        $stokAwalCol = 13;
-        $stokAkhirCol = 18;
-        $lossesCol = 19;
-        $lossesRpCol = 20;
-        $ongkosBongkarCol = 24;
-        $biayaTfCol = 25;
-        $atkCol = 26;
-        $listrikCol = 27;
-        $airCol = 28;
-        $cashbackCol = 29;
-        $internetCol = 30;
-        $lainLainCol = 31;
+        $testPumpCol = 9;
+        $bbmDatangCol = 10; // CURAH
+        $stokAwalCol = 12;
+        $stokAkhirCol = 12; // STOK AKTUAL
+        $lossesCol = 13;
+        $lossesRpCol = 14;
+        $ongkosBongkarCol = null;
+        $biayaTfCol = null;
+        $atkCol = null;
+        $listrikCol = null;
+        $airCol = null;
+        $cashbackCol = null;
+        $internetCol = null;
+        $lainLainCol = null;
         $headerEndIdx = 2;
 
-        for ($rIdx = 0; $rIdx < min(4, count($rows)); $rIdx++) {
+        for ($rIdx = 0; $rIdx < min(5, count($rows)); $rIdx++) {
             foreach ($rows[$rIdx] as $cIdx => $val) {
                 if (!is_string($val)) continue;
                 $vLow = strtolower(trim($val));
                 if (str_contains($vLow, 'totalisator awal')) $totAwalCol = $cIdx;
                 if (str_contains($vLow, 'totalisator akhir')) $totAkhirCol = $cIdx;
-                if (str_contains($vLow, 'toritis penjualan') || str_contains($vLow, 'penjualan liter') || str_contains($vLow, 'aktual penjualan')) $volCol = $cIdx;
+                if (str_contains($vLow, 'penjualan liter') || str_contains($vLow, 'toritis penjualan') || str_contains($vLow, 'aktual penjualan')) $volCol = $cIdx;
                 if (str_contains($vLow, 'test pump')) $testPumpCol = $cIdx;
+                if (str_contains($vLow, 'curah') || str_contains($vLow, 'bbm datang')) $bbmDatangCol = $cIdx;
+                if (str_contains($vLow, 'stok aktual') || str_contains($vLow, 'stok akhir')) $stokAkhirCol = $cIdx;
+                if (str_contains($vLow, 'gain/losess') || str_contains($vLow, 'losses')) $lossesCol = $cIdx;
                 if (str_contains($vLow, 'ongkos bongkar')) $ongkosBongkarCol = $cIdx;
-                if (str_contains($vLow, 'biaya transfer')) $biayaTfCol = $cIdx;
-                if (str_contains($vLow, 'fotocopy') || str_contains($vLow, 'atk')) $atkCol = $cIdx;
-                if (str_contains($vLow, 'listrik')) $listrikCol = $cIdx;
-                if (str_contains($vLow, 'air bersih') || str_contains($vLow, 'iuran rt') || str_contains($vLow, 'air')) $airCol = $cIdx;
-                if (str_contains($vLow, 'cashback')) $cashbackCol = $cIdx;
-                if (str_contains($vLow, 'internet')) $internetCol = $cIdx;
-                if (str_contains($vLow, 'lain-lain') || str_contains($vLow, 'lain2')) $lainLainCol = $cIdx;
-                if (str_contains($vLow, 'losses / gain') && !str_contains($vLow, 'persen')) $lossesCol = $cIdx;
             }
             if ($totAwalCol !== null && $totAkhirCol !== null) {
                 $headerEndIdx = $rIdx + 1;
@@ -1543,41 +1538,42 @@ class BackdateExcelSummaryService
 
         for ($rIdx = $headerEndIdx; $rIdx < count($rows); $rIdx++) {
             $row = $rows[$rIdx];
-            $tglVal = $row[0] ?? null;
+            $tglVal = $row[1] ?? ($row[0] ?? null);
 
-            if (is_numeric($tglVal) && $tglVal >= 1 && $tglVal <= 31) {
-                $tAwal = self::parseFlexibleNumber($row[$totAwalCol] ?? 0);
-                $tAkhir = self::parseFlexibleNumber($row[$totAkhirCol] ?? 0);
-                $vol = self::parseFlexibleNumber($row[$volCol] ?? 0);
-                $rp = self::parseFlexibleNumber($row[$rpCol] ?? 0);
-                $tp = self::parseFlexibleNumber($row[$testPumpCol] ?? 0);
-                $bbm = self::parseFlexibleNumber($row[$bbmDatangCol] ?? ($row[15] ?? 0));
-                $stokAwal = self::parseFlexibleNumber($row[$stokAwalCol] ?? 0);
-                $stokAkhir = self::parseFlexibleNumber($row[$stokAkhirCol] ?? ($row[22] ?? 0));
-                $loss = self::parseFlexibleNumber($row[$lossesCol] ?? 0);
-                $lossRp = self::parseFlexibleNumber($row[$lossesRpCol] ?? 0);
+            // Valid daily row check (Excel serial date > 40000 or day 1-31)
+            $isValidDateRow = (is_numeric($tglVal) && (($tglVal >= 1 && $tglVal <= 31) || $tglVal > 40000));
+            $volRaw = self::cleanNumeric($row[$volCol] ?? 0);
+            
+            // Skip bottom summary rows or negative formula error rows
+            if ($volRaw < 0 || $volRaw > 50000) {
+                continue;
+            }
 
-                if ($totAwalFirst === null && $tAwal > 0) $totAwalFirst = $tAwal;
-                if ($tAkhir > 0) $totAkhirLast = $tAkhir;
-                if ($firstStokAwal === null && $stokAwal > 0) $firstStokAwal = $stokAwal;
-                if ($stokAkhir > 0) $lastStokAkhir = $stokAkhir;
+            if ($isValidDateRow || ($volRaw > 0 && $rIdx < 95)) {
+                $tAwal = self::cleanNumeric($row[$totAwalCol] ?? 0);
+                $tAkhir = self::cleanNumeric($row[$totAkhirCol] ?? 0);
+                $vol = $volRaw;
+                $rp = self::cleanNumeric($row[$rpCol] ?? 0);
+                $tp = self::cleanNumeric($row[$testPumpCol] ?? 0);
+                $bbm = self::cleanNumeric($row[$bbmDatangCol] ?? 0);
+                $stokAktual = self::cleanNumeric($row[$stokAkhirCol] ?? 0);
+                $loss = self::cleanNumeric($row[$lossesCol] ?? 0);
+                $lossRp = self::cleanNumeric($row[$lossesRpCol] ?? 0);
+
+                if ($totAwalFirst === null && $tAwal > 1000) $totAwalFirst = $tAwal;
+                if ($tAkhir > 1000) $totAkhirLast = $tAkhir;
+                if ($firstStokAwal === null && $stokAktual > 0) $firstStokAwal = $stokAktual;
+                if ($stokAktual > 0) $lastStokAkhir = $stokAktual;
 
                 $sumVol += $vol;
                 $sumRp += $rp;
                 $sumTestPump += $tp;
-                $sumBbmDatang += $bbm;
+                if ($bbm > 0 && $bbm < 50000) $sumBbmDatang += $bbm;
                 $sumLosses += $loss;
                 $sumLossesRp += $lossRp;
                 if ($vol > 0) $activeDays++;
 
-                if ($ongkosBongkarCol !== null) $sumOngkosBongkar += self::parseFlexibleNumber($row[$ongkosBongkarCol] ?? 0);
-                if ($biayaTfCol !== null) $sumBiayaTf += self::parseFlexibleNumber($row[$biayaTfCol] ?? 0);
-                if ($atkCol !== null) $sumAtk += self::parseFlexibleNumber($row[$atkCol] ?? 0);
-                if ($listrikCol !== null) $sumListrik += self::parseFlexibleNumber($row[$listrikCol] ?? 0);
-                if ($airCol !== null) $sumAir += self::parseFlexibleNumber($row[$airCol] ?? 0);
-                if ($cashbackCol !== null) $sumCashback += self::parseFlexibleNumber($row[$cashbackCol] ?? 0);
-                if ($internetCol !== null) $sumInternet += self::parseFlexibleNumber($row[$internetCol] ?? 0);
-                if ($lainLainCol !== null) $sumLainLain += self::parseFlexibleNumber($row[$lainLainCol] ?? 0);
+                if ($ongkosBongkarCol !== null) $sumOngkosBongkar += self::cleanNumeric($row[$ongkosBongkarCol] ?? 0);
             }
         }
 
@@ -1585,37 +1581,54 @@ class BackdateExcelSummaryService
             return null;
         }
 
-        // Ekstraksi Gaji
+        // Ekstraksi Beban dari Sheet REKAP (Khusus Format Tipe B)
+        $rekapSheet = null;
+        foreach ($spreadsheet->getAllSheets() as $sh) {
+            $t = strtolower($sh->getTitle());
+            if (str_contains($t, 'rekap') && !str_contains($t, 'modal')) {
+                $rekapSheet = $sh;
+                break;
+            }
+        }
+
         $gajiOperator = 0;
-        if ($gajiSheet) {
-            $gRows = $gajiSheet->toArray(null, true, false, false);
-            foreach ($gRows as $gr) {
-                foreach ($gr as $gc) {
-                    if (is_numeric($gc) && $gc > 100000 && $gc < 20000000) {
-                        $gajiOperator = (float)$gc;
+        $totalBebanTipeB = 0;
+        if ($rekapSheet) {
+            $rRows = $rekapSheet->toArray(null, true, false, false);
+            foreach ($rRows as $r) {
+                $firstCell = strtolower(trim((string)($r[1] ?? $r[0] ?? '')));
+                if (str_contains($firstCell, 'pengeluaran gaji') || str_contains($firstCell, 'total gaji')) {
+                    foreach (array_slice($r, 2) as $cv) {
+                        $num = self::cleanNumeric($cv);
+                        if ($num > 0) { $gajiOperator = $num; break; }
+                    }
+                }
+                if (str_contains($firstCell, 'pengeluaran lain') || str_contains($firstCell, 'lain-lain')) {
+                    foreach (array_slice($r, 2) as $cv) {
+                        $num = self::cleanNumeric($cv);
+                        if ($num > 0) { $sumLainLain = $num; break; }
                     }
                 }
             }
         }
+
         if ($gajiOperator <= 0) {
-            $gajiOperator = $sumVol * 200; // Standar 200 / liter
+            $gajiOperator = 5000000; // Standar Gaji Gumelar
         }
 
+        $totalBiaya = $gajiOperator + $sumLainLain + $sumOngkosBongkar;
+
         $hargaJual = 12200; // Standar Pertamax
+        $hargaBeli = 11451.29; // Standar Pertamax HPP
         if ($sumVol > 0 && $sumRp > 0) {
             $calcHj = round($sumRp / $sumVol, 2);
             if ($calcHj >= 10000 && $calcHj <= 20000) {
                 $hargaJual = $calcHj;
             }
         }
-        $hargaBeli = 11451.29; // Standar Pertamax HPP
-        if ($hargaBeli >= $hargaJual) {
-            $hargaBeli = round($hargaJual - 748.71, 2);
-        }
 
         $volumeTerjual = max(0, $sumVol - $sumTestPump);
         $labaKotor = ($volumeTerjual * ($hargaJual - $hargaBeli)) + $sumLossesRp;
-        $totalBiaya = $gajiOperator + $sumOngkosBongkar + $sumBiayaTf + $sumAtk + $sumListrik + $sumAir + $sumCashback + $sumInternet + $sumLainLain;
         $labaBersih = $labaKotor - $totalBiaya;
         $alokasiModal10 = $labaBersih > 0 ? round($labaBersih * 0.10) : 0;
         $labaDibagi90 = $labaBersih > 0 ? round($labaBersih * 0.90) : 0;
