@@ -205,11 +205,6 @@
                                             @error('email_pribadi')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
                                         <div class="form-group">
-                                            <label for="password">Password Login Aplikasi (Kosongkan jika tidak diubah)</label>
-                                            <input type="password" class="form-control @error('password') is-invalid @enderror" id="password" name="password">
-                                            @error('password')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                                        </div>
-                                        <div class="form-group">
                                             <label for="akun_medsos">Akun Media Sosial (Opsional)</label>
                                             <input type="text" class="form-control @error('akun_medsos') is-invalid @enderror" id="akun_medsos" name="akun_medsos" value="{{ old('akun_medsos', $operator->akun_medsos) }}" placeholder="Instagram: @username, FB: Nama">
                                             @error('akun_medsos')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
