@@ -557,34 +557,7 @@
                     <td class="text-center">[ &nbsp; &nbsp; ] Transfer</td>
                 </tr>
             @endif
-        </tbody>
     </table>
-
-    <!-- Area Tanda Tangan -->
-    <div class="avoid-break" style="margin-top: 20px;">
-        <table class="signature-table">
-            <tr>
-                <td style="width: 33%;">
-                    <div>Dibuat Oleh,</div>
-                    <div class="text-muted" style="font-size: 7.5pt;">Admin Operasional</div>
-                    <div class="sign-space"></div>
-                    <div class="sign-line">{{ $admin_name ?? 'Dwi Yuliarto' }}</div>
-                </td>
-                <td style="width: 33%;">
-                    <div>Mengetahui,</div>
-                    <div class="text-muted" style="font-size: 7.5pt;">Direktur PT. SAM</div>
-                    <div class="sign-space"></div>
-                    <div class="sign-line">Adlai Budiarto T.</div>
-                </td>
-                <td style="width: 33%;">
-                    <div>Menyetujui,</div>
-                    <div class="text-muted" style="font-size: 7.5pt;">Perwakilan Investor</div>
-                    <div class="sign-space"></div>
-                    <div class="sign-line">( .................................... )</div>
-                </td>
-            </tr>
-        </table>
-    </div>
 
     <div class="doc-footer">
         Dokumen ini dibuat otomatis oleh Sistem Informasi Pertashop • Dicetak pada {{ date('d/m/Y H:i') }} WIB
