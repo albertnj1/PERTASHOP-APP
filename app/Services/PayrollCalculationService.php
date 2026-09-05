@@ -27,11 +27,21 @@ class PayrollCalculationService
      */
     public function generate(int $shopId, int $bulan, int $tahun, int $generatedBy): PayrollPeriod
     {
-        // 1. Ambil sistem penggajian aktif untuk toko ini
+        // 1. Ambil sistem penggajian aktif untuk toko ini (atau buat default sesuai cabang jika belum ada)
         $payrollSystem = PayrollSystem::where('shop_id', $shopId)
             ->where('aktif', true)
             ->latest()
-            ->firstOrFail();
+            ->first();
+
+        if (!$payrollSystem) {
+            $shop = Shop::findOrFail($shopId);
+            $defaults = $shop->getDefaultPayrollNominals();
+            $payrollSystem = PayrollSystem::create(array_merge($defaults, [
+                'shop_id'     => $shopId,
+                'nama_sistem' => 'Sistem ' . $shop->nama,
+                'aktif'       => true,
+            ]));
+        }
 
         // 2. Cek apakah periode sudah ada
         $existingPeriod = PayrollPeriod::where('shop_id', $shopId)
@@ -64,8 +74,18 @@ class PayrollCalculationService
             ->pluck('operator_id')
             ->unique();
 
+        // Fallback otomatis ke operator cabang jika belum ada assignment terpisah
         if ($operatorIds->isEmpty()) {
-            throw new \Exception("Belum ada operator yang di-assign ke sistem penggajian toko ini.");
+            $operatorIds = \App\Models\Operator::where('shop_id', $shopId)->pluck('id')->unique();
+        }
+
+        // Fallback kedua: ambil operator yang tercatat di laporan harian bulan ini
+        if ($operatorIds->isEmpty()) {
+            $operatorIds = $dailyReports->pluck('operator_id')->filter()->unique();
+        }
+
+        if ($operatorIds->isEmpty()) {
+            throw new \Exception("Belum ada operator yang terdaftar untuk cabang ini di periode {$bulan}/{$tahun}.");
         }
 
         // 5. Ambil shift schedules bulan ini untuk tahu siapa bertugas kapan
@@ -191,17 +211,37 @@ class PayrollCalculationService
 
             // Buat payroll_detail per operator
             foreach ($operatorTotals as $opId => $totals) {
-                $literBagian    = round($totals['liter'], 2);
-                $ratePerLiter   = ($payrollSystem->ada_rate_per_liter ?? true) ? floatval($payrollSystem->rate_per_liter) : 0.0;
-                $gajiVariable   = round($literBagian * $ratePerLiter, 2);
+                $literBagian = round($totals['liter'], 2);
+                $tipeSkema   = $payrollSystem->tipe_skema ?? (
+                    ($payrollSystem->ada_gaji_pokok && $payrollSystem->ada_rate_per_liter) ? 'hibrid' :
+                    ($payrollSystem->ada_gaji_pokok ? 'gaji_pokok_murni' : 'komisi_murni')
+                );
 
-                if ($payrollSystem->metode_split === 'flat_bulanan_prorata_hari') {
-                    $standarHariKerja = $payrollSystem->standar_hari_kerja ?: 26;
-                    $nominalGajiPokok = $payrollSystem->ada_gaji_pokok ? floatval($payrollSystem->nominal_gaji_pokok) : 0.0;
-                    $rateHarian       = $standarHariKerja > 0 ? ($nominalGajiPokok / $standarHariKerja) : 0.0;
-                    $gajiPokok        = round($rateHarian * $totals['hari'], 2);
+                // 1. Komisi per Liter (Gaji Variable)
+                // Berlaku untuk: 'komisi_murni' dan 'hibrid'
+                if (in_array($tipeSkema, ['komisi_murni', 'hibrid'])) {
+                    $ratePerLiter = ($payrollSystem->ada_rate_per_liter ?? true) ? floatval($payrollSystem->rate_per_liter) : 0.0;
+                    $gajiVariable = round($literBagian * $ratePerLiter, 2);
                 } else {
-                    $gajiPokok        = $payrollSystem->ada_gaji_pokok ? floatval($payrollSystem->nominal_gaji_pokok) : 0.0;
+                    // Skema 'gaji_pokok_murni': Tanpa komisi liter
+                    $ratePerLiter = 0.0;
+                    $gajiVariable = 0.0;
+                }
+
+                // 2. Gaji Pokok
+                // Berlaku untuk: 'gaji_pokok_murni' dan 'hibrid'
+                if (in_array($tipeSkema, ['gaji_pokok_murni', 'hibrid']) && ($payrollSystem->ada_gaji_pokok ?? true)) {
+                    $nominalGajiPokok = floatval($payrollSystem->nominal_gaji_pokok ?? 0);
+                    if ($payrollSystem->metode_split === 'flat_bulanan_prorata_hari') {
+                        $standarHariKerja = $payrollSystem->standar_hari_kerja ?: 26;
+                        $rateHarian       = $standarHariKerja > 0 ? ($nominalGajiPokok / $standarHariKerja) : 0.0;
+                        $gajiPokok        = round($rateHarian * $totals['hari'], 2);
+                    } else {
+                        $gajiPokok        = $nominalGajiPokok;
+                    }
+                } else {
+                    // Skema 'komisi_murni': Tanpa gaji pokok
+                    $gajiPokok = 0.0;
                 }
 
                 // === Uang Transport ===

@@ -158,31 +158,39 @@ class PayrollSystemController extends Controller
         $validated = $request->validate([
             'shop_id'                  => 'required|exists:shops,id',
             'nama_sistem'              => 'required|string|max:255',
-            'ada_rate_per_liter'       => 'boolean',
+            'tipe_skema'               => 'required|in:komisi_murni,gaji_pokok_murni,hibrid',
             'rate_per_liter'           => 'nullable|numeric|min:0',
-            'ada_gaji_pokok'           => 'boolean',
             'nominal_gaji_pokok'       => 'nullable|numeric|min:0',
+            'rate_transport_per_hari'  => 'nullable|numeric|min:0',
             'potongan_per_hari_alpha'  => 'nullable|numeric|min:0',
+            'metode_potongan_alpha'    => 'required|in:nominal_tetap,prorata_gaji_pokok',
             'perlakuan_losses_gain'    => 'required|in:losses_only,losses_dan_gain,abaikan_losses_gain',
             'metode_split'             => 'required|in:per_hari_penuh,proporsional_jam_kerja,flat_bulanan_prorata_hari',
             'standar_hari_kerja'       => 'nullable|integer|min:1|max:31',
             'aktif'                    => 'boolean',
         ]);
 
-        $validated['ada_rate_per_liter']      = $request->boolean('ada_rate_per_liter');
-        $validated['ada_gaji_pokok']          = $request->boolean('ada_gaji_pokok');
+        $tipe = $validated['tipe_skema'];
         $validated['aktif']                   = $request->boolean('aktif', true);
         $validated['potongan_per_hari_alpha'] = $validated['potongan_per_hari_alpha'] ?? 0;
+        $validated['rate_transport_per_hari'] = $validated['rate_transport_per_hari'] ?? 0;
         $validated['standar_hari_kerja']      = $validated['standar_hari_kerja'] ?? 26;
 
-        if (!$validated['ada_rate_per_liter']) {
-            $validated['rate_per_liter'] = 0;
-        } else {
-            $validated['rate_per_liter'] = $validated['rate_per_liter'] ?? 0;
-        }
-
-        if (!$validated['ada_gaji_pokok']) {
+        if ($tipe === 'komisi_murni') {
+            $validated['ada_rate_per_liter'] = true;
+            $validated['rate_per_liter']     = $validated['rate_per_liter'] ?? 0;
+            $validated['ada_gaji_pokok']     = false;
             $validated['nominal_gaji_pokok'] = null;
+        } elseif ($tipe === 'gaji_pokok_murni') {
+            $validated['ada_rate_per_liter'] = false;
+            $validated['rate_per_liter']     = 0;
+            $validated['ada_gaji_pokok']     = true;
+            $validated['nominal_gaji_pokok'] = $validated['nominal_gaji_pokok'] ?? 0;
+        } else { // hibrid
+            $validated['ada_rate_per_liter'] = true;
+            $validated['rate_per_liter']     = $validated['rate_per_liter'] ?? 0;
+            $validated['ada_gaji_pokok']     = true;
+            $validated['nominal_gaji_pokok'] = $validated['nominal_gaji_pokok'] ?? 0;
         }
 
         PayrollSystem::create($validated);
@@ -202,31 +210,39 @@ class PayrollSystemController extends Controller
         $validated = $request->validate([
             'shop_id'                  => 'required|exists:shops,id',
             'nama_sistem'              => 'required|string|max:255',
-            'ada_rate_per_liter'       => 'boolean',
+            'tipe_skema'               => 'required|in:komisi_murni,gaji_pokok_murni,hibrid',
             'rate_per_liter'           => 'nullable|numeric|min:0',
-            'ada_gaji_pokok'           => 'boolean',
             'nominal_gaji_pokok'       => 'nullable|numeric|min:0',
+            'rate_transport_per_hari'  => 'nullable|numeric|min:0',
             'potongan_per_hari_alpha'  => 'nullable|numeric|min:0',
+            'metode_potongan_alpha'    => 'required|in:nominal_tetap,prorata_gaji_pokok',
             'perlakuan_losses_gain'    => 'required|in:losses_only,losses_dan_gain,abaikan_losses_gain',
             'metode_split'             => 'required|in:per_hari_penuh,proporsional_jam_kerja,flat_bulanan_prorata_hari',
             'standar_hari_kerja'       => 'nullable|integer|min:1|max:31',
             'aktif'                    => 'boolean',
         ]);
 
-        $validated['ada_rate_per_liter']      = $request->boolean('ada_rate_per_liter');
-        $validated['ada_gaji_pokok']          = $request->boolean('ada_gaji_pokok');
+        $tipe = $validated['tipe_skema'];
         $validated['aktif']                   = $request->boolean('aktif', true);
         $validated['potongan_per_hari_alpha'] = $validated['potongan_per_hari_alpha'] ?? 0;
+        $validated['rate_transport_per_hari'] = $validated['rate_transport_per_hari'] ?? 0;
         $validated['standar_hari_kerja']      = $validated['standar_hari_kerja'] ?? 26;
 
-        if (!$validated['ada_rate_per_liter']) {
-            $validated['rate_per_liter'] = 0;
-        } else {
-            $validated['rate_per_liter'] = $validated['rate_per_liter'] ?? 0;
-        }
-
-        if (!$validated['ada_gaji_pokok']) {
+        if ($tipe === 'komisi_murni') {
+            $validated['ada_rate_per_liter'] = true;
+            $validated['rate_per_liter']     = $validated['rate_per_liter'] ?? 0;
+            $validated['ada_gaji_pokok']     = false;
             $validated['nominal_gaji_pokok'] = null;
+        } elseif ($tipe === 'gaji_pokok_murni') {
+            $validated['ada_rate_per_liter'] = false;
+            $validated['rate_per_liter']     = 0;
+            $validated['ada_gaji_pokok']     = true;
+            $validated['nominal_gaji_pokok'] = $validated['nominal_gaji_pokok'] ?? 0;
+        } else { // hibrid
+            $validated['ada_rate_per_liter'] = true;
+            $validated['rate_per_liter']     = $validated['rate_per_liter'] ?? 0;
+            $validated['ada_gaji_pokok']     = true;
+            $validated['nominal_gaji_pokok'] = $validated['nominal_gaji_pokok'] ?? 0;
         }
 
         $payrollSystem->update($validated);
@@ -250,10 +266,19 @@ class PayrollSystemController extends Controller
     {
         $systems = PayrollSystem::where('shop_id', $shop->id)
             ->where('aktif', true)
-            ->get(['id', 'nama_sistem']);
+            ->get(['id', 'nama_sistem', 'tipe_skema']);
 
         return response()->json($systems);
     }
+
+    /**
+     * AJAX endpoint: rekomendasi parameter dan skema default per cabang.
+     */
+    public function defaultsByShop(Shop $shop)
+    {
+        return response()->json($shop->getDefaultPayrollNominals());
+    }
+
 
     private function getAccessibleShops()
     {

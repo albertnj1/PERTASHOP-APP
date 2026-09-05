@@ -47,16 +47,16 @@ class PayrollAggregationService
             throw new \RuntimeException($eligibility['message']);
         }
 
-        // Pastikan PayrollSystem ada untuk shop ini
-        $system = PayrollSystem::firstOrCreate(
-            ['shop_id' => $shop->id],
-            [
-                'nama_sistem' => 'Sistem Payroll Standar Pertashop',
-                'gaji_pokok' => 1500000,
-                'uang_transport' => 150000,
-                'metode_komisi' => 'per_liter',
-            ]
-        );
+        // Pastikan PayrollSystem ada untuk shop ini (atau buat default sesuai cabang)
+        $system = PayrollSystem::where('shop_id', $shop->id)->where('aktif', true)->latest()->first();
+        if (!$system) {
+            $defaults = $shop->getDefaultPayrollNominals();
+            $system = PayrollSystem::create(array_merge($defaults, [
+                'shop_id'     => $shop->id,
+                'nama_sistem' => 'Sistem Payroll Standar ' . $shop->nama,
+                'aktif'       => true,
+            ]));
+        }
 
         // 1. Ambil Laporan Harian Ter-Approved / Locked
         $reports = DailyReport::where('shop_id', $shop->id)
@@ -89,19 +89,28 @@ class PayrollAggregationService
             // Ambil seluruh operator aktif di shop ini
             $operators = Operator::whereHas('shop', fn($q) => $q->where('shops.id', $shop->id))->get();
             if ($operators->isEmpty()) {
+                $operators = Operator::where('shop_id', $shop->id)->get();
+            }
+            if ($operators->isEmpty()) {
                 $operators = Operator::all(); // Fallback jika belum di-assign shop spesifik
             }
 
             $totalVolShop = $reports->sum(fn($r) => (float) ($r->volume_penjualan ?? $r->volume_terjual ?? 0));
+            $tipeSkema = $system->tipe_skema ?? $shop->getDefaultPayrollScheme();
+            $ratePerLiter = ($system->ada_rate_per_liter ?? true) ? (float) ($system->rate_per_liter ?: $payrollRate) : 0.0;
 
             foreach ($operators as $op) {
                 // Alokasikan volume proporsional per operator
                 $opVolume = $operators->count() > 0 ? ($totalVolShop / $operators->count()) : 0;
-                $komisiLiter = $opVolume * $payrollRate;
 
-                // Ambil Gaji Pokok & Transport
-                $gajiPokok = (float) ($system->gaji_pokok ?? 1500000);
-                $uangTransport = (float) ($system->uang_transport ?? 150000);
+                // 1. Komisi Liter (berlaku di komisi_murni & hibrid)
+                $komisiLiter = in_array($tipeSkema, ['komisi_murni', 'hibrid']) ? ($opVolume * $ratePerLiter) : 0.0;
+
+                // 2. Gaji Pokok (berlaku di gaji_pokok_murni & hibrid)
+                $gajiPokok = in_array($tipeSkema, ['gaji_pokok_murni', 'hibrid']) ? (float) ($system->nominal_gaji_pokok ?? 1500000) : 0.0;
+
+                // 3. Transport
+                $uangTransport = (float) ($system->rate_transport_per_hari ?? 0);
 
                 // Potongan Kasbon Pinjaman Operator (EmployeeLoan)
                 $loanDeduction = (float) EmployeeLoan::where('operator_id', $op->id)

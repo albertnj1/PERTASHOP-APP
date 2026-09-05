@@ -129,6 +129,9 @@
         <span class="status-badge {{ $payroll->isFinal() ? 'status-final' : 'status-draft' }}">
           {{ $payroll->isFinal() ? '✓ Final' : '⚠ Draft' }}
         </span>
+        <span style="display:inline-block; margin-left:6px; background:#e2e8f0; color:#1e293b; padding:2px 8px; border-radius:10px; font-size:9px; font-weight:bold;">
+          {{ $payroll->payrollSystem->tipe_skema_label }}
+        </span>
       </div>
     </div>
     <div class="period-badge">
@@ -154,7 +157,9 @@
     <div>
       <div class="label">Rate/Liter</div>
       <div class="value">
-        @if($payroll->payrollSystem->ada_rate_per_liter)
+        @if($payroll->payrollSystem->isGajiPokokMurni())
+          <span style="color:#888;font-size:10px;">— (Gaji Pokok Murni)</span>
+        @elseif($payroll->payrollSystem->ada_rate_per_liter)
           Rp {{ number_format($payroll->payrollSystem->rate_per_liter, 0, ',', '.') }}
         @else
           —
@@ -176,16 +181,16 @@
       <tr>
         <td class="label" colspan="2" style="background:#e8f5e9;font-weight:bold;font-size:10px;">+ PENDAPATAN</td>
       </tr>
-      @if($detail->gaji_pokok > 0)
+      @if(!$payroll->payrollSystem->isKomisiMurni() && $detail->gaji_pokok > 0)
       <tr>
         <td class="label">Gaji Pokok</td>
         <td class="amount">Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}</td>
       </tr>
       @endif
-      @if($payroll->payrollSystem->ada_rate_per_liter || $detail->gaji_variable > 0)
+      @if(!$payroll->payrollSystem->isGajiPokokMurni() && ($payroll->payrollSystem->ada_rate_per_liter || $detail->gaji_variable > 0))
       <tr>
         <td class="label">
-          Gaji Variable
+          Komisi Penjualan Liter
           @if($payroll->payrollSystem->ada_rate_per_liter)
           <span style="color:#888;font-style:italic;">
             ({{ number_format($detail->liter_bagian, 2, ',', '.') }} L × Rp {{ number_format($payroll->payrollSystem->rate_per_liter, 0, ',', '.') }})
@@ -193,6 +198,12 @@
           @endif
         </td>
         <td class="amount">Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</td>
+      </tr>
+      @endif
+      @if($detail->uang_transport > 0)
+      <tr>
+        <td class="label">Uang Transport ({{ $detail->total_hari_kerja }} hari hadir)</td>
+        <td class="amount">Rp {{ number_format($detail->uang_transport, 0, ',', '.') }}</td>
       </tr>
       @endif
       @if($detail->lembur > 0)

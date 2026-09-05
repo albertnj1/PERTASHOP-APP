@@ -97,6 +97,7 @@ Route::middleware('auth')->group(function () {
         // Sistem Penggajian: halaman index bisa dilihat investor (Tab Perbandingan Toko)
         Route::get('payroll-systems', [PayrollSystemController::class, 'index'])->name('payroll-systems.index');
         Route::get('payroll-systems/by-shop/{shop}', [PayrollSystemController::class, 'byShop'])->name('payroll-systems.by-shop');
+        Route::get('payroll-systems/defaults-by-shop/{shop}', [PayrollSystemController::class, 'defaultsByShop'])->name('payroll-systems.defaults-by-shop');
 
         // Arsip Upload File Excel Backdate (per Pertashop Container) & Engine v2
         Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');

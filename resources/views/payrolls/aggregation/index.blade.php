@@ -156,9 +156,19 @@
             👤 {{ $d->operator->nama ?? 'Operator' }}
             <div class="text-muted" style="font-size: 11px; font-weight: normal;">ID: {{ $d->operator->kode_operator ?? '-' }}</div>
           </td>
-          <td class="text-right">Rp {{ number_format(floatval($d->gaji_pokok), 0, ',', '.') }}</td>
+          <td class="text-right">
+            @if(floatval($d->gaji_pokok) > 0)
+              Rp {{ number_format(floatval($d->gaji_pokok), 0, ',', '.') }}
+            @else
+              <span class="text-muted">—</span>
+            @endif
+          </td>
           <td class="text-right" style="color: #0284c7; font-weight: 600;">
-            Rp {{ number_format(floatval($d->total_bonus), 0, ',', '.') }}
+            @if(floatval($d->total_bonus) > 0)
+              Rp {{ number_format(floatval($d->total_bonus), 0, ',', '.') }}
+            @else
+              <span class="text-muted">—</span>
+            @endif
           </td>
           <td class="text-right">Rp {{ number_format(floatval($d->uang_transport), 0, ',', '.') }}</td>
           <td class="text-right" style="font-weight: 600;">Rp {{ number_format(floatval($d->gaji_kotor), 0, ',', '.') }}</td>

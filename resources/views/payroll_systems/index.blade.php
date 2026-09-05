@@ -199,6 +199,7 @@
           <tr style="background: #f8fafc;">
             <th style="font-size: 11px; text-transform: uppercase; color: #475569; padding: 12px 16px;">Pertashop</th>
             <th style="font-size: 11px; text-transform: uppercase; color: #475569;">Nama Pengaturan</th>
+            <th style="font-size: 11px; text-transform: uppercase; color: #475569;">Skema Gaji</th>
             <th style="font-size: 11px; text-transform: uppercase; color: #475569;">Rate/Liter</th>
             <th style="font-size: 11px; text-transform: uppercase; color: #475569;">Gaji Pokok</th>
             <th style="font-size: 11px; text-transform: uppercase; color: #475569;">Transport/Hari</th>
@@ -217,14 +218,32 @@
             </td>
             <td style="font-size: 13px; font-weight: 600;">{{ $ps->nama_sistem }}</td>
             <td style="font-size: 13px;">
-              @if($ps->ada_rate_per_liter)
-                Rp {{ number_format($ps->rate_per_liter, 0, ',', '.') }}
+              @php
+                $skema = $ps->tipe_skema ?? ($ps->ada_gaji_pokok && $ps->ada_rate_per_liter ? 'hibrid' : ($ps->ada_gaji_pokok ? 'gaji_pokok_murni' : 'komisi_murni'));
+              @endphp
+              @if($skema === 'komisi_murni')
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; padding: 5px 10px; border-radius: 6px; font-weight: 700;">
+                  <i class="fas fa-gas-pump mr-1"></i> Komisi Murni
+                </span>
+              @elseif($skema === 'gaji_pokok_murni')
+                <span class="badge" style="background: #f3e8ff; color: #6b21a8; padding: 5px 10px; border-radius: 6px; font-weight: 700;">
+                  <i class="fas fa-money-check-alt mr-1"></i> Gaji Pokok Murni
+                </span>
+              @else
+                <span class="badge" style="background: #dcfce7; color: #166534; padding: 5px 10px; border-radius: 6px; font-weight: 700;">
+                  <i class="fas fa-layer-group mr-1"></i> Hibrid
+                </span>
+              @endif
+            </td>
+            <td style="font-size: 13px;">
+              @if($ps->ada_rate_per_liter || in_array($ps->tipe_skema, ['komisi_murni', 'hibrid']))
+                Rp {{ number_format($ps->rate_per_liter, 0, ',', '.') }}/L
               @else
                 <span class="text-muted">—</span>
               @endif
             </td>
             <td style="font-size: 13px;">
-              @if($ps->ada_gaji_pokok)
+              @if($ps->ada_gaji_pokok || in_array($ps->tipe_skema, ['gaji_pokok_murni', 'hibrid']))
                 Rp {{ number_format($ps->nominal_gaji_pokok, 0, ',', '.') }}
               @else
                 <span class="text-muted">—</span>
@@ -267,7 +286,8 @@
           </tr>
           @empty
           <tr>
-            <td colspan="10" class="text-center text-muted py-5" style="font-size: 13px;">
+            <td colspan="11" class="text-center text-muted py-5" style="font-size: 13px;">
+
               <div style="width: 48px; height: 48px; border-radius: 12px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: #94a3b8; font-size: 20px;">
                 <i class="fas fa-receipt"></i>
               </div>

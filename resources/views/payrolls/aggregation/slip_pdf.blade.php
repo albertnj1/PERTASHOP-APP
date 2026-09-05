@@ -35,18 +35,24 @@
   </div>
 
   <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 8px;">PENERIMAAN (GAJI GROSS)</div>
+  @if(floatval($detail->gaji_pokok) > 0)
   <div class="row-item">
-    <span>Gaji Pokok / Insentif Hadir</span>
+    <span>Gaji Pokok</span>
     <strong>Rp {{ number_format(floatval($detail->gaji_pokok), 0, ',', '.') }}</strong>
   </div>
+  @endif
+  @if(floatval($detail->total_bonus) > 0)
   <div class="row-item">
     <span>Insentif Komisi Volume Liter</span>
     <strong style="color: #0284c7;">Rp {{ number_format(floatval($detail->total_bonus), 0, ',', '.') }}</strong>
   </div>
+  @endif
+  @if(floatval($detail->uang_transport) > 0)
   <div class="row-item">
     <span>Uang Transport</span>
     <strong>Rp {{ number_format(floatval($detail->uang_transport), 0, ',', '.') }}</strong>
   </div>
+  @endif
 
   <div style="font-size: 12px; font-weight: 700; color: #dc2626; text-transform: uppercase; margin-top: 20px; margin-bottom: 8px;">POTONGAN</div>
   <div class="row-item">

@@ -101,14 +101,14 @@
         <div class="card summary-card">
           <div class="card-body py-2">
             <div class="section-label">Sistem Penggajian</div>
-            <div class="font-weight-bold">{{ $payroll->payrollSystem->nama_sistem }}</div>
-            <div class="small text-muted">
-              @if($payroll->payrollSystem->ada_rate_per_liter)
-                Rate: <strong>Rp {{ number_format($payroll->payrollSystem->rate_per_liter, 0, ',', '.') }}/L</strong>
-              @else
-                Rate per Liter: <strong>Nonaktif</strong>
-              @endif
-              • {{ $payroll->payrollSystem->metode_split_label }}
+            <div class="font-weight-bold d-flex align-items-center flex-wrap" style="gap: 6px;">
+              <span>{{ $payroll->payrollSystem->nama_sistem }}</span>
+              <span class="badge" style="font-size: 10px; background: {{ $payroll->payrollSystem->tipe_skema_badge_color }}; color: #fff; border-radius: 6px; padding: 3px 6px;">
+                {{ $payroll->payrollSystem->tipe_skema_label }}
+              </span>
+            </div>
+            <div class="small text-muted mt-1">
+              {{ $payroll->payrollSystem->formula_description }} • {{ $payroll->payrollSystem->metode_split_label }}
             </div>
           </div>
         </div>
@@ -171,7 +171,7 @@
 
               {{-- Gaji Pokok (readonly) --}}
               <td class="text-right">
-                @if($detail->gaji_pokok > 0)
+                @if(!$payroll->payrollSystem->isKomisiMurni() && $detail->gaji_pokok > 0)
                   Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}
                 @else
                   <span class="text-muted">—</span>
@@ -180,7 +180,11 @@
 
               {{-- Gaji Variable (readonly) --}}
               <td class="text-right">
-                <strong>Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</strong>
+                @if(!$payroll->payrollSystem->isGajiPokokMurni() && ($detail->gaji_variable > 0 || $payroll->payrollSystem->ada_rate_per_liter))
+                  <strong>Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</strong>
+                @else
+                  <span class="text-muted">—</span>
+                @endif
               </td>
 
               {{-- Lembur (editable) --}}
