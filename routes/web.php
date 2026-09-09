@@ -48,6 +48,9 @@ Route::match(['get', 'post', 'delete'], 'logout', [LoginController::class, 'logo
 Route::middleware('auth')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
+    Route::get('daily-reports/export-excel', [DailyReportController::class, 'exportExcel'])->name('daily-reports.export-excel');
+    Route::get('daily-reports/export-pdf', [DailyReportController::class, 'exportPdf'])->name('daily-reports.export-pdf');
+
     Route::resources([
         'incomings' => IncomingController::class,
         'test-pumps' => TestPumpController::class,
@@ -114,6 +117,7 @@ Route::middleware('auth')->group(function () {
         Route::get('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'show'])->name('backdate-excel-files.show');
         Route::get('backdate-excel-files/{backdateExcelFile}/stream', [\App\Http\Controllers\BackdateExcelFileController::class, 'stream'])->name('backdate-excel-files.stream');
         Route::get('backdate-excel-files/{backdateExcelFile}/download', [\App\Http\Controllers\BackdateExcelFileController::class, 'download'])->name('backdate-excel-files.download');
+        Route::get('backdate-excel-files/{fileId}/download-original', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadOriginalBackdateExcel'])->name('backdate-excel-files.download-original');
         Route::delete('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'destroy'])->name('backdate-excel-files.destroy');
 
         // Laporan Keuangan & Kasflow

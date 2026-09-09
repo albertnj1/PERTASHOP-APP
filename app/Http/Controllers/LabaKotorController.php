@@ -15,8 +15,14 @@ use App\Models\DailyReportPeriod;
 
 class LabaKotorController extends Controller
 {
-    public static function getLabaKotor($shop_id = 1, $year_month = null)
+    public static function getLabaKotor($shop_id = null, $year_month = null)
     {
+        $shop = Shop::find($shop_id) ?? Shop::first();
+        if (!$shop) {
+            return collect();
+        }
+        $shop_id = $shop->id;
+
         if ($year_month == null) {
             $year_month = Carbon::now()->format('Y-m');
         }
@@ -75,21 +81,21 @@ class LabaKotorController extends Controller
 
         $reports = [];
         $i = 0;
-        $stok_awal = Shop::find($shop_id)->kapasitas;
+        $stok_awal = $shop->kapasitas ?? 3500;
 
         foreach ($segments_group as $price_id => $group_segments) {
             $harga = Price::find($price_id);
-            $harga_beli = $harga->harga_beli;
-            $harga_jual = $harga->harga_jual;
+            $harga_beli = $harga ? $harga->harga_beli : 0;
+            $harga_jual = $harga ? $harga->harga_jual : 0;
 
             $sisa_stok_akhir = collect($group_segments)->whereNotNull('stok_akhir_aktual')->last() ? collect($group_segments)->whereNotNull('stok_akhir_aktual')->last()['stok_akhir_aktual'] : $stok_awal;
             $stik_akhir = collect($group_segments)->whereNotNull('stik_akhir')->last() ? collect($group_segments)->whereNotNull('stik_akhir')->last()['stik_akhir'] : 0;
 
             if ($i == 0) {
                 $daily_report_sebelumnya = DailyReport::where('shop_id', $shop_id)->where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first();
-                $stok_awal = $daily_report_sebelumnya ? $daily_report_sebelumnya->stok_akhir_aktual : Shop::find($shop_id)->kapasitas;
+                $stok_awal = $daily_report_sebelumnya ? $daily_report_sebelumnya->stok_akhir_aktual : ($shop->kapasitas ?? 3500);
                 
-                $stok_awal_harga_beli = $daily_report_sebelumnya ? $daily_report_sebelumnya->price->harga_beli : (Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first()->harga_beli : $harga_beli);
+                $stok_awal_harga_beli = $daily_report_sebelumnya ? ($daily_report_sebelumnya->price ? $daily_report_sebelumnya->price->harga_beli : $harga_beli) : (Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first()->harga_beli : $harga_beli);
             } else {
                 $stok_awal_harga_beli = Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first()->harga_beli : $harga_beli;
             }

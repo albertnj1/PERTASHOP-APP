@@ -39,6 +39,11 @@ class BackdateExcelFile extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function dailyReports()
+    {
+        return $this->hasMany(DailyReport::class, 'backdate_file_id');
+    }
+
     public function getFormattedPeriodAttribute()
     {
         if (empty($this->bulan_tahun)) {

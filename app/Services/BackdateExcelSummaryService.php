@@ -16,6 +16,12 @@ class BackdateExcelSummaryService
      */
     public static function cleanNumeric($value): float
     {
+        if (is_array($value)) {
+            $value = reset($value);
+            if (is_array($value)) {
+                $value = reset($value);
+            }
+        }
         if (is_numeric($value)) {
             return (float) $value;
         }

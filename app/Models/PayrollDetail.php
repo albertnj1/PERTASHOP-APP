@@ -45,6 +45,14 @@ class PayrollDetail extends Model
     }
 
     /**
+     * Alias accessor untuk potongan_tidak_masuk / potongan alpha.
+     */
+    public function getPotonganAlphaAttribute(): float
+    {
+        return floatval($this->potongan_tidak_masuk);
+    }
+
+    /**
      * Total Gaji Kotor = Gaji Pokok + Gaji Variable + Uang Transport + Lembur + Lembur HR + Bonus + THR + Item Tambahan
      * Uang Transport dihitung per hari kerja (bukan flat bulanan).
      */

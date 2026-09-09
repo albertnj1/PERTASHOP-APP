@@ -165,9 +165,10 @@ class BackdateExcelFileController extends Controller
                             'user_id'           => Auth::id(),
                         ]);
 
-                        // Auto-sync into MonthlyReport and CapitalRecap
+                        // Auto-sync into MonthlyReport, CapitalRecap, and DailyReport
                         try {
                             \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                            \App\Services\BackdateDailyReportIngestionService::ingest($bef);
                         } catch (\Throwable $e) {
                             \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
                         }
@@ -200,9 +201,10 @@ class BackdateExcelFileController extends Controller
                             'user_id'           => Auth::id(),
                         ]);
 
-                        // Auto-sync into MonthlyReport and CapitalRecap
+                        // Auto-sync into MonthlyReport, CapitalRecap, and DailyReport
                         try {
                             \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                            \App\Services\BackdateDailyReportIngestionService::ingest($bef);
                         } catch (\Throwable $e) {
                             \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
                         }
@@ -238,16 +240,19 @@ class BackdateExcelFileController extends Controller
                 'user_id'           => Auth::id(),
             ]);
 
-            // Auto-sync into MonthlyReport and CapitalRecap
+            // Auto-sync into MonthlyReport, CapitalRecap, and DailyReport
+            $importedRows = 0;
             try {
                 \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                $importedRows = \App\Services\BackdateDailyReportIngestionService::ingest($bef);
             } catch (\Throwable $e) {
                 \Log::warning("Auto-sync backdate excel failed: " . $e->getMessage());
             }
         }
 
+        $rowMsg = $importedRows > 0 ? " serta {$importedRows} baris operasional harian berhasil dipetakan ke Laporan Harian." : ".";
         return redirect()->route('backdate-excel-files.index')
-            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} berhasil disimpan dan disinkronkan secara otomatis ke Laporan Bulanan & Rekapitulasi Nilai Modal.");
+            ->with('success', "File Excel Backdate '{$originalFilename}' untuk toko {$shop->nama} berhasil disimpan dan disinkronkan ke Laporan Bulanan{$rowMsg}");
     }
 
     private function detectYearRangeFromFilename(string $filename): string
@@ -268,15 +273,22 @@ class BackdateExcelFileController extends Controller
         if (empty($filePath)) {
             return '';
         }
-        $storagePath = storage_path('app/public/' . $filePath);
-        if (file_exists($storagePath) && is_file($storagePath)) {
-            return $storagePath;
+        $candidates = [
+            storage_path('app/public/' . $filePath),
+            public_path('storage/' . $filePath),
+            storage_path('app/' . $filePath),
+            base_path('storage/app/public/' . $filePath),
+            base_path('storage/app/' . $filePath),
+        ];
+        foreach ($candidates as $cand) {
+            if (file_exists($cand) && is_file($cand)) {
+                return $cand;
+            }
         }
-        $publicPath = public_path('storage/' . $filePath);
-        if (file_exists($publicPath) && is_file($publicPath)) {
-            return $publicPath;
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
+            return \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
         }
-        return $storagePath;
+        return storage_path('app/public/' . $filePath);
     }
 
     /**
@@ -323,7 +335,9 @@ class BackdateExcelFileController extends Controller
 
         try {
             $report = \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($backdateExcelFile);
-            return redirect()->back()->with('success', "Berkas '{$backdateExcelFile->original_filename}' berhasil disinkronkan ke Laporan Bulanan (Periode: {$backdateExcelFile->formatted_period}) dan Rekapitulasi Nilai Modal.");
+            $importedRows = \App\Services\BackdateDailyReportIngestionService::ingest($backdateExcelFile);
+            $dailyMsg = $importedRows > 0 ? " dan {$importedRows} baris data operasional telah dipetakan ke Laporan Harian." : ".";
+            return redirect()->back()->with('success', "Berkas '{$backdateExcelFile->original_filename}' berhasil disinkronkan ke Laporan Bulanan (Periode: {$backdateExcelFile->formatted_period}){$dailyMsg}");
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', "Gagal melakukan sinkronisasi: " . $e->getMessage());
         }
@@ -361,32 +375,42 @@ class BackdateExcelFileController extends Controller
     }
 
     /**
-     * Unduh File Excel Asli
+     * Unduh Berkas Fisik Excel Asli Mentah (Pure Binary File Download)
      */
     public function download(BackdateExcelFile $backdateExcelFile)
     {
         $this->authorizeShopAccess($backdateExcelFile->shop_id);
 
-        $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
+        $filePath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
 
-        if (!file_exists($fullPath) || !is_file($fullPath)) {
-            return redirect()->back()->with('error', 'Berkas fisik tidak ditemukan di server.');
+        if (!file_exists($filePath) || !is_file($filePath)) {
+            abort(404, 'Berkas asli tidak ditemukan di server.');
         }
 
-        $ext = strtolower(pathinfo($backdateExcelFile->original_filename, PATHINFO_EXTENSION));
-        $contentType = ($ext === 'xls')
-            ? 'application/vnd.ms-excel'
-            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $filename = $backdateExcelFile->original_filename ?: basename($filePath);
 
-        return response()->streamDownload(function () use ($fullPath) {
-            $stream = fopen($fullPath, 'rb');
-            if ($stream) {
-                fpassthru($stream);
-                fclose($stream);
+        // Bersihkan seluruh output buffer saat request web agar binary xlsx/xls tidak tercemar whitespace/header korup
+        if (!app()->runningInConsole()) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
             }
-        }, $backdateExcelFile->original_filename, [
-            'Content-Type' => $contentType,
+        }
+
+        // Unduh berkas fisik aslinya secara langsung tanpa di-generate ulang
+        return response()->download($filePath, $filename, [
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma'        => 'no-cache',
+            'Expires'       => '0',
         ]);
+    }
+
+    /**
+     * Unduh berkas fisik aslinya secara langsung berdasarkan ID file (kompatibilitas rute)
+     */
+    public function downloadOriginalBackdateExcel($fileId)
+    {
+        $backdateFile = BackdateExcelFile::findOrFail($fileId);
+        return $this->download($backdateFile);
     }
 
     /**
@@ -719,6 +743,7 @@ class BackdateExcelFileController extends Controller
                 // Auto-sync ke MonthlyReport & CapitalRecap
                 try {
                     \App\Services\MonthlyReportCalculationService::syncFromBackdateExcel($bef);
+                    \App\Services\BackdateDailyReportIngestionService::ingest($bef);
                 } catch (\Throwable $e) {
                     \Log::warning("Auto-sync backdate v2 failed for shop {$shopId}: " . $e->getMessage());
                 }

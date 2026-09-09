@@ -11,13 +11,13 @@ use App\Models\Price;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\PayrollCalculationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class PayrollSchemeCalculationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected User $user;
     protected Corporation $corp;
@@ -58,14 +58,17 @@ class PayrollSchemeCalculationTest extends TestCase
             'effective_at' => '2026-01-01 00:00:00',
         ]);
 
+        $rupiah = $volume * 14000;
+
         return DailyReport::create([
             'shop_id'                   => $shop->id,
             'operator_id'               => $operator->id,
             'price_id'                  => $price->id,
             'volume_penjualan_aktual'   => $volume,
             'volume_penjualan_teoritis' => $volume,
-            'rupiah_penjualan'          => $volume * 14000,
-            'disetorkan'                => $volume * 14000,
+            'rupiah_penjualan'          => $rupiah,
+            'disetorkan'                => $rupiah,
+            'setor_tunai'               => $rupiah,
             'losses_gain'               => 0,
             'selisih_setoran'           => 0,
             'totalisator_awal'          => 1000,
@@ -287,4 +290,190 @@ class PayrollSchemeCalculationTest extends TestCase
         $this->assertEquals(400000, (float) $detail->gaji_variable, '2000 liter * Rp 200 = Rp 400.000');
         $this->assertEquals(1900000, (float) $detail->take_home_pay, 'THP = Rp 1.500.000 + Rp 400.000 = Rp 1.900.000');
     }
+
+    /**
+     * Uji kalkulasi pembagian liter (split shift):
+     * Memastikan liter_bagian mengambil data penjualan riil dari hari/shift di mana
+     * operator benar-benar bertugas, bukan membagi rata total penjualan bulanan.
+     */
+    public function test_split_shift_distributes_liters_by_actual_working_days_not_flat_monthly(): void
+    {
+        $shop = $this->createShop('Kalitapen Shift Test', '4P.53119-ST');
+
+        $user1 = User::create([
+            'name'     => 'Operator 1 Shift',
+            'email'    => 'op1.shift@pertashop.com',
+            'role'     => 'operator',
+            'password' => Hash::make('password123'),
+        ]);
+        $op1 = Operator::create(['shop_id' => $shop->id, 'user_id' => $user1->id]);
+
+        $user2 = User::create([
+            'name'     => 'Operator 2 Shift',
+            'email'    => 'op2.shift@pertashop.com',
+            'role'     => 'operator',
+            'password' => Hash::make('password123'),
+        ]);
+        $op2 = Operator::create(['shop_id' => $shop->id, 'user_id' => $user2->id]);
+
+        $payrollSystem = PayrollSystem::create([
+            'shop_id'                 => $shop->id,
+            'nama_sistem'             => 'Sistem Split Test',
+            'tipe_skema'              => 'komisi_murni',
+            'rate_per_liter'          => 200,
+            'perlakuan_losses_gain'   => 'abaikan_losses_gain',
+            'metode_split'            => 'per_hari_penuh',
+            'aktif'                   => true,
+        ]);
+
+        // Hari 1: 1000 liter, hanya Operator 1 yang bertugas
+        $price = Price::create([
+            'shop_id'      => $shop->id,
+            'harga_beli'   => 12000,
+            'harga_jual'   => 14000,
+            'effective_at' => '2026-01-01 00:00:00',
+        ]);
+
+        DailyReport::create([
+            'shop_id'                   => $shop->id,
+            'operator_id'               => $op1->id,
+            'price_id'                  => $price->id,
+            'volume_penjualan_aktual'   => 1000,
+            'volume_penjualan_teoritis' => 1000,
+            'rupiah_penjualan'          => 14000000,
+            'disetorkan'                => 14000000,
+            'losses_gain'               => 0,
+            'selisih_setoran'           => 0,
+            'totalisator_awal'          => 1000,
+            'totalisator_akhir'         => 2000,
+            'stik_awal'                 => 100,
+            'stik_akhir'                => 100,
+            'created_at'                => '2026-06-10 10:00:00',
+        ]);
+
+        \App\Models\ShiftSchedule::create([
+            'shop_id'     => $shop->id,
+            'operator_id' => $op1->id,
+            'tanggal'     => '2026-06-10',
+            'shift_ke'    => 1,
+            'status'      => 'hadir',
+        ]);
+
+        // Hari 2: 1000 liter, Operator 1 (Shift 1) dan Operator 2 (Shift 2) bertugas bersama
+        DailyReport::create([
+            'shop_id'                   => $shop->id,
+            'operator_id'               => $op1->id,
+            'price_id'                  => $price->id,
+            'volume_penjualan_aktual'   => 1000,
+            'volume_penjualan_teoritis' => 1000,
+            'rupiah_penjualan'          => 14000000,
+            'disetorkan'                => 14000000,
+            'losses_gain'               => 0,
+            'selisih_setoran'           => 0,
+            'totalisator_awal'          => 2000,
+            'totalisator_akhir'         => 3000,
+            'stik_awal'                 => 100,
+            'stik_akhir'                => 100,
+            'created_at'                => '2026-06-11 10:00:00',
+        ]);
+
+        \App\Models\ShiftSchedule::create([
+            'shop_id'     => $shop->id,
+            'operator_id' => $op1->id,
+            'tanggal'     => '2026-06-11',
+            'shift_ke'    => 1,
+            'status'      => 'hadir',
+        ]);
+        \App\Models\ShiftSchedule::create([
+            'shop_id'     => $shop->id,
+            'operator_id' => $op2->id,
+            'tanggal'     => '2026-06-11',
+            'shift_ke'    => 2,
+            'status'      => 'hadir',
+        ]);
+
+        $service = app(PayrollCalculationService::class);
+        $period = $service->generate($shop->id, 6, 2026, $this->user->id);
+
+        $detailOp1 = $period->details->where('operator_id', $op1->id)->first();
+        $detailOp2 = $period->details->where('operator_id', $op2->id)->first();
+
+        // Operator 1: 1000 L (Hari 1) + 500 L (Hari 2) = 1500 L -> Komisi Rp 300.000
+        $this->assertEquals(1500, (float) $detailOp1->liter_bagian);
+        $this->assertEquals(300000, (float) $detailOp1->gaji_variable);
+
+        // Operator 2: 0 L (Hari 1) + 500 L (Hari 2) = 500 L -> Komisi Rp 100.000
+        $this->assertEquals(500, (float) $detailOp2->liter_bagian);
+        $this->assertEquals(100000, (float) $detailOp2->gaji_variable);
+    }
+
+    /**
+     * Uji penanganan potongan alpha prorata & uang transport di skema Gaji Pokok Murni (Gumelar):
+     * - Potongan Alpha Prorata: (Gaji_Pokok / Standar_Hari_Kerja) * Hari_Alpha
+     * - Uang Transport dihitung dari hari masuk kerja dan TIDAK dimasukkan ke basis prorata alpha.
+     */
+    public function test_potongan_alpha_prorata_and_transport_in_gaji_pokok_murni(): void
+    {
+        $shop = $this->createShop('Gumelar Alpha Test', '4P.53158-AT');
+
+        $user = User::create([
+            'name'     => 'Operator Gumelar Alpha',
+            'email'    => 'op.gumelar.alpha@pertashop.com',
+            'role'     => 'operator',
+            'password' => Hash::make('password123'),
+        ]);
+        $operator = Operator::create(['shop_id' => $shop->id, 'user_id' => $user->id]);
+
+        $payrollSystem = PayrollSystem::create([
+            'shop_id'                 => $shop->id,
+            'nama_sistem'             => 'Sistem Gumelar Prorata',
+            'tipe_skema'              => 'gaji_pokok_murni',
+            'nominal_gaji_pokok'      => 2600000, // Rp 2.600.000
+            'standar_hari_kerja'      => 26,      // Rate harian = 2.600.000 / 26 = Rp 100.000/hari
+            'metode_potongan_alpha'   => 'prorata_gaji_pokok',
+            'rate_transport_per_hari' => 20000,   // Rp 20.000/hari kerja
+            'perlakuan_losses_gain'   => 'abaikan_losses_gain',
+            'metode_split'            => 'per_hari_penuh',
+            'aktif'                   => true,
+        ]);
+
+        // Buat 1 laporan harian kehadiran (1 hari kerja)
+        $this->createDailyReport($shop, $operator, 500);
+
+        // 2 hari alpha via ShiftSchedule (otomatis men-trigger kalkulasi AttendanceRecap)
+        \App\Models\ShiftSchedule::create([
+            'shop_id'     => $shop->id,
+            'operator_id' => $operator->id,
+            'tanggal'     => '2026-06-01',
+            'shift_ke'    => 1,
+            'status'      => 'alpha',
+        ]);
+        \App\Models\ShiftSchedule::create([
+            'shop_id'     => $shop->id,
+            'operator_id' => $operator->id,
+            'tanggal'     => '2026-06-02',
+            'shift_ke'    => 1,
+            'status'      => 'alpha',
+        ]);
+
+        $service = app(PayrollCalculationService::class);
+        $period = $service->generate($shop->id, 6, 2026, $this->user->id);
+
+        $detail = $period->details->first();
+        $this->assertNotNull($detail);
+
+        // Gaji pokok Rp 2.600.000
+        $this->assertEquals(2600000, (float) $detail->gaji_pokok);
+        $this->assertEquals(0, (float) $detail->gaji_variable);
+
+        // Uang transport = 1 hari kerja (dari 1 daily report yang dihitung) * 20.000 = Rp 20.000
+        $this->assertEquals(20000, (float) $detail->uang_transport);
+
+        // Potongan Alpha Prorata: 2 hari * (2.600.000 / 26) = 2 * Rp 100.000 = Rp 200.000
+        $this->assertEquals(200000, (float) $detail->potongan_alpha);
+
+        // THP = (2.600.000 + 20.000) - 200.000 = Rp 2.420.000
+        $this->assertEquals(2420000, (float) $detail->take_home_pay);
+    }
 }
+

@@ -30,7 +30,8 @@ class DashboardController extends Controller
             return response()->json($dashboardData);
         }
 
-        $reports = LabaKotorController::getLabaKotor(1);
+        $targetShopId = $shop_id ?? Shop::first()?->id;
+        $reports = $targetShopId ? LabaKotorController::getLabaKotor($targetShopId) : collect();
 
         $shops = Shop::all();
         if (Auth::user()->role == 'investor') {

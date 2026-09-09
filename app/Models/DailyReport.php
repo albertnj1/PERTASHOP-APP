@@ -84,6 +84,11 @@ class DailyReport extends Model
         return $this->belongsTo(ExcelUpload::class, 'excel_upload_id');
     }
 
+    public function backdateFile()
+    {
+        return $this->belongsTo(BackdateExcelFile::class, 'backdate_file_id');
+    }
+
     public function periods()
     {
         return $this->hasMany(DailyReportPeriod::class);
@@ -132,6 +137,9 @@ class DailyReport extends Model
 
     public function getStikAwalAttribute()
     {
+        if (isset($this->attributes['stik_awal']) && $this->attributes['stik_awal'] !== null) {
+            return floatval($this->attributes['stik_awal']);
+        }
         return  $this->latestByShop() ?  $this->latestByShop()->stik_akhir : $this->shop->stik_awal;
     }
 
@@ -299,7 +307,11 @@ class DailyReport extends Model
             $deposits = $this->relationLoaded('deposits') ? $this->deposits : $this->deposits()->with('category')->get();
             return floatval($deposits->filter(fn($d) => $d->category && $d->category->termasuk_dalam_setoran)->sum('jumlah'));
         }
-        return floatval($this->setor_tunai ?? 0) + floatval($this->setor_qris ?? 0) + floatval($this->setor_transfer ?? 0) + floatval($this->setor_kolektan ?? 0);
+        $sum = floatval($this->setor_tunai ?? 0) + floatval($this->setor_qris ?? 0) + floatval($this->setor_transfer ?? 0) + floatval($this->setor_kolektan ?? 0);
+        if ($sum > 0) {
+            return $sum;
+        }
+        return floatval($this->attributes['disetorkan'] ?? 0);
     }
 
     public function getSelisihSetoranAttribute()
