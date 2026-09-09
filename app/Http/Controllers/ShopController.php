@@ -85,7 +85,9 @@ class ShopController extends Controller
             'tanggal_mulai_operasional' => 'nullable|date',
         ]);
 
-        Shop::create($validated);
+        $validated['total_investasi'] = $validated['modal_awal'];
+        $shop = Shop::create($validated);
+        $shop->syncInvestorNominalsFromModal();
 
         return redirect()->route('shops.index')->with('success', 'Data berhasil ditambahkan');
     }
@@ -125,7 +127,9 @@ class ShopController extends Controller
             'tanggal_mulai_operasional' => 'nullable|date',
         ]);
 
+        $validated['total_investasi'] = $validated['modal_awal'];
         $shop->update($validated);
+        $shop->syncInvestorNominalsFromModal();
 
         return redirect()->route('shops.index')->with('success', 'Data berhasil diubah');
     }
@@ -192,13 +196,21 @@ class ShopController extends Controller
     {
         $request->validate([
             'investor_id' => 'required',
-            'persentase' => 'required'
+            'persentase'  => 'required|numeric|min:0',
         ]);
 
-        //attach investors to shop
+        $modalAwal = floatval($shop->modal_awal);
+        $nominal = round(($request->persentase / 100) * $modalAwal, 2);
 
+        $shop->investors()->attach([
+            $request->investor_id => [
+                'persentase'     => $request->persentase,
+                'nominal'        => $nominal,
+                'investasi_awal' => $nominal,
+            ]
+        ]);
 
-        $shop->investors()->attach([$request->investor_id => ['persentase' => $request->persentase]]);
+        $shop->syncTotalInvestasiFromInvestors();
 
         return response()->json(['message' => 'Investor berhasil ditambahkan ke Pertashop.']);
     }
@@ -206,21 +218,28 @@ class ShopController extends Controller
     public function investorUpdate(Request $request, Shop $shop)
     {
         $request->validate([
-            'id' => 'required',
-            'persentase' => 'required'
+            'id'         => 'required',
+            'persentase' => 'required|numeric|min:0',
         ]);
 
-        $shop->investors()->detach($request->id);
+        $modalAwal = floatval($shop->modal_awal);
+        $nominal = round(($request->persentase / 100) * $modalAwal, 2);
 
-        $shop->investors()->attach([$request->id => ['persentase' => $request->persentase]]);
+        $shop->investors()->updateExistingPivot($request->id, [
+            'persentase'     => $request->persentase,
+            'nominal'        => $nominal,
+            'investasi_awal' => $nominal,
+        ]);
+
+        $shop->syncTotalInvestasiFromInvestors();
 
         return response()->json(['message' => 'Persentase investasi berhasil diupdate.']);
     }
 
     public function investorDestroy(Request $request, Shop $shop)
     {
-
         $shop->investors()->detach($request->id);
+        $shop->syncTotalInvestasiFromInvestors();
 
         return response()->json(['message' => 'Investor berhasil dihapus dari Pertashop.']);
     }

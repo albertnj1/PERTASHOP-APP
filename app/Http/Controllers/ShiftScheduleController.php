@@ -30,6 +30,10 @@ class ShiftScheduleController extends Controller
         $selectedShopId = $request->input('shop_id', $shops->first()?->id);
         $selectedMonth  = $request->input('bulan', Carbon::now()->format('Y-m'));
 
+        $selectedShop = Shop::find($selectedShopId) ?? $shops->first();
+        $isShift      = $selectedShop?->isShiftBased() ?? false;
+        $shiftConfig  = $selectedShop?->getShiftConfig() ?? [];
+
         [$year, $month] = explode('-', $selectedMonth);
 
         // Ambil semua operator di toko yang dipilih
@@ -59,6 +63,9 @@ class ShiftScheduleController extends Controller
 
         return view('shift_schedules.index', compact(
             'shops',
+            'selectedShop',
+            'isShift',
+            'shiftConfig',
             'operators',
             'schedules',
             'attendanceRecaps',
@@ -71,46 +78,133 @@ class ShiftScheduleController extends Controller
     }
 
     /**
-     * Buat jadwal shift baru (single atau bulk).
+     * Buat jadwal shift baru (single) atau pencatatan presensi harian non-shift.
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'shop_id'     => 'required|exists:shops,id',
-            'operator_id' => 'required|exists:operators,id',
-            'tanggal'     => 'required|date',
-            'shift_ke'    => 'required|integer|min:1|max:5',
-            'keterangan'  => 'nullable|string|max:255',
-        ]);
+        $shop = Shop::findOrFail($request->input('shop_id'));
+        $isShift = $shop->isShiftBased();
+        $shiftConfig = $shop->getShiftConfig();
 
-        // Cek apakah slot sudah ada
-        $existing = ShiftSchedule::where('operator_id', $validated['operator_id'])
-            ->where('tanggal', $validated['tanggal'])
-            ->where('shift_ke', $validated['shift_ke'])
-            ->first();
+        if ($isShift) {
+            // Cabang bershift (Gumelar & Sumingkir)
+            $allowedShifts = array_keys($shiftConfig['shifts'] ?? [1 => [], 2 => []]);
+            $validated = $request->validate([
+                'shop_id'     => 'required|exists:shops,id',
+                'operator_id' => 'required|exists:operators,id',
+                'tanggal'     => 'required|date',
+                'shift_ke'    => ['required', 'integer', \Illuminate\Validation\Rule::in($allowedShifts)],
+                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit',
+                'keterangan'  => 'nullable|string|max:255',
+            ], [
+                'shift_ke.in' => 'Pilihan shift tidak valid untuk cabang ini (Hanya tersedia Shift 1 dan Shift 2).',
+            ]);
 
-        if ($existing) {
-            return back()->withErrors(['tanggal' => 'Operator ini sudah memiliki jadwal shift di tanggal dan shift yang sama.'])->withInput();
+            $shiftKe    = (int) $validated['shift_ke'];
+            $configItem = $shiftConfig['shifts'][$shiftKe] ?? null;
+            $jamMulai   = $configItem['jam_mulai'] ?? null;
+            $jamSelesai = $configItem['jam_selesai'] ?? null;
+            $status     = $validated['status'] ?? 'dijadwalkan';
+
+            // Cek apakah slot sudah ada
+            $existing = ShiftSchedule::where('operator_id', $validated['operator_id'])
+                ->where('tanggal', $validated['tanggal'])
+                ->where('shift_ke', $shiftKe)
+                ->first();
+
+            if ($existing) {
+                $existing->update([
+                    'status'      => $status,
+                    'jam_mulai'   => $jamMulai,
+                    'jam_selesai' => $jamSelesai,
+                    'keterangan'  => $validated['keterangan'] ?? $existing->keterangan,
+                ]);
+                return back()->with('success', "Jadwal Shift {$shiftKe} untuk tanggal " . Carbon::parse($validated['tanggal'])->translatedFormat('d M Y') . " berhasil diperbarui.");
+            }
+
+            ShiftSchedule::create([
+                'shop_id'     => $validated['shop_id'],
+                'operator_id' => $validated['operator_id'],
+                'tanggal'     => $validated['tanggal'],
+                'shift_ke'    => $shiftKe,
+                'jam_mulai'   => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'status'      => $status,
+                'keterangan'  => $validated['keterangan'] ?? null,
+            ]);
+
+            return back()->with('success', 'Jadwal shift berhasil ditambahkan.');
+        } else {
+            // Cabang non-shift (Kemutug Lor, Kalitapen, Kalibenda, Pageralang)
+            $validated = $request->validate([
+                'shop_id'     => 'required|exists:shops,id',
+                'operator_id' => 'required|exists:operators,id',
+                'tanggal'     => 'required|date',
+                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit',
+                'keterangan'  => 'nullable|string|max:255',
+            ]);
+
+            $status     = $validated['status'] ?? 'hadir';
+            $jamMulai   = '07:00:00';
+            $jamSelesai = '21:00:00';
+
+            $existing = ShiftSchedule::where('operator_id', $validated['operator_id'])
+                ->where('tanggal', $validated['tanggal'])
+                ->where('shift_ke', 1)
+                ->first();
+
+            if ($existing) {
+                $existing->update([
+                    'status'      => $status,
+                    'jam_mulai'   => $jamMulai,
+                    'jam_selesai' => $jamSelesai,
+                    'keterangan'  => $validated['keterangan'] ?? $existing->keterangan,
+                ]);
+                return back()->with('success', 'Presensi harian operator berhasil diperbarui.');
+            }
+
+            ShiftSchedule::create([
+                'shop_id'     => $validated['shop_id'],
+                'operator_id' => $validated['operator_id'],
+                'tanggal'     => $validated['tanggal'],
+                'shift_ke'    => 1,
+                'jam_mulai'   => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'status'      => $status,
+                'keterangan'  => $validated['keterangan'] ?? null,
+            ]);
+
+            return back()->with('success', 'Presensi harian operator berhasil dicatat.');
         }
-
-        ShiftSchedule::create($validated);
-
-        return back()->with('success', 'Jadwal shift berhasil ditambahkan.');
     }
 
     /**
      * Buat jadwal bulk untuk 1 bulan penuh (dengan opsi pola rotasi otomatis).
+     * HANYA AKTIF untuk cabang bershift (Gumelar dan Sumingkir).
      */
     public function bulkStore(Request $request)
     {
+        $shop = Shop::findOrFail($request->input('shop_id'));
+
+        if (!$shop->isShiftBased()) {
+            return back()->withErrors([
+                'shop_id' => "Cabang {$shop->nama} menggunakan sistem jam kerja harian biasa (non-shift). Fitur generator pola shift otomatis hanya tersedia untuk cabang Gumelar dan Sumingkir."
+            ])->withInput();
+        }
+
+        $shiftConfig   = $shop->getShiftConfig();
+        $allowedShifts = array_keys($shiftConfig['shifts'] ?? [1 => [], 2 => []]);
+
         $validated = $request->validate([
             'shop_id'      => 'required|exists:shops,id',
             'operator_id'  => 'required|exists:operators,id',
             'bulan'        => 'required|date_format:Y-m',
-            'shift_ke'     => 'nullable|integer|min:1|max:5',
+            'shift_ke'     => ['nullable', 'integer', \Illuminate\Validation\Rule::in($allowedShifts)],
             'pola'         => 'nullable|string|in:fixed,2p_2s_1l,full_pagi,full_siang',
-            'hari_libur'   => 'nullable|array',   // Array tanggal yang dikecualikan
+            'hari_libur'   => 'nullable|array',
             'hari_libur.*' => 'date',
+        ], [
+            'shift_ke.in' => 'Nomor shift tidak valid untuk cabang ini.',
         ]);
 
         [$year, $month] = explode('-', $validated['bulan']);
@@ -134,7 +228,7 @@ class ShiftScheduleController extends Controller
             // Hitung shift berdasarkan pola jika dipilih
             $shiftToAssign = $defaultShift;
             if ($pola === '2p_2s_1l') {
-                // Pola 5 hari: Hari 1-2 Shift 1 (Pagi), Hari 3-4 Shift 2 (Siang), Hari 5 Libur
+                // Pola 5 hari: Hari 1-2 Shift 1, Hari 3-4 Shift 2, Hari 5 Libur
                 $cycleIndex = ($day - 1) % 5;
                 if ($cycleIndex === 0 || $cycleIndex === 1) {
                     $shiftToAssign = 1;
@@ -156,11 +250,17 @@ class ShiftScheduleController extends Controller
                 ->exists();
 
             if (!$exists) {
+                $configItem = $shiftConfig['shifts'][$shiftToAssign] ?? null;
+                $jamMulai   = $configItem['jam_mulai'] ?? null;
+                $jamSelesai = $configItem['jam_selesai'] ?? null;
+
                 ShiftSchedule::create([
                     'shop_id'     => $validated['shop_id'],
                     'operator_id' => $validated['operator_id'],
                     'tanggal'     => $date,
                     'shift_ke'    => $shiftToAssign,
+                    'jam_mulai'   => $jamMulai,
+                    'jam_selesai' => $jamSelesai,
                     'status'      => 'dijadwalkan',
                 ]);
                 $created++;
@@ -169,7 +269,7 @@ class ShiftScheduleController extends Controller
             }
         }
 
-        return back()->with('success', "Berhasil membuat {$created} jadwal shift. {$skipped} di-skip (sudah ada/hari libur).");
+        return back()->with('success', "Berhasil membuat {$created} jadwal shift untuk cabang {$shop->nama}. {$skipped} di-skip (sudah ada/hari libur).");
     }
 
     /**
