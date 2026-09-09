@@ -347,6 +347,15 @@
                 @else
                   Rp {{ number_format($detail->potongan_hutang, 0, ',', '.') }}
                 @endif
+                @if($detail->loanDeductions && $detail->loanDeductions->count() > 0)
+                  <div class="mt-1">
+                    @foreach($detail->loanDeductions as $deduction)
+                      <span class="badge badge-light border text-muted d-block text-right" style="font-size: 10px; font-weight: normal; margin-bottom: 2px;" title="Sisa Pokok: Rp {{ number_format($deduction->sisa_pokok_setelah, 0, ',', '.') }}">
+                        Cicilan ke-{{ $deduction->cicilan_ke }}/{{ $deduction->total_tenor }} (Sisa: {{ number_format($deduction->sisa_pokok_setelah, 0, ',', '.') }})
+                      </span>
+                    @endforeach
+                  </div>
+                @endif
               </td>
 
               {{-- Potongan Lain (−) (Dinamis) --}}

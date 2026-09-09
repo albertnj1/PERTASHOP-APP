@@ -5,7 +5,7 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <div>
     <h1 class="page-title mb-1">Kasbon &amp; Pinjaman Karyawan</h1>
-    <p class="text-muted mb-0" style="font-size: 13px;">Pengajuan dan alur persetujuan hutang operator Pertashop</p>
+    <p class="text-muted mb-0" style="font-size: 13px;">Pengajuan, tracking cicilan, dan alur persetujuan kasbon operator Pertashop</p>
   </div>
   <div>
     <button type="button" class="btn btn-primary" style="border-radius: 9px; font-weight: 600; font-size: 13px;" data-toggle="modal" data-target="#modalPengajuanKasbon">
@@ -30,7 +30,7 @@
 
 <div class="panel">
   <div class="panel-head">
-    <div class="panel-title">Daftar Pengajuan Kasbon</div>
+    <div class="panel-title">Daftar Pengajuan &amp; Tracking Cicilan Kasbon</div>
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
@@ -40,7 +40,9 @@
           <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Operator</th>
           <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Toko</th>
           <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Tanggal</th>
-          <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Nominal</th>
+          <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Total Kasbon</th>
+          <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Tenor &amp; Angsuran</th>
+          <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Progress Cicilan</th>
           <th style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Keterangan</th>
           <th class="text-center" style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Status</th>
           <th class="text-center" style="font-size: 11px; text-transform: uppercase; color: var(--muted);">Disetujui Oleh</th>
@@ -57,9 +59,21 @@
           <td style="font-size: 13px;"><span class="status-pill" style="background:#e2e8f0; color:#475569;">{{ $loan->operator?->shop?->nama }}</span></td>
           <td style="font-size: 13px;">{{ $loan->tanggal?->format('d/m/Y') }}</td>
           <td style="font-size: 13px; font-weight: 700; color: var(--red);">Rp {{ number_format($loan->jumlah, 0, ',', '.') }}</td>
-          <td style="font-size: 13px; color: var(--muted);">{{ $loan->keterangan ?? '-' }}</td>
+          <td style="font-size: 12px;">
+            <div style="font-weight: 600; color: #1e293b;">{{ $loan->tenor_bulan ?? 1 }} Bulan</div>
+            <small class="text-muted">Rp {{ number_format($loan->nominal_angsuran ?: ($loan->jumlah / max(1, $loan->tenor_bulan)), 0, ',', '.') }} / bln</small>
+          </td>
+          <td style="font-size: 12px;">
+            <div style="font-weight: 600; color: #0284c7;">Ke-{{ $loan->angsuran_ke ?? 0 }} dari {{ $loan->tenor_bulan ?? 1 }}</div>
+            <small class="text-muted">Sisa: Rp {{ number_format($loan->sisa_pokok ?? $loan->jumlah, 0, ',', '.') }}</small>
+          </td>
+          <td style="font-size: 12px; color: var(--muted); max-width: 180px;">{{ $loan->keterangan ?? '-' }}</td>
           <td class="text-center">
-            @if($loan->status === 'approved')
+            @if($loan->status === 'lunas' || floatval($loan->sisa_pokok) <= 0 && $loan->status !== 'pending' && $loan->status !== 'rejected')
+              <span class="status-pill" style="background:#dcfce7; color:#15803d; font-weight:700;">✓ Lunas</span>
+            @elseif($loan->status === 'active')
+              <span class="status-pill" style="background:#e0f2fe; color:#0369a1; font-weight:600;">⚡ Aktif</span>
+            @elseif($loan->status === 'approved')
               <span class="status-pill" style="background:#dcfce7; color:#15803d;">Disetujui</span>
             @elseif($loan->status === 'rejected')
               <span class="status-pill" style="background:#fee2e2; color:#b91c1c;">Ditolak</span>
@@ -93,7 +107,7 @@
         </tr>
         @empty
         <tr>
-          <td colspan="9" class="text-center text-muted py-4" style="font-size: 13px;">Belum ada riwayat pengajuan kasbon.</td>
+          <td colspan="11" class="text-center text-muted py-4" style="font-size: 13px;">Belum ada riwayat pengajuan kasbon.</td>
         </tr>
         @endforelse
       </tbody>
@@ -133,7 +147,36 @@
 
           <div class="form-group mb-3">
             <label style="font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Nominal Kasbon (Rp)</label>
-            <input type="number" name="jumlah" class="form-control" style="border-radius: 8px;" placeholder="Contoh: 500000" min="1000" step="50000" required>
+            <input type="number" id="input_jumlah_kasbon" name="jumlah" class="form-control" style="border-radius: 8px;" placeholder="Contoh: 600000" min="1000" step="50000" required>
+          </div>
+
+          <div class="form-group mb-3">
+            <label style="font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Tenor / Jumlah Angsuran (Bulan)</label>
+            <select name="tenor_bulan" id="loan_tenor_bulan" class="form-control" style="border-radius: 8px;" required>
+              <option value="1" selected>1 Bulan (Langsung Lunas Bulan Ini)</option>
+              <option value="2">2 Bulan</option>
+              <option value="3">3 Bulan</option>
+              <option value="4">4 Bulan</option>
+              <option value="5">5 Bulan</option>
+              <option value="6">6 Bulan</option>
+              <option value="7">7 Bulan</option>
+              <option value="8">8 Bulan</option>
+              <option value="9">9 Bulan</option>
+              <option value="10">10 Bulan</option>
+              <option value="11">11 Bulan</option>
+              <option value="12">12 Bulan</option>
+            </select>
+          </div>
+
+          {{-- Kalkulasi Otomatis (Read-only Info) --}}
+          <div class="mb-3 p-3" id="kalkulasi_cicilan_box" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span style="font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Estimasi Potongan per Bulan:</span>
+              <span id="label_angsuran_per_bulan" style="font-size: 14px; font-weight: 800; color: #15803d;">Rp 0 / bulan</span>
+            </div>
+            <small class="text-muted d-block" id="keterangan_angsuran" style="font-size: 11px;">
+              Cicilan otomatis dipotong langsung dari slip gaji operator setiap bulannya.
+            </small>
           </div>
 
           <div class="form-group mb-3">
@@ -150,3 +193,43 @@
   </div>
 </div>
 @endsection
+
+@push('script')
+<script>
+  function hitungCicilanKasbon() {
+    const jumlahInput = document.getElementById('input_jumlah_kasbon');
+    const tenorSelect = document.getElementById('loan_tenor_bulan');
+    const labelAngsuran = document.getElementById('label_angsuran_per_bulan');
+    const keterangan = document.getElementById('keterangan_angsuran');
+
+    if (!jumlahInput || !tenorSelect || !labelAngsuran) return;
+
+    const jumlah = parseFloat(jumlahInput.value) || 0;
+    const tenor = parseInt(tenorSelect.value) || 1;
+
+    if (jumlah > 0) {
+      const cicilan = Math.ceil(jumlah / tenor);
+      const formattedCicilan = new Intl.NumberFormat('id-ID').format(cicilan);
+      const formattedTotal = new Intl.NumberFormat('id-ID').format(jumlah);
+
+      labelAngsuran.textContent = 'Rp ' + formattedCicilan + ' / bulan';
+      keterangan.innerHTML = `Kasbon <strong>Rp ${formattedTotal}</strong> dicicil selama <strong>${tenor} bulan</strong> &rarr; Otomatis tampil: <em>Cicilan Rp ${formattedCicilan} / bulan</em>.`;
+    } else {
+      labelAngsuran.textContent = 'Rp 0 / bulan';
+      keterangan.textContent = 'Cicilan otomatis dipotong langsung dari slip gaji operator setiap bulannya.';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const jumlahInput = document.getElementById('input_jumlah_kasbon');
+    const tenorSelect = document.getElementById('loan_tenor_bulan');
+
+    if (jumlahInput) {
+      jumlahInput.addEventListener('input', hitungCicilanKasbon);
+    }
+    if (tenorSelect) {
+      tenorSelect.addEventListener('change', hitungCicilanKasbon);
+    }
+  });
+</script>
+@endpush

@@ -760,9 +760,6 @@
                     <i class="fas fa-edit"></i>
                   </a>
 
-                  <a href="{{ route('payroll-operator-assignments.index') }}" class="btn btn-sm btn-outline-info ml-1" title="Kelola Penugasan Operator" style="border-radius: 6px; padding: 4px 8px;">
-                    <i class="fas fa-user-tag"></i>
-                  </a>
 
                   <button type="button" onclick="confirmDeleteShop({{ $shop->id }}, '{{ addslashes($shop->nama) }}')" class="btn btn-sm btn-outline-danger ml-1" title="Hapus" style="border-radius: 6px; padding: 4px 8px;">
                     <i class="fas fa-trash-alt"></i>

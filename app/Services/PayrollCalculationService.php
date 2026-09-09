@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use App\Models\DailyReport;
+use App\Models\EmployeeLoan;
 use App\Models\PayrollDailySplit;
 use App\Models\PayrollDetail;
-use App\Models\PayrollOperatorAssignment;
+use App\Models\PayrollLoanDeduction;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollSystem;
 use App\Models\ShiftSchedule;
@@ -65,21 +66,12 @@ class PayrollCalculationService
             throw new \Exception("Tidak ada data laporan harian untuk toko ini di periode {$bulan}/{$tahun}.");
         }
 
-        // 4. Ambil semua operator yang di-assign ke sistem penggajian ini di bulan tsb
-        $periodeAwal  = Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth()->toDateString();
-        $periodeAkhir = Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth()->toDateString();
+        // 4. Ambil operator bertugas di cabang ini — otomatis dari shop_id,
+        //    tidak memerlukan assignment manual per tanggal mulai/selesai.
+        $operatorIds = \App\Models\Operator::where('shop_id', $shopId)->pluck('id')->unique();
 
-        $operatorIds = PayrollOperatorAssignment::where('payroll_system_id', $payrollSystem->id)
-            ->aktifPadaTanggal($periodeAwal)
-            ->pluck('operator_id')
-            ->unique();
-
-        // Fallback otomatis ke operator cabang jika belum ada assignment terpisah
-        if ($operatorIds->isEmpty()) {
-            $operatorIds = \App\Models\Operator::where('shop_id', $shopId)->pluck('id')->unique();
-        }
-
-        // Fallback kedua: ambil operator yang tercatat di laporan harian bulan ini
+        // Fallback: ambil operator yang tercatat di laporan harian bulan ini
+        //           (misal operator lintas cabang yang tidak di-assign di tabel operators)
         if ($operatorIds->isEmpty()) {
             $operatorIds = $dailyReports->pluck('operator_id')->filter()->unique();
         }
@@ -153,25 +145,60 @@ class PayrollCalculationService
             ->get()
             ->keyBy('operator_id');
 
-        $loanTotals = DB::table('employee_loans')
-            ->whereIn('operator_id', $operatorIds)
-            ->where('status', 'approved')
-            ->whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan)
-            ->groupBy('operator_id')
-            ->select('operator_id', DB::raw('SUM(jumlah) as total'))
+        // 7. Ambil kasbon aktif operator yang berstatus approved / active dan sisa_pokok > 0
+        $activeLoansByOperator = EmployeeLoan::whereIn('operator_id', $operatorIds)
+            ->whereIn('status', ['approved', 'active'])
+            ->where('sisa_pokok', '>', 0)
+            ->orderBy('tanggal', 'asc')
             ->get()
-            ->keyBy('operator_id');
+            ->groupBy('operator_id');
+
+        $loanDeductionsPlan = [];
+        $loanTotals = [];
+
+        foreach ($operatorIds as $opId) {
+            $loans = $activeLoansByOperator->get($opId, collect());
+            $opDeductionList = [];
+            $totalOpDeduction = 0.0;
+
+            foreach ($loans as $loan) {
+                $sisaPokok = floatval($loan->sisa_pokok > 0 ? $loan->sisa_pokok : $loan->jumlah);
+                if ($sisaPokok <= 0) {
+                    continue;
+                }
+
+                $tenor = max(1, (int) ($loan->tenor_bulan ?: 1));
+                $nominalAngsuran = floatval($loan->nominal_angsuran > 0 ? $loan->nominal_angsuran : round($loan->jumlah / $tenor, 2));
+                $potongan = min($nominalAngsuran, $sisaPokok);
+                $cicilanKe = min($tenor, (int) $loan->angsuran_ke + 1);
+                $sisaSetelah = max(0, $sisaPokok - $potongan);
+
+                $opDeductionList[] = [
+                    'loan'               => $loan,
+                    'cicilan_ke'         => $cicilanKe,
+                    'total_tenor'        => $tenor,
+                    'nominal_potongan'   => $potongan,
+                    'sisa_pokok_sebelum' => $sisaPokok,
+                    'sisa_pokok_setelah' => $sisaSetelah,
+                ];
+
+                $totalOpDeduction += $potongan;
+            }
+
+            $loanDeductionsPlan[$opId] = $opDeductionList;
+            $loanTotals[$opId] = $totalOpDeduction;
+        }
 
         // 8. Wrap dalam DB transaction
         return DB::transaction(function () use (
             $existingPeriod, $shopId, $bulan, $tahun, $payrollSystem,
             $operatorTotals, $dailySplitsData, $totalPenjualanLiter,
-            $attendanceRecaps, $savingsTotals, $loanTotals, $generatedBy
+            $attendanceRecaps, $savingsTotals, $loanTotals, $loanDeductionsPlan, $generatedBy
         ) {
             // Hapus periode lama jika ada (draft)
             if ($existingPeriod) {
                 $existingPeriod->dailySplits()->delete();
+                $existingPeriod->loanDeductions()->delete();
                 $existingPeriod->details()->delete();
                 $existingPeriod->delete();
             }
@@ -274,8 +301,8 @@ class PayrollCalculationService
                 // Auto-pull tabungan setoran
                 $tabunganSetoran = $savingsTotals->get($opId) ? floatval($savingsTotals->get($opId)->total) : 0.0;
 
-                // Auto-pull potongan hutang / kasbon yang sudah APPROVED
-                $potonganHutang  = $loanTotals->get($opId) ? floatval($loanTotals->get($opId)->total) : 0.0;
+                // Auto-pull potongan hutang / kasbon yang sudah APPROVED / ACTIVE
+                $potonganHutang  = floatval($loanTotals[$opId] ?? 0.0);
 
                 // THP = (Gaji_Pokok + Gaji_Variable + Uang_Transport) - Total_Potongan
                 // Uang transport masuk Total_Tambahan, TIDAK masuk basis prorata alpha
@@ -284,7 +311,7 @@ class PayrollCalculationService
                 $thp           = round($gajiKotor - $totalPotongan, 2);
                 $sisaKurangBayar = $thp < 0 ? abs($thp) : 0.0;
 
-                PayrollDetail::create([
+                $detail = PayrollDetail::create([
                     'payroll_period_id'     => $period->id,
                     'operator_id'           => $opId,
                     'total_hari_kerja'      => $totals['hari'],
@@ -304,9 +331,57 @@ class PayrollCalculationService
                     'take_home_pay'         => $thp,
                     'sisa_kurang_bayar'     => $sisaKurangBayar,
                 ]);
+
+                // Simpan snapshot pemotongan cicilan kasbon (draft)
+                if (!empty($loanDeductionsPlan[$opId])) {
+                    foreach ($loanDeductionsPlan[$opId] as $plan) {
+                        PayrollLoanDeduction::create([
+                            'payroll_period_id'  => $period->id,
+                            'payroll_detail_id'  => $detail->id,
+                            'employee_loan_id'   => $plan['loan']->id,
+                            'cicilan_ke'         => $plan['cicilan_ke'],
+                            'total_tenor'        => $plan['total_tenor'],
+                            'nominal_potongan'   => $plan['nominal_potongan'],
+                            'sisa_pokok_sebelum' => $plan['sisa_pokok_sebelum'],
+                            'sisa_pokok_setelah' => $plan['sisa_pokok_setelah'],
+                            'is_finalized'       => false,
+                        ]);
+                    }
+                }
             }
 
             return $period->load(['details.operator.user', 'payrollSystem', 'shop']);
+        });
+    }
+
+    /**
+     * Kunci dan realisasikan pemotongan cicilan kasbon saat Payroll di-finalisasi.
+     * Bersifat idempotent: hanya memproses record yang belum di-finalisasi.
+     */
+    public function finalizePayrollLoans(PayrollPeriod $period): void
+    {
+        DB::transaction(function () use ($period) {
+            $deductions = PayrollLoanDeduction::where('payroll_period_id', $period->id)
+                ->where('is_finalized', false)
+                ->with('employeeLoan')
+                ->get();
+
+            foreach ($deductions as $deduction) {
+                $loan = $deduction->employeeLoan;
+                if ($loan) {
+                    $newSisaPokok = max(0, floatval($loan->sisa_pokok) - floatval($deduction->nominal_potongan));
+                    $newAngsuranKe = (int) $deduction->cicilan_ke;
+                    $newStatus = $newSisaPokok <= 0 ? 'lunas' : 'active';
+
+                    $loan->update([
+                        'angsuran_ke' => $newAngsuranKe,
+                        'sisa_pokok'  => $newSisaPokok,
+                        'status'      => $newStatus,
+                    ]);
+                }
+
+                $deduction->update(['is_finalized' => true]);
+            }
         });
     }
 

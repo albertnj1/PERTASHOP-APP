@@ -154,6 +154,8 @@ class PayrollController extends Controller
             'payrollSystem',
             'generatedBy',
             'details.operator.user',
+            'details.loanDeductions.employeeLoan',
+            'details.items',
             'dailySplits.operator.user',
         ]);
 
@@ -183,7 +185,6 @@ class PayrollController extends Controller
             'catatan'              => 'nullable|string|max:500',
         ]);
 
-        $detail->fill($validated);
         $detail->fill($validated);
         $detail->recalculateTHP();
 
@@ -255,6 +256,9 @@ class PayrollController extends Controller
             return back()->withErrors(['finalize' => 'Periode sudah difinalisasi.']);
         }
 
+        // Realisasikan pemotongan cicilan kasbon (potong saldo pokok & tandai lunas jika habis)
+        $this->calculationService->finalizePayrollLoans($payroll);
+
         $payroll->update(['status' => 'final']);
 
         return back()->with('success', "Penggajian periode {$payroll->periode_label} berhasil difinalisasi.");
@@ -269,6 +273,8 @@ class PayrollController extends Controller
             'shop',
             'payrollSystem',
             'details.operator.user',
+            'details.loanDeductions.employeeLoan',
+            'details.items',
         ]);
 
         $pdf = Pdf::loadView('pdf.payroll_slip', compact('payroll'))

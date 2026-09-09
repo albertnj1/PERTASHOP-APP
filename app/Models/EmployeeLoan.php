@@ -12,9 +12,13 @@ class EmployeeLoan extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'tanggal'     => 'date',
-        'jumlah'      => 'decimal:2',
-        'approved_at' => 'datetime',
+        'tanggal'          => 'date',
+        'jumlah'           => 'decimal:2',
+        'tenor_bulan'      => 'integer',
+        'nominal_angsuran' => 'decimal:2',
+        'angsuran_ke'      => 'integer',
+        'sisa_pokok'       => 'decimal:2',
+        'approved_at'      => 'datetime',
     ];
 
     public function operator()
@@ -25,5 +29,46 @@ class EmployeeLoan extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function deductions()
+    {
+        return $this->hasMany(PayrollLoanDeduction::class);
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isLunas(): bool
+    {
+        return $this->status === 'lunas' || floatval($this->sisa_pokok) <= 0;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            'approved' => 'Disetujui',
+            'active'   => 'Aktif Berjalan',
+            'lunas'    => 'Lunas',
+            'rejected' => 'Ditolak',
+            default    => 'Menunggu Approval',
+        };
     }
 }

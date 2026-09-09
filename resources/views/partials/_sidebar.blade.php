@@ -74,7 +74,7 @@
 
   <div class="nav-group-label">HUMAN RESOURCE</div>
   <a href="{{ route('shift-schedules.index') }}" class="nav-item {{ request()->routeIs('shift-schedules.*') ? 'active' : '' }}">JADWAL SHIFT</a>
-  <a href="{{ route('payroll-systems.index') }}" class="nav-item {{ request()->routeIs('payroll-systems.*') || request()->routeIs('payroll.*') || request()->routeIs('payroll-operator-assignments.*') ? 'active' : '' }}">SISTEM PENGGAJIAN</a>
+  <a href="{{ route('payroll-systems.index') }}" class="nav-item {{ request()->routeIs('payroll-systems.*') || request()->routeIs('payroll.*') ? 'active' : '' }}">SISTEM PENGGAJIAN</a>
   <a href="{{ route('employee-loans.index') }}" class="nav-item {{ request()->routeIs('employee-loans.*') ? 'active' : '' }}">KASBON &amp; APPROVAL</a>
 
 @endif

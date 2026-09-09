@@ -412,20 +412,7 @@
         </div>
       </div>
 
-      {{-- Card Pengaturan Terkait --}}
-      <div class="payroll-card">
-        <div class="payroll-card-header">
-          <div class="font-weight-bold" style="font-size: 14px; color: #0f172a;">
-            <i class="fas fa-cog text-muted mr-1"></i>Pengaturan Tambahan
-          </div>
-        </div>
-        <div style="padding: 16px;">
-          <a href="{{ route('payroll-operator-assignments.index') }}" class="btn btn-block btn-slate-outline d-flex align-items-center justify-content-between text-decoration-none mb-2" style="font-size: 13px; padding: 10px 14px;">
-            <span><i class="fas fa-user-tag text-primary mr-2"></i>Kelola Penugasan Operator</span>
-            <i class="fas fa-chevron-right text-muted" style="font-size: 11px;"></i>
-          </a>
-        </div>
-      </div>
+
 
     </div>
 

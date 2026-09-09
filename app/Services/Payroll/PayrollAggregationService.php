@@ -113,8 +113,16 @@ class PayrollAggregationService
                 $uangTransport = (float) ($system->rate_transport_per_hari ?? 0);
 
                 // Potongan Kasbon Pinjaman Operator (EmployeeLoan)
-                $loanDeduction = (float) EmployeeLoan::where('operator_id', $op->id)
-                    ->sum('jumlah');
+                $activeLoans = EmployeeLoan::where('operator_id', $op->id)
+                    ->whereIn('status', ['approved', 'active'])
+                    ->where('sisa_pokok', '>', 0)
+                    ->get();
+
+                $loanDeduction = (float) $activeLoans->sum(function ($l) {
+                    $tenor = max(1, (int) ($l->tenor_bulan ?: 1));
+                    $angsuran = floatval($l->nominal_angsuran > 0 ? $l->nominal_angsuran : round($l->jumlah / $tenor, 2));
+                    return min($angsuran, floatval($l->sisa_pokok));
+                });
 
                 // Potongan Kurang Setoran
                 $shortageDeduction = 0.0;
@@ -122,7 +130,7 @@ class PayrollAggregationService
                 $gajiGross = $gajiPokok + $komisiLiter + $uangTransport;
                 $thpBersih = max(0, $gajiGross - $loanDeduction - $shortageDeduction);
 
-                PayrollDetail::updateOrCreate(
+                $detailRecord = PayrollDetail::updateOrCreate(
                     [
                         'payroll_period_id' => $period->id,
                         'operator_id'        => $op->id,
@@ -138,6 +146,31 @@ class PayrollAggregationService
                         'thp_pembulatan'   => round($thpBersih, -3),
                     ]
                 );
+
+                // Buat / refresh payroll_loan_deductions draft
+                \App\Models\PayrollLoanDeduction::where('payroll_detail_id', $detailRecord->id)
+                    ->where('is_finalized', false)
+                    ->delete();
+
+                foreach ($activeLoans as $loan) {
+                    $sisaPokok = floatval($loan->sisa_pokok > 0 ? $loan->sisa_pokok : $loan->jumlah);
+                    $tenor = max(1, (int) ($loan->tenor_bulan ?: 1));
+                    $angsuran = floatval($loan->nominal_angsuran > 0 ? $loan->nominal_angsuran : round($loan->jumlah / $tenor, 2));
+                    $potongan = min($angsuran, $sisaPokok);
+                    $cicilanKe = min($tenor, (int) $loan->angsuran_ke + 1);
+
+                    \App\Models\PayrollLoanDeduction::create([
+                        'payroll_period_id'  => $period->id,
+                        'payroll_detail_id'  => $detailRecord->id,
+                        'employee_loan_id'   => $loan->id,
+                        'cicilan_ke'         => $cicilanKe,
+                        'total_tenor'        => $tenor,
+                        'nominal_potongan'   => $potongan,
+                        'sisa_pokok_sebelum' => $sisaPokok,
+                        'sisa_pokok_setelah' => max(0, $sisaPokok - $potongan),
+                        'is_finalized'       => false,
+                    ]);
+                }
             }
 
             return $period;
@@ -147,12 +180,12 @@ class PayrollAggregationService
     /**
      * Sahkan (Approve) Rekap Payroll oleh Super Admin.
      */
-    /**
-     * Sahkan (Approve) Rekap Payroll oleh Super Admin.
-     */
     public function approvePayroll(int $payrollPeriodId, int $superAdminUserId): PayrollPeriod
     {
         $period = PayrollPeriod::findOrFail($payrollPeriodId);
+
+        // Realisasikan pemotongan cicilan kasbon saat payroll disahkan
+        app(\App\Services\PayrollCalculationService::class)->finalizePayrollLoans($period);
 
         $period->update([
             'status'          => 'final',

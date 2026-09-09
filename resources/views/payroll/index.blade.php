@@ -185,12 +185,8 @@
         </div>
       </div>
       <div style="padding: 16px;">
-        <a href="{{ route('payroll-systems.index') }}" class="btn btn-block btn-slate-outline d-flex align-items-center justify-content-between text-decoration-none mb-2" style="font-size: 13px; padding: 10px 14px;">
+        <a href="{{ route('payroll-systems.index') }}" class="btn btn-block btn-slate-outline d-flex align-items-center justify-content-between text-decoration-none" style="font-size: 13px; padding: 10px 14px;">
           <span><i class="fas fa-sliders-h text-success mr-2"></i>Master Sistem Penggajian</span>
-          <i class="fas fa-chevron-right text-muted" style="font-size: 11px;"></i>
-        </a>
-        <a href="{{ route('payroll-operator-assignments.index') }}" class="btn btn-block btn-slate-outline d-flex align-items-center justify-content-between text-decoration-none" style="font-size: 13px; padding: 10px 14px;">
-          <span><i class="fas fa-user-tag text-primary mr-2"></i>Kelola Penugasan Operator</span>
           <i class="fas fa-chevron-right text-muted" style="font-size: 11px;"></i>
         </a>
       </div>

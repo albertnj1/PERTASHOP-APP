@@ -177,9 +177,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('payroll-systems/{payrollSystem}', [PayrollSystemController::class, 'destroy'])->name('payroll-systems.destroy');
         Route::get('payroll-systems/{payrollSystem}', [PayrollSystemController::class, 'show'])->name('payroll-systems.show');
 
-        // Data Master: Assign Operator ke Sistem Penggajian
-        Route::get('payroll-operator-assignments/operators-by-shop/{shop}', [PayrollOperatorAssignmentController::class, 'operatorsByShop'])->name('payroll-operator-assignments.operators-by-shop');
-        Route::resource('payroll-operator-assignments', PayrollOperatorAssignmentController::class)->except(['edit', 'update']);
+        // [DINONAKTIFKAN] Assign Operator ke Sistem Penggajian — tidak diperlukan lagi.
+        // Operator otomatis ditarik berdasarkan shop_id di PayrollCalculationService.
+        // Route::get('payroll-operator-assignments/operators-by-shop/{shop}', [PayrollOperatorAssignmentController::class, 'operatorsByShop'])->name('payroll-operator-assignments.operators-by-shop');
+        // Route::resource('payroll-operator-assignments', PayrollOperatorAssignmentController::class)->except(['edit', 'update']);
 
         // Proses Penggajian Bulanan
         Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');

@@ -269,7 +269,20 @@
         <td class="amount negative">- Rp {{ number_format($detail->tabungan_setoran, 0, ',', '.') }}</td>
       </tr>
       @endif
-      @if($detail->potongan_hutang > 0)
+      {{-- Potongan Kasbon / Cicilan --}}
+      @if($detail->loanDeductions && $detail->loanDeductions->count() > 0)
+        @foreach($detail->loanDeductions as $deduction)
+        <tr>
+          <td class="label">
+            Potongan Kasbon (Cicilan ke-{{ $deduction->cicilan_ke }} dari {{ $deduction->total_tenor }})
+            <span style="color:#666; font-size:9px; display:block; margin-top:2px;">
+              Sisa Kasbon Tersisa : Rp {{ number_format($deduction->sisa_pokok_setelah, 0, ',', '.') }}
+            </span>
+          </td>
+          <td class="amount negative">- Rp {{ number_format($deduction->nominal_potongan, 0, ',', '.') }}</td>
+        </tr>
+        @endforeach
+      @elseif($detail->potongan_hutang > 0)
       <tr>
         <td class="label">Potongan Hutang / Cicilan</td>
         <td class="amount negative">- Rp {{ number_format($detail->potongan_hutang, 0, ',', '.') }}</td>

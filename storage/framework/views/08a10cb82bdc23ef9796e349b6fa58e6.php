@@ -75,7 +75,7 @@
 
   <div class="nav-group-label">HUMAN RESOURCE</div>
   <a href="<?php echo e(route('shift-schedules.index')); ?>" class="nav-item <?php echo e(request()->routeIs('shift-schedules.*') ? 'active' : ''); ?>">JADWAL SHIFT</a>
-  <a href="<?php echo e(route('payroll-systems.index')); ?>" class="nav-item <?php echo e(request()->routeIs('payroll-systems.*') || request()->routeIs('payroll.*') || request()->routeIs('payroll-operator-assignments.*') ? 'active' : ''); ?>">SISTEM PENGGAJIAN</a>
+  <a href="<?php echo e(route('payroll-systems.index')); ?>" class="nav-item <?php echo e(request()->routeIs('payroll-systems.*') || request()->routeIs('payroll.*') ? 'active' : ''); ?>">SISTEM PENGGAJIAN</a>
   <a href="<?php echo e(route('employee-loans.index')); ?>" class="nav-item <?php echo e(request()->routeIs('employee-loans.*') ? 'active' : ''); ?>">KASBON &amp; APPROVAL</a>
 
 <?php endif; ?>

@@ -54,10 +54,19 @@ class EmployeeLoanController extends Controller
             'operator_id' => 'required|exists:operators,id',
             'tanggal'     => 'required|date',
             'jumlah'      => 'required|numeric|min:1000',
+            'tenor_bulan' => 'nullable|integer|between:1,12',
             'keterangan'  => 'nullable|string|max:500',
         ]);
 
-        $validated['status'] = 'pending';
+        $tenor = !empty($validated['tenor_bulan']) ? (int) $validated['tenor_bulan'] : 1;
+        $jumlah = floatval($validated['jumlah']);
+        $nominalAngsuran = round($jumlah / $tenor, 2);
+
+        $validated['tenor_bulan']      = $tenor;
+        $validated['nominal_angsuran'] = $nominalAngsuran;
+        $validated['angsuran_ke']      = 0;
+        $validated['sisa_pokok']       = $jumlah;
+        $validated['status']           = 'pending';
 
         EmployeeLoan::create($validated);
 
@@ -74,10 +83,17 @@ class EmployeeLoanController extends Controller
             return back()->withErrors(['loan' => 'Pengajuan kasbon ini sudah diproses sebelumnya.']);
         }
 
+        $tenor = max(1, (int) ($employeeLoan->tenor_bulan ?: 1));
+        $sisaPokok = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $employeeLoan->jumlah);
+        $nominalAngsuran = floatval($employeeLoan->nominal_angsuran > 0 ? $employeeLoan->nominal_angsuran : round($employeeLoan->jumlah / $tenor, 2));
+
         $employeeLoan->update([
-            'status'      => 'approved',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
+            'status'           => 'approved',
+            'tenor_bulan'      => $tenor,
+            'nominal_angsuran' => $nominalAngsuran,
+            'sisa_pokok'       => $sisaPokok,
+            'approved_by'      => Auth::id(),
+            'approved_at'      => now(),
         ]);
 
         return back()->with('success', 'Pengajuan kasbon berhasil disetujui.');

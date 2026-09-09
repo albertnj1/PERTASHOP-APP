@@ -44,6 +44,11 @@ class PayrollDetail extends Model
         return $this->hasMany(PayrollDetailItem::class, 'payroll_detail_id');
     }
 
+    public function loanDeductions()
+    {
+        return $this->hasMany(PayrollLoanDeduction::class, 'payroll_detail_id');
+    }
+
     /**
      * Alias accessor untuk potongan_tidak_masuk / potongan alpha.
      */

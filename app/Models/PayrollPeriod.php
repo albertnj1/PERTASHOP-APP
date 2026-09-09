@@ -43,6 +43,11 @@ class PayrollPeriod extends Model
         return $this->hasMany(PayrollDailySplit::class);
     }
 
+    public function loanDeductions()
+    {
+        return $this->hasMany(PayrollLoanDeduction::class);
+    }
+
     public function generatedBy()
     {
         return $this->belongsTo(User::class, 'generated_by');
