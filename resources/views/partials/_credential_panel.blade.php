@@ -8,9 +8,9 @@
       $credSuggestEmail: saran email format baru (nama@pertashop[lokasi].com)
 --}}
 @php
-    $credPlain   = \App\Support\CredentialPolicy::revealPassword($credUser);
+    $credPlain   = $credUser ? \App\Support\CredentialPolicy::revealPassword($credUser) : null;
     $credWeak    = \App\Support\CredentialPolicy::isWeak($credPlain);
-    $credEmail   = $credUser->email ?? '';
+    $credEmail   = $credUser?->email ?? '';
     $credLegacy  = $credEmail && !preg_match(\App\Support\CredentialPolicy::EMAIL_REGEX, $credEmail);
 @endphp
 
@@ -31,6 +31,13 @@
 
 <div class="row">
     <div class="col-lg-8">
+        @if(!$credUser)
+        <div class="alert alert-warning small mb-3">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <b>Perhatian:</b> Akun login web untuk {{ strtolower($credLabel) }} ini belum terhubung. Silakan isi Email Login dan Sandi di bawah ini lalu klik <b>Simpan Kredensial Saja</b> untuk langsung membuatkan akun login.
+        </div>
+        @endif
+
         <div class="cred-panel p-3 mb-4">
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
                 <span class="font-weight-bold text-dark"><i class="fas fa-id-card text-info mr-1"></i> Kredensial Login {{ $credLabel }} (Aktif)</span>
@@ -47,7 +54,7 @@
             <div class="cred-row"><span>Email Login</span><code id="cred-current-email">{{ $credEmail ?: '-' }}</code>
                 @if($credLegacy)<span class="badge badge-warning">format lama</span>@endif
             </div>
-            <div class="cred-row"><span>Nama Akun</span><strong>{{ $credUser->name ?? '-' }}</strong></div>
+            <div class="cred-row"><span>Nama Akun</span><strong>{{ $credUser?->name ?? '-' }}</strong></div>
             <div class="cred-row"><span>Sandi Aktif</span>
                 @if($credPlain !== null)
                     <code id="cred-current-pass" data-visible="0">••••••••••••</code>
@@ -58,7 +65,7 @@
                     <small class="text-muted">(tersimpan sebagai hash satu arah — klik <b>Generate &amp; Salin Sandi Baru</b>)</small>
                 @endif
             </div>
-            <div class="cred-row"><span>Terakhir Diubah</span><span>{{ optional($credUser->password_changed_at)->translatedFormat('d M Y H:i') ?? 'belum pernah' }}</span></div>
+            <div class="cred-row"><span>Terakhir Diubah</span><span>{{ optional($credUser?->password_changed_at)->translatedFormat('d M Y H:i') ?? 'belum pernah' }}</span></div>
         </div>
 
         <div class="form-group">

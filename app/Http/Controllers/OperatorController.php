@@ -295,18 +295,28 @@ class OperatorController extends Controller
 
         $operator->loadMissing('user');
         $user = $operator->user;
-        if (!$user) {
-            return back()->withErrors(['email' => 'Akun user untuk operator ini tidak ditemukan!']);
-        }
 
         // Endpoint khusus kredensial: TIDAK memvalidasi data profil,
         // sehingga tetap bisa dipakai walau data profil operator belum lengkap.
         $validated = $request->validate([
             'email'    => CredentialPolicy::emailRules($user, $request->input('email')),
-            'password' => CredentialPolicy::passwordRules(),
+            'password' => CredentialPolicy::passwordRules(!$user),
         ], CredentialPolicy::messages());
 
-        $changes = DB::transaction(function () use ($operator, $user, $validated) {
+        $changes = DB::transaction(function () use ($operator, &$user, $validated) {
+            if (!$user) {
+                $user = User::create([
+                    'name'                => $operator->name ?? 'Operator',
+                    'email'               => strtolower(trim($validated['email'])),
+                    'password'            => Hash::make($validated['password']),
+                    'encrypted_password'  => Crypt::encryptString($validated['password']),
+                    'password_changed_at' => now(),
+                    'role'                => 'operator',
+                ]);
+                $operator->update(['user_id' => $user->id, 'email_pertashop' => $user->email]);
+                return ['akun dibuat'];
+            }
+
             $changes = CredentialPolicy::applyToUser($user, $validated['email'], $validated['password'] ?? null);
 
             $opUpdate = [];

@@ -83,7 +83,7 @@
 
                                         <div class="form-group">
                                             <label for="name">Nama Lengkap (sesuai akta) <span class="text-danger">*</span></label>
-                                            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $operator->user->name ?? '') }}" required>
+                                            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $operator->user?->name ?? $operator->name ?? '') }}" required>
                                             @error('name')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
 
@@ -313,7 +313,7 @@
                                     'credUser' => $operator->user,
                                     'credLabel' => 'Operator',
                                     'credUpdateUrl' => route('operators.update-credentials', $operator->id),
-                                    'credSuggestEmail' => \App\Support\CredentialPolicy::suggestEmail($operator->user->name ?? 'operator', $operator->shop->nama ?? null, $operator->user_id),
+                                    'credSuggestEmail' => \App\Support\CredentialPolicy::suggestEmail($operator->user?->name ?? $operator->name ?? 'operator', $operator->shop?->nama ?? null, $operator->user_id),
                                 ])
                             </div>
                             @endif

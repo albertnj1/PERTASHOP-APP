@@ -62,9 +62,9 @@
                                 </div>
                                 <div class="col-md-9">
                                     <table class="table table-borderless table-sm">
-                                        <tr><th width="30%">Penempatan Pertashop</th><td>: {{ $operator->shop->kode ?? '' }} {{ $operator->shop->nama ?? '' }}</td></tr>
+                                        <tr><th width="30%">Penempatan Pertashop</th><td>: {{ $operator->shop?->kode ?? '' }} {{ $operator->shop?->nama ?? '' }}</td></tr>
                                         <tr><th>NIK</th><td>: {{ $operator->nik }}</td></tr>
-                                        <tr><th>Nama Lengkap</th><td>: {{ $operator->user->name ?? '' }}</td></tr>
+                                        <tr><th>Nama Lengkap</th><td>: {{ $operator->user?->name ?? $operator->name ?? '-' }}</td></tr>
                                         <tr><th>Tempat, Tanggal Lahir</th><td>: {{ $operator->tempat_lahir }}, {{ \Carbon\Carbon::parse($operator->tanggal_lahir)->format('d-m-Y') }}</td></tr>
                                         <tr><th>Jenis Kelamin</th><td>: {{ $operator->jenis_kelamin }}</td></tr>
                                         <tr><th>Agama</th><td>: {{ $operator->agama }}</td></tr>
@@ -105,13 +105,13 @@
                                         <div class="card-body p-3">
                                             <div class="d-flex justify-content-between align-items-center mb-2">
                                                 <span class="font-weight-bold text-dark"><i class="fas fa-key text-warning mr-1"></i> Kredensial Login Sistem</span>
-                                                <button type="button" class="btn btn-xs btn-primary copy-login-btn" data-email="{{ $operator->user->email ?? '' }}" data-name="{{ $operator->user->name ?? '' }}" title="Salin Info Login">
+                                                <button type="button" class="btn btn-xs btn-primary copy-login-btn" data-email="{{ $operator->user?->email ?? '' }}" data-name="{{ $operator->user?->name ?? $operator->name ?? '' }}" title="Salin Info Login">
                                                     <i class="fas fa-copy mr-1"></i> Salin Kredensial
                                                 </button>
                                             </div>
                                             <div class="small">
-                                                <div><strong>Email:</strong> <code class="text-primary">{{ $operator->user->email ?? '-' }}</code></div>
-                                                <div><strong>Nama Akun:</strong> {{ $operator->user->name ?? '-' }}</div>
+                                                <div><strong>Email:</strong> <code class="text-primary">{{ $operator->user?->email ?? '-' }}</code></div>
+                                                <div><strong>Nama Akun:</strong> {{ $operator->user?->name ?? $operator->name ?? '-' }}</div>
                                                 <div class="text-muted mt-1"><i class="fas fa-info-circle mr-1"></i>Dapat login menggunakan email, nama, atau username tanpa domain.</div>
                                             </div>
                                         </div>
