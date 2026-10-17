@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Shop;
 use App\Models\User;
 use App\Models\Investor;
+use App\Support\CredentialPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -109,38 +111,41 @@ class InvestorController extends Controller
 
         $validated = $request->validate($rules);
 
-        $baseEmail = strtolower(str_replace(' ', '.', trim($request->name))) . '@pertashop.com';
-        $email = $baseEmail;
-        $counter = 1;
-        while (\App\Models\User::where('email', $email)->exists()) {
-            $email = strtolower(str_replace(' ', '.', trim($request->name))) . $counter . '@pertashop.com';
-            $counter++;
-        }
-
-        $validated['email'] = $email;
-        $validated['password'] = Hash::make(123);
-        $validated['encrypted_password'] = Crypt::encryptString('123');
-        $validated['role'] = 'investor';
-
-        $user = User::create($validated);
-
-        $validated['user_id'] = $user->id;
-
-        $investor = Investor::create($validated);
-
-        // Calculate persentase and attach to shop
         $shop = Shop::find($request->shop_id);
-        $persentase = 0;
-        if ($shop && $shop->modal_awal > 0) {
-            $persentase = ($request->nominal / $shop->modal_awal) * 100;
-        }
 
-        $investor->shops()->attach($request->shop_id, [
-            'nominal' => $request->nominal,
-            'persentase' => round($persentase, 2)
-        ]);
+        // Kredensial awal mengikuti kebijakan baru: nama@pertashop[lokasi].com + sandi kuat acak
+        $email    = CredentialPolicy::suggestEmail($request->name, $shop?->nama);
+        $password = CredentialPolicy::generatePassword();
 
-        return redirect()->route('investors.index')->with('success', 'Investor berhasil ditambahkan');
+        DB::transaction(function () use ($request, $validated, $email, $password, $shop) {
+            $user = User::create([
+                'name'                => $validated['name'],
+                'email'               => $email,
+                'password'            => Hash::make($password),
+                'encrypted_password'  => Crypt::encryptString($password),
+                'password_changed_at' => now(),
+                'role'                => 'investor',
+            ]);
+
+            $investorData = collect($validated)->except(['shop_id', 'nominal', 'name'])->all();
+            $investorData['user_id'] = $user->id;
+            $investorData['email_pertashop'] = $email;
+
+            $investor = Investor::create($investorData);
+
+            // Calculate persentase and attach to shop
+            $persentase = 0;
+            if ($shop && $shop->modal_awal > 0) {
+                $persentase = ($request->nominal / $shop->modal_awal) * 100;
+            }
+
+            $investor->shops()->attach($request->shop_id, [
+                'nominal' => $request->nominal,
+                'persentase' => round($persentase, 2)
+            ]);
+        });
+
+        return redirect()->route('investors.index')->with('success', "Investor berhasil ditambahkan. Email: {$email} | Sandi awal: {$password} (dapat disalin ulang di menu Edit > Pengaturan Akun)");
     }
 
     /**
@@ -184,36 +189,50 @@ class InvestorController extends Controller
             'nama_bank'             => 'required|string|max:255',
             'no_rekening'           => 'required|string|max:255',
             'atas_nama_rekening'    => 'required|string|max:255',
-            'password'              => 'nullable|string|max:255'
         ];
 
-        // Removed email pertashop rules
+        $isSuperAdmin = Auth::user()->role === 'super-admin';
+        $investor->loadMissing('user');
 
-        if (\Illuminate\Support\Facades\Auth::user()->role === 'super-admin') {
-            $rules['email'] = 'required|email|unique:users,email,' . $investor->user_id;
+        if ($isSuperAdmin) {
+            $rules['email']    = CredentialPolicy::emailRules($investor->user, $request->input('email'));
+            $rules['password'] = CredentialPolicy::passwordRules();
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, CredentialPolicy::messages());
 
-        $investor->update($validated);
-
-        $updateData = [
-            'name' => $request->name,
-        ];
-        if (\Illuminate\Support\Facades\Auth::user()->role === 'super-admin' && $request->has('email')) {
-            $updateData['email'] = $request->email;
-        }
-        $investor->user->update($updateData);
-
-        if ($request->password) {
-            $investor->user->update([
-                'password' => Hash::make($request->password),
-                'encrypted_password' => Crypt::encryptString($request->password),
-                'password_changed_at' => now(),
-            ]);
+        $user = $investor->user;
+        if (!$user) {
+            return back()->withErrors(['email' => 'Akun user untuk investor ini tidak ditemukan!']);
         }
 
-        return redirect()->route('investors.index')->with('success', 'Investor berhasil diupdate');
+        $profile = collect($validated)->except(['email', 'password', 'name'])->all();
+
+        $changes = DB::transaction(function () use ($investor, $user, $profile, $request, $isSuperAdmin) {
+            $email    = $isSuperAdmin ? $request->input('email') : null;
+            $password = $isSuperAdmin ? $request->input('password') : null;
+
+            // 1. Tabel users (autentikasi)
+            $changes = CredentialPolicy::applyToUser($user, $email, $password, $request->name);
+
+            // 2. Tabel investors (profil) + cermin email login
+            if (\Illuminate\Support\Facades\Schema::hasColumn('investors', 'email_pertashop')) {
+                $profile['email_pertashop'] = $user->email;
+            }
+            if ($password && \Illuminate\Support\Facades\Schema::hasColumn('investors', 'sandi_email_pertashop')) {
+                $profile['sandi_email_pertashop'] = null;
+            }
+            $investor->update($profile);
+
+            return $changes;
+        });
+
+        $msg = 'Investor berhasil diupdate.';
+        if ($changes) {
+            $msg .= ' Kredensial login (' . implode(' & ', $changes) . ') diperbarui; sesi lama investor otomatis diputus.';
+        }
+
+        return redirect()->route('investors.index')->with('success', $msg);
     }
 
     /**
@@ -231,23 +250,44 @@ class InvestorController extends Controller
 
     public function updateCredentials(Request $request, Investor $investor)
     {
-        if (\Illuminate\Support\Facades\Auth::user()->role !== 'super-admin') {
+        if (Auth::user()->role !== 'super-admin') {
             abort(403, 'Unauthorized action.');
         }
 
-        $validated = $request->validate([
-            'email' => 'required|email|unique:users,email,' . $investor->user_id,
-            'password' => 'nullable|string|min:3',
-        ]);
-
-        $updateData = ['email' => $validated['email']];
-        if (!empty($validated['password'])) {
-            $updateData['password'] = \Illuminate\Support\Facades\Hash::make($validated['password']);
+        $investor->loadMissing('user');
+        $user = $investor->user;
+        if (!$user) {
+            return back()->withErrors(['email' => 'Akun user untuk investor ini tidak ditemukan!']);
         }
 
-        $investor->user->update($updateData);
+        // Endpoint khusus kredensial: TIDAK memvalidasi data profil.
+        $validated = $request->validate([
+            'email'    => CredentialPolicy::emailRules($user, $request->input('email')),
+            'password' => CredentialPolicy::passwordRules(),
+        ], CredentialPolicy::messages());
 
-        return redirect()->back()->with('success', 'Kredensial login berhasil diperbarui');
+        $changes = DB::transaction(function () use ($investor, $user, $validated) {
+            $changes = CredentialPolicy::applyToUser($user, $validated['email'], $validated['password'] ?? null);
+
+            $invUpdate = [];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('investors', 'email_pertashop')) {
+                $invUpdate['email_pertashop'] = $user->email;
+            }
+            if (!empty($validated['password']) && \Illuminate\Support\Facades\Schema::hasColumn('investors', 'sandi_email_pertashop')) {
+                $invUpdate['sandi_email_pertashop'] = null;
+            }
+            if (!empty($invUpdate)) {
+                $investor->update($invUpdate);
+            }
+
+            return $changes;
+        });
+
+        $msg = $changes
+            ? 'Kredensial login investor (' . implode(' & ', $changes) . ') berhasil diperbarui. Sesi lama investor otomatis diputus.'
+            : 'Tidak ada perubahan kredensial.';
+
+        return redirect()->route('investors.edit', $investor)->with('success', $msg)->with('open_tab', 'akun');
     }
 
     /**

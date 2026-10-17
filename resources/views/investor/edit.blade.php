@@ -44,6 +44,14 @@
                     @csrf
                     @method('PUT')
                     <div class="card-body">
+                        @if ($errors->any())
+                            <div class="alert alert-danger" id="form-error-summary">
+                                <b><i class="fas fa-exclamation-triangle mr-1"></i> Data belum tersimpan.</b> Perbaiki isian berikut (tab terkait ditandai merah):
+                                <ul class="mb-0 mt-1 small">
+                                    @foreach ($errors->all() as $err)<li>{{ $err }}</li>@endforeach
+                                </ul>
+                            </div>
+                        @endif
                         <div class="tab-content" id="investor-tabs-content">
                             
                             <!-- Tab Data Pribadi -->
@@ -134,43 +142,12 @@
                             @if(Auth::user()->role === 'super-admin')
                             <!-- Tab Pengaturan Akun -->
                             <div class="tab-pane fade" id="content-akun" role="tabpanel" aria-labelledby="tab-akun">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label for="email">Email Login Sistem <span class="text-danger">*</span></label>
-                                            <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" value="{{ old('email', $investor->user->email ?? '') }}">
-                                            @error('email')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="password">Sandi Baru (Kosongkan jika tidak diubah)</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control @error('password') is-invalid @enderror" id="password" name="password">
-                                                <div class="input-group-append">
-                                                    <span class="input-group-text toggle-password" style="cursor: pointer;" title="Tampilkan/Sembunyikan Sandi">
-                                                        <i class="fas fa-eye"></i>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            @php
-                                                $currentPassword = '(tidak diketahui)';
-                                                try {
-                                                    $enc = $investor->user->encrypted_password ?? null;
-                                                    if ($enc) {
-                                                        $currentPassword = \Illuminate\Support\Facades\Crypt::decryptString($enc);
-                                                    } elseif (\Illuminate\Support\Facades\Hash::check('123', $investor->user->password)) {
-                                                        $currentPassword = '123';
-                                                    } else {
-                                                        $currentPassword = '(sandi lama, silakan buat sandi baru)';
-                                                    }
-                                                } catch (\Throwable $e) {
-                                                    $currentPassword = '(tidak dapat didekripsi — APP_KEY mungkin berubah)';
-                                                }
-                                            @endphp
-                                            <small class="text-muted">Sandi saat ini: <strong>{{ $currentPassword }}</strong></small>
-                                            @error('password')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                                        </div>
-                                    </div>
-                                </div>
+                                @include('partials._credential_panel', [
+                                    'credUser' => $investor->user,
+                                    'credLabel' => 'Investor',
+                                    'credUpdateUrl' => route('investors.update-credentials', $investor->id),
+                                    'credSuggestEmail' => \App\Support\CredentialPolicy::suggestEmail($investor->user->name ?? 'investor', optional($investor->shops->first())->nama, $investor->user_id),
+                                ])
                             </div>
                             @endif
 
@@ -202,6 +179,22 @@
                 icon.removeClass('fa-eye-slash').addClass('fa-eye');
             }
         });
+
+        // Buka otomatis tab yang berisi error validasi
+        (function () {
+            let target = null;
+            $('#investor-tabs-content .tab-pane').each(function () {
+                const hasErr = $(this).find('.is-invalid').length > 0;
+                const $link = $('#investor-tabs a[href="#' + this.id + '"]');
+                $link.toggleClass('text-danger font-weight-bold', hasErr);
+                if (hasErr && !$link.find('.err-dot').length) $link.append(' <i class="fas fa-exclamation-circle err-dot"></i>');
+                if (hasErr && !target) target = $link;
+            });
+            @if(session('open_tab') === 'akun')
+                if (!target) target = $('#tab-akun');
+            @endif
+            if (target && target.length) target.tab('show');
+        })();
     });
 </script>
 @endpush

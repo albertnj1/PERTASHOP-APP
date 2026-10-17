@@ -7,10 +7,19 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Models\User;
 
 class LoginController extends Controller
 {
+    /**
+     * Jumlah maksimal percobaan login per menit.
+     */
+    protected int $maxAttempts = 5;
+    protected int $decayMinutes = 1;
+
     public function index()
     {
         return view('auth.login');
@@ -19,71 +28,73 @@ class LoginController extends Controller
     public function authenticate(Request $request): RedirectResponse
     {
         $request->validate([
-            'email' => ['required', 'string'],
+            'email'    => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
         ]);
 
-        $loginInput = trim($request->input('email'));
-        $password   = trim($request->input('password'));
-        $remember   = (bool) $request->input('remember');
+        // ── Rate Limiting: Blokir setelah 5x gagal per IP+input ──
+        $throttleKey = Str::lower(trim($request->input('email'))) . '|' . $request->ip();
 
-        // Cari user berbasis Email, Nama lengkap, atau Username/Slug (misal: andre, wawan, aulia)
-        $user = User::where('email', $loginInput)
-            ->orWhere('name', $loginInput)
-            ->orWhere('name', 'like', "%{$loginInput}%")
-            ->orWhereRaw("LOWER(email) LIKE ?", ['%' . strtolower($loginInput) . '%'])
-            ->first();
+        if (RateLimiter::tooManyAttempts($throttleKey, $this->maxAttempts)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
 
-        // 1. Coba kecocokan Hash Password standar
-        $isAuthenticated = $user && Hash::check($password, $user->password);
-
-        // 2. Fallback fleksibel untuk development / sinkronisasi password default
-        if (!$isAuthenticated && $user) {
-            $allowedFallbacks = [];
-            if ($user->role === 'super-admin') {
-                if (app()->isLocal()) {
-                    // Di environment local, langsung sinkronkan ke password apapun yang diinput
-                    $user->update([
-                        'password' => Hash::make($password),
-                    ]);
-                    $isAuthenticated = true;
-                } else {
-                    $allowedFallbacks = [
-                        'superadmin123*', 'superadmin123', 'superadmin',
-                        'albert', 'albert123', 'albert123*',
-                        'password123', 'password',
-                        'admin123', 'admin',
-                        '12345678', '123456', '123',
-                        'pertashop',
-                    ];
-                }
-            } elseif ($user->role === 'operator' || $user->role === 'admin') {
-                $allowedFallbacks = ['password123', '123', 'password', 'admin123'];
-            }
-
-            if (!$isAuthenticated && in_array($password, $allowedFallbacks)) {
-                // Update password ke password yang baru saja diketik agar tersinkronisasi sempurna
-                $user->update([
-                    'password' => Hash::make($password),
-                ]);
-                $isAuthenticated = true;
-            }
+            return back()->withErrors([
+                'email' => "Terlalu banyak percobaan login. Silakan coba lagi dalam {$seconds} detik.",
+            ])->onlyInput('email');
         }
 
-        if ($user && $isAuthenticated) {
+        // ── Normalisasi input ──
+        $loginInput = trim($request->input('email'));
+        $loginLower = Str::lower($loginInput);
+        $password   = $request->input('password'); // Jangan trim password — spasi bisa jadi bagian password
+        $remember   = $request->boolean('remember');
+
+        // ── Cari pengguna langsung pada tabel users (Single Source of Truth autentikasi) ──
+        // Jika input berformat email (mengandung '@'), cari HANYA berdasarkan kolom email di users.
+        // Jika bukan email, cari berdasarkan nama akun atau username di users.
+        if (Str::contains($loginInput, '@')) {
+            $user = User::whereRaw('LOWER(email) = ?', [$loginLower])->first();
+        } else {
+            $user = User::whereRaw('LOWER(name) = ?', [$loginLower])
+                ->when(\Illuminate\Support\Facades\Schema::hasColumn('users', 'username'), function ($q) use ($loginLower) {
+                    $q->orWhereRaw('LOWER(username) = ?', [$loginLower]);
+                })
+                ->first();
+        }
+
+        // ── Verifikasi password dengan Hash::check ──
+        if ($user && Hash::check($password, $user->password)) {
+            // Cek apakah akun aktif
             if (!$user->is_active) {
+                // Tidak menghitung rate limit untuk akun non-aktif
                 return back()->withErrors([
                     'email' => 'Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.',
                 ])->onlyInput('email');
             }
 
+            // Reset rate limiter setelah login berhasil
+            RateLimiter::clear($throttleKey);
+
+            // Login & regenerasi session untuk mencegah session fixation
             Auth::login($user, $remember);
             $request->session()->regenerate();
+
+            // Jika hash password perlu di-rehash (misal: upgrade bcrypt cost)
+            if (Hash::needsRehash($user->password)) {
+                $user->update(['password' => Hash::make($password)]);
+            }
 
             return redirect()->intended('/');
         }
 
-        \Illuminate\Support\Facades\Log::warning("FAILED LOGIN for input: '{$loginInput}', password submitted: '{$password}'");
+        // ── Login gagal: catat dan increment rate limiter ──
+        RateLimiter::hit($throttleKey, $this->decayMinutes * 60);
+
+        Log::warning('FAILED LOGIN', [
+            'input' => $loginInput,
+            'ip'    => $request->ip(),
+            'user_found' => $user ? 'yes' : 'no',
+        ]);
 
         return back()->withErrors([
             'email' => 'Kredensial login tidak ditemukan atau password salah. Pastikan Email / Nama dan Password Anda benar.',
@@ -95,9 +106,9 @@ class LoginController extends Controller
         Auth::logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return to_route('login');
     }
 }
+

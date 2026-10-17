@@ -164,6 +164,9 @@
 
     @stack('script')
 
+    {{-- Auto-Logout: Idle Detection 15 Menit --}}
+    @include('components.idle-timeout')
+
 </body>
 
 </html>

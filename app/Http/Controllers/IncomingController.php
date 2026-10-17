@@ -6,6 +6,7 @@ use App\Models\Shop;
 use App\Models\Incoming;
 use App\Models\Operator;
 use App\Models\Purchase;
+use App\Models\SoOrderTrip;
 use App\Helpers\AstmTable53;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -79,9 +80,20 @@ class IncomingController extends Controller
         $purchases = Purchase::with('supplier')
             ->where('shop_id', $shop->id)
             ->get()->where('sisa', '>', 0);
+
+        // Multi-trip SO: ambil semua trip PENDING untuk pertashop ini
+        $pendingSoTrips = SoOrderTrip::with('soOrder.supplier')
+            ->whereHas('soOrder', function ($q) use ($shop) {
+                $q->where('shop_id', $shop->id)
+                  ->whereIn('status', ['PENDING', 'PARTIAL']);
+            })
+            ->where('status', 'PENDING')
+            ->orderBy('estimated_delivery_date')
+            ->get();
+
         $incoming = Incoming::where('operator_id', $operator->id)
             ->whereDate('created_at', Carbon::now()->format('Y-m-d'))->first();
-        return view('incoming.create', compact('purchases', 'shop'));
+        return view('incoming.create', compact('purchases', 'shop', 'pendingSoTrips'));
     }
 
     /**
@@ -94,7 +106,8 @@ class IncomingController extends Controller
         ];
         $validated = $request->validate([
             'incoming_date' => 'required|date',
-            'purchase_id' => 'required|numeric',
+            'purchase_id' => 'nullable|numeric',
+            'so_order_trip_id' => 'nullable|numeric|exists:so_order_trips,id',
             'sopir' => 'required|string',
             'no_polisi' => 'required|string',
             'asal_pengirim' => 'nullable|string',
@@ -113,23 +126,51 @@ class IncomingController extends Controller
             'terima_density' => 'nullable|numeric',
         ], $customMessages);
 
+        // Validasi: harus ada purchase_id ATAU so_order_trip_id
+        if (empty($validated['purchase_id']) && empty($validated['so_order_trip_id'])) {
+            return back()->withErrors(['purchase_id' => 'Pilih salah satu: No. SO (legacy) atau SO Trip.'])->withInput();
+        }
+
         $validated['created_at'] = Carbon::now()->format('Y-m-d H:i');
         $validated['shop_id'] = Auth::user()->operator->shop_id;
         $validated['operator_id'] = Auth::user()->operator->id;
 
         $penerimaan_real = $request->penerimaan_real;
-        $purchase = Purchase::find($request->purchase_id);
-        
-        // Ensure volume is set so the Purchase SO is marked as fully received and disappears from dropdown
-        if ($purchase) {
-            $validated['volume'] = $purchase->volume;
+        $purchase = null;
+        $soTrip = null;
+
+        // ── Handle SO Order Trip (Multi-Trip) ────────────────────────────
+        if (!empty($validated['so_order_trip_id'])) {
+            $soTrip = SoOrderTrip::with('soOrder')->find($validated['so_order_trip_id']);
+
+            if ($soTrip && $soTrip->status === 'PENDING') {
+                $validated['volume'] = $soTrip->quantity_liter;
+
+                // Jika tidak ada purchase_id, simpan referensi ke SO trip
+                if (empty($validated['purchase_id'])) {
+                    unset($validated['purchase_id']);
+                }
+            }
         }
+        // ── Handle Legacy Purchase SO ────────────────────────────────────
+        elseif (!empty($validated['purchase_id'])) {
+            $purchase = Purchase::find($validated['purchase_id']);
+            if ($purchase) {
+                $validated['volume'] = $purchase->volume;
+            }
+        }
+
+        // Remove so_order_trip_id dari validated karena bukan kolom di tabel incomings
+        $soTripId = $validated['so_order_trip_id'] ?? null;
+        unset($validated['so_order_trip_id']);
 
         $incoming = Incoming::create($validated);
 
         // Calculate losses/gain
         if ($purchase && $penerimaan_real !== null) {
             $incoming->losses_gain = $penerimaan_real - $purchase->volume;
+        } elseif ($soTrip && $penerimaan_real !== null) {
+            $incoming->losses_gain = $penerimaan_real - $soTrip->quantity_liter;
         }
 
         // Calculate density at 15C and Pertamax validity
@@ -140,6 +181,11 @@ class IncomingController extends Controller
         }
 
         $incoming->save();
+
+        // ── Tandai SO Trip sebagai RECEIVED ──────────────────────────────
+        if ($soTrip && $soTrip->status === 'PENDING') {
+            $soTrip->markAsReceived(null, $incoming->id);
+        }
 
         // Invalidate dashboard cache agar data stok langsung ter-update
         $this->invalidateDashboardCache($validated['shop_id']);

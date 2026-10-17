@@ -21,7 +21,9 @@ class ExcelMappingImportService
 {
     public function validateFoundationalColumns(array $mappingConfig): array
     {
-        $foundational = array_keys(ExcelColumnMapping::foundationalFields());
+        $foundational = class_exists(ExcelColumnMapping::class)
+            ? array_keys(ExcelColumnMapping::foundationalFields())
+            : ['totalisator_awal', 'totalisator_akhir', 'stik_akhir', 'tanggal'];
         $missing = [];
 
         foreach ($foundational as $field) {
@@ -85,21 +87,34 @@ class ExcelMappingImportService
             ->keyBy('nama_kategori');
 
         $startReadRow = max(2, $dataStartRow);
+        $consecutiveEmptyRows = 0; // Counter untuk deteksi batas data (3 baris kosong = stop)
 
         // Pass 1: Parse Line Items
         for ($row = $startReadRow; $row <= $highestRow; $row++) {
+            // Boundary Detection: cek apakah baris ini adalah baris "Total" / ringkasan
+            if ($this->isTotalRow($sheet, $row)) {
+                break; // Hentikan parsing saat menemukan baris ringkasan
+            }
+
             $tanggal = $this->resolveRowDate($sheet, $mappingConfig, $row, $sheetName ?? '', $sumberFileExcel);
             if (!$tanggal) {
+                $consecutiveEmptyRows++;
+                if ($consecutiveEmptyRows >= 3) {
+                    break; // 3 baris kosong berurutan = akhir data
+                }
                 continue;
             }
+            $consecutiveEmptyRows = 0; // Reset counter jika baris valid
 
             $colTotAkhir  = $mappingConfig['totalisator_akhir'] ?? 'E';
             $colTotAwal   = $mappingConfig['totalisator_awal'] ?? 'D';
             $colStikAwal  = $mappingConfig['stik_awal'] ?? 'N';
-            $colStikAkhir = $mappingConfig['stik_akhir'] ?? 'W';
+            $colStikAkhir = $mappingConfig['stik_akhir'] ?? 'R';
             $colTestPump  = $mappingConfig['test_pump'] ?? 'H';
             $colPenerimaan= $mappingConfig['penerimaan'] ?? 'P';
             $colBbmLain   = $mappingConfig['bbm_keluar_lain'] ?? 'J';
+            $colHutangBakulan    = $mappingConfig['hutang_bakulan'] ?? null;
+            $colPelunasanBakulan = $mappingConfig['pelunasan_bakulan'] ?? null;
 
             $totalisatorAwal  = floatval($this->getCellValue($sheet, $colTotAwal, $row));
             $totalisatorAkhir = floatval($this->getCellValue($sheet, $colTotAkhir, $row));
@@ -107,12 +122,21 @@ class ExcelMappingImportService
             $stikAkhir        = floatval($this->getCellValue($sheet, $colStikAkhir, $row));
 
             if ($stikAkhir == 0) {
-                $stikAkhir = floatval($this->getCellValue($sheet, 'N', $row));
+                // Fallback jika kolom R kosong: cek W (Liter) atau N
+                $stikAkhir = floatval($this->getCellValue($sheet, 'R', $row));
+                if ($stikAkhir == 0) {
+                    $stikAkhir = floatval($this->getCellValue($sheet, 'W', $row));
+                }
+                if ($stikAkhir == 0) {
+                    $stikAkhir = floatval($this->getCellValue($sheet, 'N', $row));
+                }
             }
 
             $testPump         = floatval($this->getCellValue($sheet, $colTestPump, $row));
             $penerimaan       = floatval($this->getCellValue($sheet, $colPenerimaan, $row));
             $bbmKeluarLain    = floatval($this->getCellValue($sheet, $colBbmLain, $row));
+            $hutangBakulan    = $colHutangBakulan ? floatval($this->getCellValue($sheet, $colHutangBakulan, $row)) : 0.0;
+            $pelunasanBakulan = $colPelunasanBakulan ? floatval($this->getCellValue($sheet, $colPelunasanBakulan, $row)) : 0.0;
 
             $depositsData = [];
             $totalDisetorkanRow = 0;
@@ -134,8 +158,10 @@ class ExcelMappingImportService
                 }
             }
 
-            $volExcel    = floatval($this->getCellValue($sheet, $mappingConfig['volume_excel'] ?? 'F', $row));
-            $rupiahExcel = floatval($this->getCellValue($sheet, $mappingConfig['rupiah_excel'] ?? 'G', $row));
+            $colVolExcel = $mappingConfig['volume_excel'] ?? (($testPump > 0 || $bbmKeluarLain > 0) ? 'L' : 'F');
+            $colRpExcel  = $mappingConfig['rupiah_excel'] ?? (($testPump > 0 || $bbmKeluarLain > 0) ? 'M' : 'G');
+            $volExcel    = floatval($this->getCellValue($sheet, $colVolExcel, $row));
+            $rupiahExcel = floatval($this->getCellValue($sheet, $colRpExcel, $row));
 
             $volumeTeoritis = max(0.0, $totalisatorAkhir - $totalisatorAwal);
             $volSistem      = max(0.0, $volumeTeoritis - $testPump - $bbmKeluarLain);
@@ -148,9 +174,16 @@ class ExcelMappingImportService
             $hargaJual = $priceObj ? floatval($priceObj->harga_jual) : 16000;
             $rupiahSistem = round($volSistem * $hargaJual, 2);
 
-            $diffVol    = round(abs($volSistem - $volExcel), 2);
-            $diffRupiah = round(abs($rupiahSistem - $rupiahExcel), 2);
-            $isWithinTolerance = ($diffVol <= 0.01) && ($diffRupiah <= 1.0);
+            // Toleransi fleksibel: bandingkan dengan volume aktual atau volume teoritis
+            $diffVolAktual   = round(abs($volSistem - $volExcel), 2);
+            $diffVolTeoritis = round(abs($volumeTeoritis - $volExcel), 2);
+            $diffVol         = min($diffVolAktual, $diffVolTeoritis);
+
+            $diffRupiahAktual   = round(abs($rupiahSistem - $rupiahExcel), 2);
+            $diffRupiahTeoritis = round(abs(round($volumeTeoritis * $hargaJual, 2) - $rupiahExcel), 2);
+            $diffRupiah         = min($diffRupiahAktual, $diffRupiahTeoritis);
+
+            $isWithinTolerance = ($diffVol <= 0.05) && ($diffRupiah <= 10.0);
 
             $parsedRows[] = [
                 'row_index'           => $row,
@@ -162,6 +195,8 @@ class ExcelMappingImportService
                 'test_pump'           => $testPump,
                 'penerimaan'          => $penerimaan,
                 'bbm_keluar_lain'     => $bbmKeluarLain,
+                'hutang_bakulan'      => $hutangBakulan,
+                'pelunasan_bakulan'   => $pelunasanBakulan,
                 'vol_sistem'          => $volSistem,
                 'vol_excel'           => $volExcel,
                 'diff_vol'            => $diffVol,
@@ -196,10 +231,10 @@ class ExcelMappingImportService
                     $priceId = $activePrice ? $activePrice->id : 1;
 
                     foreach ($parsedRows as $item) {
-                        $targetDate = Carbon::parse($item['tanggal'])->startOfDay();
+                        $targetDateStr = Carbon::parse($item['tanggal'])->toDateString();
 
                         $existingReport = DailyReport::where('shop_id', $shop->id)
-                            ->whereDate('created_at', $targetDate)
+                            ->where('report_date', $targetDateStr)
                             ->first();
 
                         if ($existingReport) {
@@ -207,14 +242,14 @@ class ExcelMappingImportService
                                 $existingReport->delete();
                             } else {
                                 // Default Strategy: Idempotent Skip
-                                $skippedDates[] = Carbon::parse($item['tanggal'])->format('d M Y');
+                                $skippedDates[] = Carbon::parse($targetDateStr)->format('d M Y');
                                 continue;
                             }
                         }
 
                         $prevReport = DailyReport::where('shop_id', $shop->id)
-                            ->whereDate('created_at', '<', $targetDate)
-                            ->orderBy('created_at', 'desc')
+                            ->where('report_date', '<', $targetDateStr)
+                            ->orderBy('report_date', 'desc')
                             ->first();
 
                         $prevRunningBalance = $prevReport ? (float) ($prevReport->running_balance_setoran ?? 0) : 0.0;
@@ -222,19 +257,27 @@ class ExcelMappingImportService
                         $totalPengeluaran   = collect($item['deposits'])
                             ->where('jenis', 'pengeluaran')
                             ->sum('jumlah');
-                        $selisihHariIni     = ((float) $totalPengeluaran + (float) $item['total_disetorkan']) - $rupiahAktual;
+                        $pendapatanAkhir    = $rupiahAktual - $totalPengeluaran - (float) ($item['hutang_bakulan'] ?? 0) + (float) ($item['pelunasan_bakulan'] ?? 0);
+                        $selisihHariIni     = (float) $item['total_disetorkan'] - $pendapatanAkhir;
                         $runningBalance     = $prevRunningBalance + $selisihHariIni;
 
                         $dailyReport = DailyReport::create([
                             'shop_id'                  => $shop->id,
-                            'created_at'               => $targetDate,
+                            'report_date'              => $targetDateStr,
+                            'created_at'               => Carbon::parse($targetDateStr)->startOfDay(),
                             'operator_id'              => $opId,
                             'price_id'                 => $priceId,
+                            'harga_jual_snapshot'      => $activePrice ? floatval($activePrice->harga_jual) : null,
+                            'harga_beli_snapshot'      => $activePrice ? floatval($activePrice->harga_beli) : null,
+                            'totalisator_awal'         => $item['totalisator_awal'] ?? null,
                             'totalisator_akhir'        => $item['totalisator_akhir'],
                             'stik_akhir'               => $item['stik_akhir'],
+                            'stok_awal'                => (isset($item['stik_awal']) && floatval($item['stik_awal']) > 200) ? floatval($item['stik_awal']) : ((isset($item['stik_awal']) && floatval($item['stik_awal']) > 0) ? floatval($item['stik_awal']) * ($shop->skala > 0 ? $shop->skala : 21.0) : null),
                             'test_pump_volume'         => $item['test_pump'],
                             'penerimaan_volume'        => $item['penerimaan'],
                             'bbm_keluar_lain'          => $item['bbm_keluar_lain'],
+                            'hutang_bakulan'           => (float) ($item['hutang_bakulan'] ?? 0),
+                            'pelunasan_bakulan'        => (float) ($item['pelunasan_bakulan'] ?? 0),
                             'disetorkan'               => $item['total_disetorkan'],
                             'running_balance_setoran'  => $runningBalance,
                             'status_lifecycle'         => 'imported',
@@ -453,5 +496,42 @@ class ExcelMappingImportService
         }
         $cell = $sheet->getCell($colLetter . $row);
         return $cell ? trim(strval($cell->getFormattedValue())) : null;
+    }
+
+    /**
+     * Boundary Detection: Apakah baris ini adalah baris ringkasan/total?
+     * Mengecek kolom A-E untuk kata kunci seperti "total", "jumlah", "subtotal", "grand total".
+     */
+    private function isTotalRow($sheet, int $row): bool
+    {
+        $totalKeywords = ['total', 'jumlah', 'subtotal', 'grand total', 'sub total', 'rata-rata', 'average'];
+
+        foreach (['A', 'B', 'C', 'D', 'E'] as $col) {
+            $val = strtolower(trim(strval($sheet->getCell($col . $row)->getFormattedValue())));
+            if ($val === '') continue;
+
+            foreach ($totalKeywords as $keyword) {
+                if (str_starts_with($val, $keyword) || $val === $keyword) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalisasi teks header Excel:
+     * - Hapus karakter khusus (., :, /, \, dsb)
+     * - Hapus spasi berlebih
+     * - Konversi ke lowercase
+     */
+    public static function normalizeHeaderText(string $text): string
+    {
+        // Hapus karakter non-alphanumeric kecuali spasi
+        $cleaned = preg_replace('/[^a-zA-Z0-9\s]/', ' ', $text);
+        // Hapus spasi berlebih dan trim
+        $cleaned = preg_replace('/\s+/', ' ', $cleaned);
+        return strtolower(trim($cleaned));
     }
 }

@@ -451,9 +451,24 @@ class DailyReportController extends Controller
                 return $p->sisa > 0;
             });
 
+        // Multi-Trip SO: ambil daftar trip yang masih PENDING untuk shop ini
+        $pendingSoTrips = \App\Models\SoOrderTrip::with('soOrder.supplier')
+            ->whereHas('soOrder', function ($q) use ($shop_id) {
+                $q->where('shop_id', $shop_id)
+                  ->whereIn('status', ['PENDING', 'PARTIAL']);
+            })
+            ->where('status', 'PENDING')
+            ->orderBy('estimated_delivery_date')
+            ->get();
+
         $kolektans = Kolektan::where('shop_id', $shop_id)->orWhereNull('shop_id')->get();
 
-        return view('daily_report.create', compact('harga', 'shop', 'totalisator_awal', 'stik_awal', 'belum_disetorkan', 'prices', 'todayPriceChanges', 'pendingPurchases', 'kolektans'));
+        $unpaidReceivables = \App\Models\Receivable::where('shop_id', $shop_id)
+            ->where('status', 'belum lunas')
+            ->orderBy('tanggal', 'asc')
+            ->get();
+
+        return view('daily_report.create', compact('harga', 'shop', 'totalisator_awal', 'stik_awal', 'belum_disetorkan', 'prices', 'todayPriceChanges', 'pendingPurchases', 'pendingSoTrips', 'kolektans', 'unpaidReceivables'));
     }
 
     /**
@@ -479,6 +494,11 @@ class DailyReportController extends Controller
             'setor_kolektan' => 'nullable|numeric',
             'kolektan_id' => 'nullable|exists:kolektans,id',
             'kolektan_pin' => 'nullable|string',
+            'hutang_bakulan' => 'nullable|numeric|min:0',
+            'pelunasan_bakulan' => 'nullable|numeric|min:0',
+            'pelanggan_bakulan' => 'nullable|string|max:255',
+            'keterangan_bakulan' => 'nullable|string|max:500',
+            'receivable_id_pelunasan' => 'nullable|exists:receivables,id',
         ], $customMessages);
 
         if (floatval($request->input('setor_kolektan')) > 0) {
@@ -561,12 +581,72 @@ class DailyReportController extends Controller
         $validated['price_id'] = $applicablePrice->id;
         $validated['stok_awal'] = floatval($validated['stik_awal']) * Shop::find($shop_id)->skala;
 
+        // Snapshot harga transaksi & tanggal operasional laporan
+        $reportDateOnly = Carbon::parse($reportDate)->toDateString();
+        $validated['report_date'] = $reportDateOnly;
+        $validated['harga_jual_snapshot'] = $applicablePrice ? floatval($applicablePrice->harga_jual) : 0;
+        $validated['harga_beli_snapshot'] = $applicablePrice ? floatval($applicablePrice->harga_beli) : 0;
+
+        // Hutang Bakulan & Pelunasan
+        $validated['hutang_bakulan'] = floatval($request->input('hutang_bakulan', 0));
+        $validated['pelunasan_bakulan'] = floatval($request->input('pelunasan_bakulan', 0));
+
         if ($request->hasFile('foto_stik')) {
             $validated['foto_stik'] = $request->file('foto_stik')->store('foto_stik', 'public');
         }
 
-        //create daily report
+        // Simpan Daily Report
         $dailyReport = DailyReport::create($validated);
+
+        // Catat Piutang Bakulan Baru jika ada
+        if ($validated['hutang_bakulan'] > 0) {
+            \App\Models\Receivable::create([
+                'shop_id'          => $shop_id,
+                'daily_report_id'  => $dailyReport->id,
+                'tanggal'          => $reportDateOnly,
+                'pelanggan'        => $request->input('pelanggan_bakulan') ?: 'Pelanggan Bakulan / Kasbon',
+                'jumlah_piutang'   => $validated['hutang_bakulan'],
+                'jumlah_dibayar'   => 0,
+                'sumber_transaksi' => 'daily_report',
+                'keterangan'       => $request->input('keterangan_bakulan') ?: 'Kasbon BBM Harian',
+                'status'           => 'belum lunas',
+            ]);
+        }
+
+        // Catat Pelunasan Hutang Bakulan Lama jika ada
+        if ($validated['pelunasan_bakulan'] > 0) {
+            $targetReceivable = null;
+            if ($request->filled('receivable_id_pelunasan')) {
+                $targetReceivable = \App\Models\Receivable::find($request->input('receivable_id_pelunasan'));
+            }
+            if (!$targetReceivable) {
+                // FIFO: Ambil piutang terlama yang belum lunas pada outlet ini
+                $targetReceivable = \App\Models\Receivable::where('shop_id', $shop_id)
+                    ->where('status', 'belum lunas')
+                    ->orderBy('tanggal', 'asc')
+                    ->first();
+            }
+
+            if ($targetReceivable) {
+                $bayar = $validated['pelunasan_bakulan'];
+                $newDibayar = $targetReceivable->jumlah_dibayar + $bayar;
+                $targetReceivable->jumlah_dibayar = $newDibayar;
+                if ($newDibayar >= $targetReceivable->jumlah_piutang) {
+                    $targetReceivable->status = 'lunas';
+                }
+                $targetReceivable->save();
+
+                \App\Models\ReceivablePayment::create([
+                    'receivable_id'   => $targetReceivable->id,
+                    'daily_report_id' => $dailyReport->id,
+                    'shop_id'         => $shop_id,
+                    'tanggal_bayar'   => $reportDateOnly,
+                    'jumlah_bayar'    => $bayar,
+                    'metode_bayar'    => 'tunai',
+                    'keterangan'      => 'Pelunasan Kasbon via Tutup Buku Harian',
+                ]);
+            }
+        }
 
         // Sync test pump
         if ($validated['test_pump_volume'] > 0) {
@@ -597,6 +677,7 @@ class DailyReportController extends Controller
         }
 
         // Auto-create Incomings if Operator checked pending SOs
+        // Auto-create Incomings if Operator checked pending SOs (Legacy)
         if ($request->has('received_purchases_ids') && is_array($request->received_purchases_ids)) {
             $received_volumes = $request->input('received_purchases_volumes', []);
             foreach ($request->received_purchases_ids as $purchase_id) {
@@ -618,6 +699,32 @@ class DailyReportController extends Controller
                         'penerimaan_real' => $vol,
                         'created_at' => Carbon::parse($reportDate)->format('Y-m-d H:i:s')
                     ]);
+                }
+            }
+        }
+
+        // Auto-create Incomings & mark SO Trips as RECEIVED if Operator checked pending SO Trips (Multi-Trip)
+        if ($request->has('received_so_trip_ids') && is_array($request->received_so_trip_ids)) {
+            $received_so_trip_volumes = $request->input('received_so_trip_volumes', []);
+            foreach ($request->received_so_trip_ids as $trip_id) {
+                $trip = \App\Models\SoOrderTrip::with('soOrder')->find($trip_id);
+                $vol = isset($received_so_trip_volumes[$trip_id]) ? floatval($received_so_trip_volumes[$trip_id]) : ($trip?->quantity_liter ?? 0);
+                if ($trip && $trip->status === 'PENDING' && $vol > 0) {
+                    $incoming = Incoming::create([
+                        'daily_report_id' => $dailyReport->id,
+                        'shop_id'         => $shop_id,
+                        'operator_id'     => $operator_id,
+                        'incoming_date'   => Carbon::parse($reportDate)->format('Y-m-d'),
+                        'sopir'           => '-',
+                        'no_polisi'       => '-',
+                        'volume'          => $vol,
+                        'stik_awal'       => $request->input('stik_awal'),
+                        'stik_akhir'      => $request->input('stik_akhir'),
+                        'penerimaan_real' => $vol,
+                        'created_at'      => Carbon::parse($reportDate)->format('Y-m-d H:i:s')
+                    ]);
+
+                    $trip->markAsReceived($dailyReport->id, $incoming->id);
                 }
             }
         }
@@ -706,7 +813,26 @@ class DailyReportController extends Controller
 
         $kolektans = Kolektan::where('shop_id', $dailyReport->shop_id)->orWhereNull('shop_id')->get();
 
-        return view('daily_report.edit', compact('dailyReport', 'prices', 'spendings', 'kolektans'));
+        $unpaidReceivables = \App\Models\Receivable::where('shop_id', $dailyReport->shop_id)
+            ->where('status', 'belum lunas')
+            ->orderBy('tanggal', 'asc')
+            ->get();
+
+        $existingReceivable = \App\Models\Receivable::where('daily_report_id', $dailyReport->id)->first();
+        $existingPayment = \App\Models\ReceivablePayment::where('daily_report_id', $dailyReport->id)->first();
+
+        // Multi-Trip SO: trip yang sudah diterima di laporan ini & trip yang masih pending
+        $linkedSoTrips = $dailyReport->soOrderTrips()->with('soOrder.supplier')->get();
+        $pendingSoTrips = \App\Models\SoOrderTrip::with('soOrder.supplier')
+            ->whereHas('soOrder', function ($q) use ($dailyReport) {
+                $q->where('shop_id', $dailyReport->shop_id)
+                  ->whereIn('status', ['PENDING', 'PARTIAL']);
+            })
+            ->where('status', 'PENDING')
+            ->orderBy('estimated_delivery_date')
+            ->get();
+
+        return view('daily_report.edit', compact('dailyReport', 'prices', 'spendings', 'kolektans', 'unpaidReceivables', 'existingReceivable', 'existingPayment', 'linkedSoTrips', 'pendingSoTrips'));
     }
 
     /**
@@ -731,6 +857,11 @@ class DailyReportController extends Controller
             'setor_kolektan' => 'nullable|numeric',
             'kolektan_id' => 'nullable|exists:kolektans,id',
             'kolektan_pin' => 'nullable|string',
+            'hutang_bakulan' => 'nullable|numeric|min:0',
+            'pelunasan_bakulan' => 'nullable|numeric|min:0',
+            'pelanggan_bakulan' => 'nullable|string|max:255',
+            'keterangan_bakulan' => 'nullable|string|max:500',
+            'receivable_id_pelunasan' => 'nullable|exists:receivables,id',
             'diverifikasi' => 'boolean'
         ], $customMessages);
 
@@ -773,6 +904,10 @@ class DailyReportController extends Controller
         $validated['setor_qris'] = floatval($request->input('setor_qris', 0));
         $validated['setor_transfer'] = floatval($request->input('setor_transfer', 0));
         $validated['setor_kolektan'] = floatval($request->input('setor_kolektan', 0));
+        $validated['hutang_bakulan'] = floatval($request->input('hutang_bakulan', 0));
+        $validated['pelunasan_bakulan'] = floatval($request->input('pelunasan_bakulan', 0));
+
+        $reportDateOnly = $dailyReport->report_date ? $dailyReport->report_date->format('Y-m-d') : Carbon::parse($reportDate)->toDateString();
 
         unset($validated['kolektan_pin']);
 
@@ -785,6 +920,83 @@ class DailyReportController extends Controller
 
         //update daily report
         $dailyReport->update($validated);
+
+        // Sync Hutang Bakulan Baru
+        $rec = \App\Models\Receivable::where('daily_report_id', $dailyReport->id)->first();
+        if ($validated['hutang_bakulan'] > 0) {
+            if ($rec) {
+                $rec->jumlah_piutang = $validated['hutang_bakulan'];
+                if ($request->filled('pelanggan_bakulan')) {
+                    $rec->pelanggan = $request->input('pelanggan_bakulan');
+                }
+                if ($request->filled('keterangan_bakulan')) {
+                    $rec->keterangan = $request->input('keterangan_bakulan');
+                }
+                $rec->status = ($rec->jumlah_dibayar >= $rec->jumlah_piutang) ? 'lunas' : 'belum lunas';
+                $rec->save();
+            } else {
+                \App\Models\Receivable::create([
+                    'shop_id'          => $shop_id,
+                    'daily_report_id'  => $dailyReport->id,
+                    'tanggal'          => $reportDateOnly,
+                    'pelanggan'        => $request->input('pelanggan_bakulan') ?: 'Pelanggan Bakulan / Kasbon',
+                    'jumlah_piutang'   => $validated['hutang_bakulan'],
+                    'jumlah_dibayar'   => 0,
+                    'sumber_transaksi' => 'daily_report',
+                    'keterangan'       => $request->input('keterangan_bakulan') ?: 'Kasbon BBM Harian',
+                    'status'           => 'belum lunas',
+                ]);
+            }
+        } elseif ($rec && $rec->jumlah_dibayar == 0) {
+            // Hapus piutang jika nominal di-nolkan dan belum pernah dicicil
+            $rec->delete();
+        }
+
+        // Sync Pelunasan: Rollback pembayaran lama dari daily report ini terlebih dahulu
+        $oldPayments = \App\Models\ReceivablePayment::where('daily_report_id', $dailyReport->id)->get();
+        foreach ($oldPayments as $payment) {
+            if ($payment->receivable) {
+                $targetRec = $payment->receivable;
+                $targetRec->jumlah_dibayar = max(0, $targetRec->jumlah_dibayar - $payment->jumlah_bayar);
+                $targetRec->status = ($targetRec->jumlah_dibayar >= $targetRec->jumlah_piutang) ? 'lunas' : 'belum lunas';
+                $targetRec->save();
+            }
+            $payment->delete();
+        }
+
+        // Terapkan pembayaran baru jika pelunasan_bakulan > 0
+        if ($validated['pelunasan_bakulan'] > 0) {
+            $targetReceivable = null;
+            if ($request->filled('receivable_id_pelunasan')) {
+                $targetReceivable = \App\Models\Receivable::find($request->input('receivable_id_pelunasan'));
+            }
+            if (!$targetReceivable) {
+                $targetReceivable = \App\Models\Receivable::where('shop_id', $shop_id)
+                    ->where('status', 'belum lunas')
+                    ->orderBy('tanggal', 'asc')
+                    ->first();
+            }
+
+            if ($targetReceivable) {
+                $bayar = $validated['pelunasan_bakulan'];
+                $newDibayar = $targetReceivable->jumlah_dibayar + $bayar;
+                $targetReceivable->jumlah_dibayar = $newDibayar;
+                if ($newDibayar >= $targetReceivable->jumlah_piutang) {
+                    $targetReceivable->status = 'lunas';
+                }
+                $targetReceivable->save();
+
+                \App\Models\ReceivablePayment::create([
+                    'receivable_id'   => $targetReceivable->id,
+                    'daily_report_id' => $dailyReport->id,
+                    'shop_id'         => $shop_id,
+                    'tanggal_bayar'   => $reportDateOnly,
+                    'jumlah_bayar'    => $bayar,
+                    'metode_bayar'    => 'tunai',
+                    'keterangan'      => 'Pelunasan Kasbon via Tutup Buku Harian (Update)',
+                ]);
+            }
+        }
 
         // Update test pump
         TestPump::where('daily_report_id', $dailyReport->id)->delete();
@@ -814,6 +1026,27 @@ class DailyReportController extends Controller
                 'no_polisi' => '-',
                 'created_at' => $reportDate
             ]);
+        }
+
+        // Multi-Trip SO Update:
+        // Kembalikan trip yang sebelumnya terhubung ke laporan ini tapi sekarang tidak dicentang
+        $newTripIds = $request->input('received_so_trip_ids', []);
+        foreach ($dailyReport->soOrderTrips as $oldTrip) {
+            if (!in_array($oldTrip->id, $newTripIds)) {
+                $oldTrip->markAsPending();
+            }
+        }
+
+        if (!empty($newTripIds) && is_array($newTripIds)) {
+            $received_so_trip_volumes = $request->input('received_so_trip_volumes', []);
+            foreach ($newTripIds as $trip_id) {
+                $trip = \App\Models\SoOrderTrip::with('soOrder')->find($trip_id);
+                $vol = isset($received_so_trip_volumes[$trip_id]) ? floatval($received_so_trip_volumes[$trip_id]) : ($trip?->quantity_liter ?? 0);
+                if ($trip && $vol > 0) {
+                    $incoming = Incoming::where('daily_report_id', $dailyReport->id)->first();
+                    $trip->markAsReceived($dailyReport->id, $incoming?->id);
+                }
+            }
         }
 
         // Update spendings
@@ -881,6 +1114,26 @@ class DailyReportController extends Controller
     {
         $shopId = $dailyReport->shop_id;
         $reportId = $dailyReport->id;
+
+        // Rollback pelunasan yang tercatat di laporan ini sebelum dihapus
+        foreach ($dailyReport->receivablePayments as $payment) {
+            if ($payment->receivable) {
+                $rec = $payment->receivable;
+                $rec->jumlah_dibayar = max(0, $rec->jumlah_dibayar - $payment->jumlah_bayar);
+                $rec->status = ($rec->jumlah_dibayar >= $rec->jumlah_piutang) ? 'lunas' : 'belum lunas';
+                $rec->save();
+            }
+            $payment->delete();
+        }
+
+        // Hapus piutang yang baru dibuat dari laporan ini jika belum pernah dicicil
+        \App\Models\Receivable::where('daily_report_id', $reportId)->delete();
+
+        // Rollback status SO Trips yang terhubung ke laporan ini menjadi PENDING
+        foreach ($dailyReport->soOrderTrips as $trip) {
+            $trip->markAsPending();
+        }
+
         $dailyReport->delete();
         $this->invalidateDashboardCache($shopId);
 

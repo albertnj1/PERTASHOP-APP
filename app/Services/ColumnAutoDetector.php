@@ -28,7 +28,9 @@ class ColumnAutoDetector
             $bestScore = 0.0;
 
             foreach ($headers as $colLetter => $headerText) {
-                $score = $this->scoreMatch(strtolower(trim($headerText)), $aliases);
+                // Normalisasi header: hapus karakter khusus, extra whitespace, lowercase
+                $normalizedHeader = \App\Services\ExcelMappingImportService::normalizeHeaderText($headerText);
+                $score = $this->scoreMatch($normalizedHeader, $aliases);
                 if ($score > $bestScore) {
                     $bestScore = $score;
                     $bestCol   = $colLetter;

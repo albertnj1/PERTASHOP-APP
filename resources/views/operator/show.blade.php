@@ -100,10 +100,26 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <h6 class="text-primary font-weight-bold mb-3 border-bottom pb-2">Kontak & Digital</h6>
+                                    
+                                    <div class="card bg-light border mb-3">
+                                        <div class="card-body p-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="font-weight-bold text-dark"><i class="fas fa-key text-warning mr-1"></i> Kredensial Login Sistem</span>
+                                                <button type="button" class="btn btn-xs btn-primary copy-login-btn" data-email="{{ $operator->user->email ?? '' }}" data-name="{{ $operator->user->name ?? '' }}" title="Salin Info Login">
+                                                    <i class="fas fa-copy mr-1"></i> Salin Kredensial
+                                                </button>
+                                            </div>
+                                            <div class="small">
+                                                <div><strong>Email:</strong> <code class="text-primary">{{ $operator->user->email ?? '-' }}</code></div>
+                                                <div><strong>Nama Akun:</strong> {{ $operator->user->name ?? '-' }}</div>
+                                                <div class="text-muted mt-1"><i class="fas fa-info-circle mr-1"></i>Dapat login menggunakan email, nama, atau username tanpa domain.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <table class="table table-borderless table-sm">
                                         <tr><th width="40%">No. HP / Telepon</th><td>: {{ $operator->no_hp }}</td></tr>
-                                        <tr><th>Email Pribadi</th><td>: {{ $operator->email_pribadi }}</td></tr>
-                                        <tr><th>Email Login (Sistem)</th><td>: {{ $operator->user->email ?? '' }}</td></tr>
+                                        <tr><th>Email Pribadi</th><td>: {{ $operator->email_pribadi ?? '-' }}</td></tr>
                                         <tr><th>Akun Media Sosial</th><td>: {{ $operator->akun_medsos ?? '-' }}</td></tr>
                                     </table>
                                 </div>
@@ -147,7 +163,7 @@
     </section>
 @endsection
 
-@push('scripts')
+@push('script')
 <script>
     $(document).ready(function() {
         $('.toggle-password').click(function() {
@@ -161,6 +177,26 @@
                 input.attr('type', 'password');
                 icon.removeClass('fa-eye-slash').addClass('fa-eye');
             }
+        });
+
+        $('.copy-login-btn').click(function() {
+            let email = $(this).data('email');
+            let name = $(this).data('name');
+            let textToCopy = "Kredensial Login Operator SIPERI:\nNama: " + name + "\nEmail: " + email + "\nLink Login: " + window.location.origin + "/login";
+            
+            navigator.clipboard.writeText(textToCopy).then(function() {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Disalin!',
+                        text: 'Kredensial login operator berhasil disalin ke clipboard.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    alert('Kredensial login berhasil disalin ke clipboard!');
+                }
+            });
         });
     });
 </script>

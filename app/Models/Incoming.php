@@ -32,6 +32,11 @@ class Incoming extends Model
         return $this->belongsTo(Purchase::class);
     }
 
+    public function soOrderTrip()
+    {
+        return $this->hasOne(SoOrderTrip::class);
+    }
+
     public function getVolumeAktualAttribute()
     {
         return ($this->stik_akhir - $this->stik_awal) * $this->shop->skala;

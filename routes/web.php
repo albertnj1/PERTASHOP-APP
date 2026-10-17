@@ -28,6 +28,7 @@ use App\Http\Controllers\BenchmarkingController;
 use App\Http\Controllers\PayrollSystemController;
 use App\Http\Controllers\PayrollOperatorAssignmentController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\SoOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,12 +42,20 @@ use App\Http\Controllers\PayrollController;
 */
 
 
+
 Route::get('login', [LoginController::class, 'index'])->name('login');
 Route::post('login', [LoginController::class, 'authenticate'])->name('authenticate');
 Route::match(['get', 'post', 'delete'], 'logout', [LoginController::class, 'logout'])->name('logout');
 
-Route::middleware('auth')->group(function () {
+// 'auth.session' memutus sesi/cookie "ingat saya" lama otomatis ketika sandi user diganti.
+Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // ── Pengaturan Akun Khusus Super Admin ─────────────────────────────────
+    Route::middleware('role:super-admin')->group(function () {
+        Route::get('/admin/pengaturan-akun', [\App\Http\Controllers\AccountSettingController::class, 'edit'])->name('account.settings');
+        Route::put('/admin/pengaturan-akun', [\App\Http\Controllers\AccountSettingController::class, 'update'])->name('account.settings.update');
+    });
 
     Route::get('daily-reports/export-excel', [DailyReportController::class, 'exportExcel'])->name('daily-reports.export-excel');
     Route::get('daily-reports/export-pdf', [DailyReportController::class, 'exportPdf'])->name('daily-reports.export-pdf');
@@ -57,6 +66,9 @@ Route::middleware('auth')->group(function () {
         'daily-reports' => DailyReportController::class,
         'spendings' => SpendingController::class,
     ]);
+
+    // API: Daftar trip SO PENDING untuk Operator Penerimaan BBM
+    Route::get('/api/so-orders/pending-trips', [SoOrderController::class, 'pendingTripsForShop'])->name('api.so-orders.pending-trips');
     Route::resource('prices', PriceController::class);
 
     // ── Fase C.1 — Approval & Lock Workflow Routes ────────────────────────────
@@ -161,6 +173,10 @@ Route::middleware('auth')->group(function () {
             'investors' => InvestorController::class,
             'kolektans' => KolektanController::class,
         ]);
+
+        // ── Order SO Multi-Trip ──────────────────────────────────────────
+        Route::resource('so-orders', SoOrderController::class);
+
         Route::get('analytics/benchmarking', [BenchmarkingController::class, 'index'])->name('analytics.benchmarking');
         Route::get('investors/{investor}/export-pdf', [\App\Http\Controllers\InvestorController::class, 'exportPdf'])->name('investors.export-pdf');
 
@@ -263,8 +279,8 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('api.toggle-status');
 
-    Route::patch('/operators/{operator}/update-credentials', [OperatorController::class, 'updateCredentials'])->name('operators.update-credentials');
-    Route::patch('/investors/{investor}/update-credentials', [InvestorController::class, 'updateCredentials'])->name('investors.update-credentials');
+    Route::match(['put', 'patch'], '/operators/{operator}/update-credentials', [OperatorController::class, 'updateCredentials'])->name('operators.update-credentials');
+    Route::match(['put', 'patch'], '/investors/{investor}/update-credentials', [InvestorController::class, 'updateCredentials'])->name('investors.update-credentials');
 
     Route::get('/shops/{shop}/investors', [ShopController::class, 'investor'])->name('shops.investors');
     Route::post('/shops/{shop}/investors', [ShopController::class, 'investorStore'])->name('shops.investors.store');
@@ -322,4 +338,97 @@ Route::middleware('auth')->group(function () {
     Route::post('/dashboard/prices', [PriceController::class, 'storeFromDashboard'])
         ->name('dashboard.prices.store')
         ->middleware(['auth']);
+});
+
+// Helper URL satu kali klik untuk menjalankan migrasi & clear cache di hosting (production)
+Route::get('/migrasi-server', function () {
+    try {
+        $log = [];
+
+        // 1. Auto-fix duplicate column migration jika kolom processing_status di backdate_excel_files sudah ada
+        if (\Illuminate\Support\Facades\Schema::hasTable('backdate_excel_files') && 
+            \Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')) {
+            $migName = '2026_08_30_040000_add_processing_fields_to_backdate_excel_files_table';
+            $exists = \Illuminate\Support\Facades\DB::table('migrations')->where('migration', $migName)->exists();
+            if (!$exists) {
+                $maxBatch = (int) (\Illuminate\Support\Facades\DB::table('migrations')->max('batch') ?? 1);
+                \Illuminate\Support\Facades\DB::table('migrations')->insert([
+                    'migration' => $migName,
+                    'batch' => $maxBatch + 1
+                ]);
+                $log[] = "Migration '$migName' ditandai selesai (kolom sudah ada di database).";
+            }
+        }
+
+        // 2. Jalankan migrasi
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $outputMigrate = \Illuminate\Support\Facades\Artisan::output();
+        $log[] = $outputMigrate;
+
+        // 3. Fallback: Pastikan tabel so_orders & so_order_trips dibuat jika belum ada
+        if (!\Illuminate\Support\Facades\Schema::hasTable('so_orders')) {
+            \Illuminate\Support\Facades\Schema::create('so_orders', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('shop_id');
+                $table->date('order_date');
+                $table->unsignedBigInteger('supplier_id');
+                $table->string('so_number', 100);
+                $table->string('lo_number', 100);
+                $table->decimal('total_quantity_liter', 12, 2);
+                $table->decimal('total_amount', 15, 2);
+                $table->integer('total_trips')->default(1);
+                $table->enum('status', ['PENDING', 'PARTIAL', 'COMPLETED'])->default('PENDING');
+                $table->timestamps();
+
+                $table->foreign('shop_id')->references('id')->on('shops')->onDelete('cascade');
+                $table->foreign('supplier_id')->references('id')->on('suppliers')->onDelete('cascade');
+            });
+            $log[] = "Tabel 'so_orders' berhasil dibuat.";
+        }
+
+        if (!\Illuminate\Support\Facades\Schema::hasTable('so_order_trips')) {
+            \Illuminate\Support\Facades\Schema::create('so_order_trips', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('so_order_id');
+                $table->integer('trip_number');
+                $table->date('estimated_delivery_date');
+                $table->decimal('quantity_liter', 12, 2);
+                $table->enum('status', ['PENDING', 'RECEIVED'])->default('PENDING');
+                $table->timestamp('received_at')->nullable();
+                $table->unsignedBigInteger('daily_report_id')->nullable();
+                $table->unsignedBigInteger('incoming_id')->nullable();
+                $table->timestamps();
+
+                $table->foreign('so_order_id')->references('id')->on('so_orders')->onDelete('cascade');
+                $table->foreign('daily_report_id')->references('id')->on('daily_reports')->onDelete('set null');
+                $table->foreign('incoming_id')->references('id')->on('incomings')->onDelete('set null');
+            });
+            $log[] = "Tabel 'so_order_trips' berhasil dibuat.";
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        \Illuminate\Support\Facades\Artisan::call('view:clear');
+
+        return response("
+            <div style='font-family: sans-serif; padding: 30px; line-height: 1.6;'>
+                <h2 style='color: #10B981;'>🎉 Migrasi & Setup Database Berhasil!</h2>
+                <p>Tabel <code>so_orders</code> dan <code>so_order_trips</code> serta migrasi lainnya berhasil dijalankan.</p>
+                <div style='background: #1E293B; color: #F8FAFC; padding: 15px; border-radius: 8px;'>
+                    <pre style='margin:0;'>" . htmlspecialchars(implode("\n", $log)) . "</pre>
+                </div>
+                <br>
+                <a href='/so-orders' style='display:inline-block; padding: 10px 20px; background: #2563EB; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;'>Buka Order SO Sekarang</a>
+            </div>
+        ");
+    } catch (\Throwable $e) {
+        return response("
+            <div style='font-family: sans-serif; padding: 30px; line-height: 1.6;'>
+                <h2 style='color: #EF4444;'>❌ Migrasi Gagal:</h2>
+                <div style='background: #FEF2F2; color: #991B1B; padding: 15px; border-radius: 8px; border: 1px solid #FCA5A5;'>
+                    <pre style='margin:0;'>" . htmlspecialchars($e->getMessage() . "\n" . $e->getTraceAsString()) . "</pre>
+                </div>
+            </div>
+        ", 500);
+    }
 });

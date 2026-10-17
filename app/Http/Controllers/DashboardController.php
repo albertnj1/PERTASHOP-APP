@@ -71,7 +71,7 @@ class DashboardController extends Controller
             $latest_report = DailyReport::where('shop_id', $shop_id)->latest()->first();
             $latest_incoming = \App\Models\Incoming::where('shop_id', $shop_id)->latest()->first();
             
-            $today_report = DailyReport::where('shop_id', $shop_id)->whereDate('created_at', Carbon::today())->first();
+            $today_report = DailyReport::where('shop_id', $shop_id)->whereDate('report_date', Carbon::today())->first();
             
             $report_time = $latest_report ? $latest_report->created_at : Carbon::minValue();
             $incoming_time = $latest_incoming ? $latest_incoming->created_at : Carbon::minValue();
@@ -89,8 +89,8 @@ class DashboardController extends Controller
             $rupiah_penjualan = $today_report ? $today_report->rupiah_penjualan : 0;
 
             $total_setor_kolektan = DailyReport::where('shop_id', $shop_id)
-                ->whereMonth('created_at', Carbon::now()->month)
-                ->whereYear('created_at', Carbon::now()->year)
+                ->whereMonth('report_date', Carbon::now()->month)
+                ->whereYear('report_date', Carbon::now()->year)
                 ->sum('setor_kolektan');
 
             $active_price = \App\Models\Price::where(function($q) use ($shop_id) {
@@ -113,8 +113,8 @@ class DashboardController extends Controller
 
                 $opDailyReports = DailyReport::where('shop_id', $shop_id)
                     ->where('operator_id', $operator_id)
-                    ->whereMonth('created_at', $month)
-                    ->whereYear('created_at', $year)
+                    ->whereMonth('report_date', $month)
+                    ->whereYear('report_date', $year)
                     ->get();
 
                 $totalVolAktual = $opDailyReports->sum('volume_penjualan_aktual');
@@ -173,7 +173,7 @@ class DashboardController extends Controller
             $shops->where('id', $shop_id);
         }
 
-        $shops = $shops->get();
+        $shops = $shops->with('investors')->get();
 
         $currentYearMonth = \Carbon\Carbon::now()->format('Y-m');
         $data = [];
@@ -203,16 +203,14 @@ class DashboardController extends Controller
             $summary['harga_beli_aktif']  = $activePrice ? $activePrice->harga_beli  : 0;
             $summary['effective_at']      = $activePrice ? $activePrice->effective_at : null;
 
-            // --- Gain / Losses: sum from getLabaKotor segments ---
-            $labaKotorData = LabaKotorController::getLabaKotor($shop->id, $currentYearMonth);
-            $total_losses_gain_vol  = $labaKotorData->sum('losses_gain');
-            $summary['total_losses_gain_vol'] = $total_losses_gain_vol;
-            $summary['total_losses_gain_rp']  = $labaKotorData->sum('beban_losses_rp') - $labaKotorData->sum('pendapatan_gain_rp');
+            // --- Gain / Losses: already provided by getSummary ---
+            $summary['total_losses_gain_vol'] = $summary['total_losses_gain_vol'] ?? 0;
+            $summary['total_losses_gain_rp']  = $summary['total_losses_gain_rp'] ?? 0;
 
             // --- Profit Sharing summary ---
             try {
                 $labaBersih = LabaBersihController::getLabaBersih((string) $shop->id, $currentYearMonth);
-                $investors = $shop->investors()->get();
+                $investors = $shop->investors;
                 $investor_share = 0;
                 foreach ($investors as $inv) {
                     $pct = $inv->pivot->persentase_keuntungan ?? 0;
@@ -229,17 +227,16 @@ class DashboardController extends Controller
 
             // --- Kolektan & Belum Disetor ---
             $latest_report = \App\Models\DailyReport::where('shop_id', $shop->id)->latest()->first();
-            $summary['belum_disetorkan'] = $latest_report ? $latest_report->belum_disetorkan : 0;
+            $summary['belum_disetorkan'] = $latest_report ? ($latest_report->running_balance_setoran ?? $latest_report->belum_disetorkan) : 0;
 
             $summary['total_setor_kolektan'] = \App\Models\DailyReport::where('shop_id', $shop->id)
-                ->whereMonth('created_at', \Carbon\Carbon::now()->month)
-                ->whereYear('created_at', \Carbon\Carbon::now()->year)
+                ->whereMonth('report_date', \Carbon\Carbon::now()->month)
+                ->whereYear('report_date', \Carbon\Carbon::now()->year)
                 ->sum('setor_kolektan');
 
             $summary['sudah_disetorkan'] = \App\Models\DailyReport::where('shop_id', $shop->id)
-                ->whereMonth('created_at', \Carbon\Carbon::now()->month)
-                ->whereYear('created_at', \Carbon\Carbon::now()->year)
-                ->get()
+                ->whereMonth('report_date', \Carbon\Carbon::now()->month)
+                ->whereYear('report_date', \Carbon\Carbon::now()->year)
                 ->sum('disetorkan');
 
             $data[$index] = $summary;
@@ -387,110 +384,93 @@ class DashboardController extends Controller
 
         $labels = [];
         $datasets = [];
+        $color = ['#3867d6', '#20bf6b', '#fa8231', '#ea2027', '#8854d0'];
+
         foreach ($shops as $index => $shop) {
+            $buckets = [];
+
             if ($time_filter === 'month') {
                 $startMonth = Carbon::now()->startOfYear();
                 $endMonth = Carbon::now()->endOfYear();
                 $currentMonth = $startMonth->copy();
-
-                $sales = DailyReport::where('shop_id', $shop->id)
-                    ->where('created_at', '>=', $startMonth)
-                    ->oldest()
-                    ->get()
-                    ->groupBy(function ($item) {
-                        return $item->created_at->format('M Y');
-                    });
-
                 while ($currentMonth <= $endMonth) {
-                    $formattedMonth = $currentMonth->format('M Y');
-                    if (!isset($sales[$formattedMonth])) {
-                        $sales[$formattedMonth] = [];
-                    }
+                    $buckets[$currentMonth->format('M Y')] = 0;
                     $currentMonth->addMonth();
                 }
 
-                $sortedSales = $sales->toArray();
-                uksort($sortedSales, function ($a, $b) {
-                    $dateA = Carbon::createFromFormat('M Y', $a);
-                    $dateB = Carbon::createFromFormat('M Y', $b);
-                    return $dateA < $dateB ? -1 : ($dateA > $dateB ? 1 : 0);
-                });
+                $reports = DailyReport::where('shop_id', $shop->id)
+                    ->where('report_date', '>=', $startMonth)
+                    ->with(['periods', 'testPumps', 'shop'])
+                    ->get();
+
+                foreach ($reports as $item) {
+                    $key = $item->created_at->format('M Y');
+                    if (isset($buckets[$key])) {
+                        $buckets[$key] += $item->volume_penjualan;
+                    }
+                }
             } elseif ($time_filter === 'week') {
                 $startDateOfMonth = Carbon::now()->startOfMonth();
                 $endDate = Carbon::now()->endOfMonth();
                 $currentDate = $startDateOfMonth->copy();
-
-                $sales = DailyReport::where('shop_id', $shop->id)
-                    ->whereMonth('created_at', Carbon::now()->month)
-                    ->whereYear('created_at', Carbon::now()->year)
-                    ->oldest()
-                    ->get()
-                    ->groupBy(function ($item) use ($startDateOfMonth) {
-                        $daysDiff = $item->created_at->diffInDays($startDateOfMonth);
-                        $weekOfMonth = ceil(($daysDiff + $startDateOfMonth->dayOfWeek) / 7);
-                        return "Minggu ke-" . $weekOfMonth;
-                    });
-
                 while ($currentDate <= $endDate) {
                     $daysDiff = $currentDate->diffInDays($startDateOfMonth);
                     $weekOfMonth = ceil(($daysDiff + $startDateOfMonth->dayOfWeek) / 7);
-                    $formattedDate = "Minggu ke-" . $weekOfMonth;
-                    if (!isset($sales[$formattedDate])) {
-                        $sales[$formattedDate] = [];
-                    }
+                    $buckets["Minggu ke-" . $weekOfMonth] = 0;
                     $currentDate->addWeek();
                 }
 
-                $sortedSales = $sales->toArray();
-                ksort($sortedSales);
+                $reports = DailyReport::where('shop_id', $shop->id)
+                    ->whereMonth('report_date', Carbon::now()->month)
+                    ->whereYear('report_date', Carbon::now()->year)
+                    ->with(['periods', 'testPumps', 'shop'])
+                    ->get();
+
+                foreach ($reports as $item) {
+                    $daysDiff = $item->created_at->diffInDays($startDateOfMonth);
+                    $weekOfMonth = ceil(($daysDiff + $startDateOfMonth->dayOfWeek) / 7);
+                    $key = "Minggu ke-" . $weekOfMonth;
+                    if (isset($buckets[$key])) {
+                        $buckets[$key] += $item->volume_penjualan;
+                    }
+                }
             } else {
                 $startDate = Carbon::now()->startOfMonth();
                 $endDate = Carbon::now()->endOfMonth();
                 $currentDate = $startDate->copy();
-
-                $sales = DailyReport::where('shop_id', $shop->id)
-                    ->whereMonth('created_at', Carbon::now()->month)
-                    ->whereYear('created_at', Carbon::now()->year)
-                    ->oldest()
-                    ->get()
-                    ->groupBy(function ($item) {
-                        return $item->created_at->format('d M');
-                    });
-
                 while ($currentDate <= $endDate) {
-                    $formattedDate = $currentDate->format('d M');
-                    if (!isset($sales[$formattedDate])) {
-                        $sales[$formattedDate] = [];
-                    }
+                    $buckets[$currentDate->format('d M')] = 0;
                     $currentDate->addDay();
                 }
 
-                $sortedSales = $sales->toArray();
-                ksort($sortedSales);
+                $reports = DailyReport::where('shop_id', $shop->id)
+                    ->whereMonth('report_date', Carbon::now()->month)
+                    ->whereYear('report_date', Carbon::now()->year)
+                    ->with(['periods', 'testPumps', 'shop'])
+                    ->get();
+
+                foreach ($reports as $item) {
+                    $key = $item->created_at->format('d M');
+                    if (isset($buckets[$key])) {
+                        $buckets[$key] += $item->volume_penjualan;
+                    }
+                }
             }
 
-            $color = ['#3867d6', '#20bf6b', '#fa8231', '#ea2027', '#8854d0'];
+            if ($index === 0) {
+                $labels = array_keys($buckets);
+            }
 
-            $sortedSales = collect($sortedSales)->map(function ($items, $key) use (&$labels, $index) { // Menggunakan $key untuk mendapatkan kunci
-                if ($index == 0) {
-                    $labels[] = $key; // Menambahkan kunci ke dalam array labels
-                }
-                $totalAmount = collect($items)->sum('volume_penjualan'); // Hitung jumlah penjualan per bulan
-
-                return $totalAmount;
-            });
             $datasets[] = [
                 'label' => $shop->nama,
-                'data' => collect($sortedSales)->values(),
+                'data' => array_values($buckets),
                 'backgroundColor' => $color[$index % count($color)]
             ];
         }
 
-        $data = [
+        return [
             'labels' => $labels,
             'datasets' => $datasets,
         ];
-
-        return $data;
     }
 }

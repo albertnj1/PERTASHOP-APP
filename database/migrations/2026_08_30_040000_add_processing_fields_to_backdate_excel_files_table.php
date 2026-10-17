@@ -12,10 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('backdate_excel_files', function (Blueprint $table) {
-            $table->string('processing_status', 20)->default('pending')->after('keterangan');
-            $table->longText('processing_result')->nullable()->after('processing_status');
-            $table->text('error_message')->nullable()->after('processing_result');
-            $table->timestamp('processed_at')->nullable()->after('error_message');
+            if (!Schema::hasColumn('backdate_excel_files', 'processing_status')) {
+                $table->string('processing_status', 20)->default('pending')->after('keterangan');
+            }
+            if (!Schema::hasColumn('backdate_excel_files', 'processing_result')) {
+                $table->longText('processing_result')->nullable()->after('processing_status');
+            }
+            if (!Schema::hasColumn('backdate_excel_files', 'error_message')) {
+                $table->text('error_message')->nullable()->after('processing_result');
+            }
+            if (!Schema::hasColumn('backdate_excel_files', 'processed_at')) {
+                $table->timestamp('processed_at')->nullable()->after('error_message');
+            }
         });
     }
 

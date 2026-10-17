@@ -147,7 +147,7 @@
 
           <div class="form-group mb-3">
             <label style="font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Nominal Kasbon (Rp)</label>
-            <input type="number" id="input_jumlah_kasbon" name="jumlah" class="form-control" style="border-radius: 8px;" placeholder="Contoh: 600000" min="1000" step="50000" required>
+            <input type="number" id="input_jumlah_kasbon" name="jumlah" class="form-control" style="border-radius: 8px;" placeholder="Contoh: 600000" min="0" step="any" required>
           </div>
 
           <div class="form-group mb-3">

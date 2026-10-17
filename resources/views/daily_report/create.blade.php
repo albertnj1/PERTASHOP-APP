@@ -202,6 +202,29 @@
                                         <span class="input-group-text">&ell;</span>
                                     </div>
                                 </div>
+                                @if(isset($pendingSoTrips) && $pendingSoTrips->count() > 0)
+                                    <div class="alert alert-success py-2 mt-2 mb-2">
+                                        <strong>📦 Jadwal Pengiriman Order SO (Multi-Trip) Menunggu Diterima:</strong><br>
+                                        @foreach($pendingSoTrips as $trip)
+                                            <div class="d-flex align-items-center mt-2">
+                                                <div class="form-check mr-3">
+                                                    <input class="form-check-input pending-so-check" type="checkbox" name="received_so_trip_ids[]" value="{{ $trip->id }}" data-target="#vol_trip_{{ $trip->id }}" id="trip_{{ $trip->id }}">
+                                                    <label class="form-check-label" style="font-size: 0.9rem;" for="trip_{{ $trip->id }}">
+                                                        <strong>SO: {{ $trip->soOrder->so_number }}</strong> — Trip {{ $trip->trip_number }} dari {{ $trip->soOrder->total_trips }} (Vol: {{ number_format($trip->quantity_liter, 0, ',', '.') }} L | Tgl: {{ $trip->estimated_delivery_date->format('d/m/Y') }})
+                                                    </label>
+                                                </div>
+                                                <div class="input-group input-group-sm" style="width: 150px; display: none;" id="wrap_vol_trip_{{ $trip->id }}">
+                                                    <input type="number" step="0.01" class="form-control so-volume-input" name="received_so_trip_volumes[{{ $trip->id }}]" id="vol_trip_{{ $trip->id }}" value="{{ $trip->quantity_liter }}" max="{{ $trip->quantity_liter }}" placeholder="Volume Diterima">
+                                                    <div class="input-group-append">
+                                                        <span class="input-group-text">&ell;</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        <small class="text-muted d-block mt-2">Centang Trip SO yang diterima hari ini. Total volume penerimaan otomatis dihitung.</small>
+                                    </div>
+                                @endif
+
                                 @if($pendingPurchases->count() > 0)
                                     <div class="alert alert-info py-2 mt-2 mb-0">
                                         <strong>📝 Ada Pembelian (SO) yang belum diterima!</strong><br>
@@ -369,7 +392,7 @@
                         </div>
 
                         <div class="form-group row">
-                            <label for="pendapatan" class="col-sm-4 col-form-label">Total Pendapatan</label>
+                            <label for="pendapatan" class="col-sm-4 col-form-label">Total Pendapatan (Omzet Kotor - Beban)</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
                                     <div class="input-group-prepend">
@@ -379,7 +402,67 @@
                                         value="{{ old('pendapatan') }}" readonly>
                                 </div>
                             </div>
+                        </div>
 
+                        <!-- SECTION HUTANG & PELUNASAN BAKULAN (KASBON BBM) -->
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Hutang & Pelunasan Bakulan</label>
+                            <div class="col-sm-8">
+                                <div class="card card-warning card-outline mb-0">
+                                    <div class="card-header py-2">
+                                        <h3 class="card-title text-sm m-0 font-weight-bold">
+                                            <i class="fas fa-hand-holding-usd mr-1 text-warning"></i> Kasbon BBM & Pelunasan Piutang Pelanggan
+                                        </h3>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-2">
+                                                <label class="text-xs text-danger font-weight-bold">Hutang Bakulan Baru (Kasbon Hari Ini)</label>
+                                                <div class="input-group input-group-sm">
+                                                    <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                                    <input type="number" name="hutang_bakulan" id="hutang_bakulan" class="form-control bakulan-input" value="{{ old('hutang_bakulan', 0) }}" min="0">
+                                                </div>
+                                                <small class="text-muted d-block mt-1">Mengurangi kas masuk yang wajib disetor hari ini.</small>
+                                                <input type="text" name="pelanggan_bakulan" class="form-control form-control-sm mt-1" placeholder="Nama Pelanggan (contoh: Pak Joko Botolan)" value="{{ old('pelanggan_bakulan') }}">
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="text-xs text-success font-weight-bold">Pelunasan Hutang Lama (Bayar Kasbon)</label>
+                                                <div class="input-group input-group-sm">
+                                                    <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                                    <input type="number" name="pelunasan_bakulan" id="pelunasan_bakulan" class="form-control bakulan-input" value="{{ old('pelunasan_bakulan', 0) }}" min="0">
+                                                </div>
+                                                <small class="text-muted d-block mt-1">Menambah kas masuk yang disetor hari ini.</small>
+                                                @if(isset($unpaidReceivables) && $unpaidReceivables->count() > 0)
+                                                    <select name="receivable_id_pelunasan" class="form-control form-control-sm mt-1">
+                                                        <option value="">-- Otomatis Piutang Terlama (FIFO) --</option>
+                                                        @foreach($unpaidReceivables as $rec)
+                                                            <option value="{{ $rec->id }}">
+                                                                {{ $rec->pelanggan }} (Sisa: Rp {{ number_format($rec->sisa_piutang, 0, ',', '.') }})
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                @else
+                                                    <input type="text" class="form-control form-control-sm mt-1" placeholder="Belum ada piutang aktif" readonly>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <label for="pendapatan_akhir" class="col-sm-4 col-form-label font-weight-bold text-primary">Kas Wajib Setor (Pendapatan Akhir)</label>
+                            <div class="col-sm-8">
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text font-weight-bold text-primary">Rp</span>
+                                    </div>
+                                    <input type="text" class="form-control font-weight-bold text-primary" id="pendapatan_akhir" name="pendapatan_akhir"
+                                        value="{{ old('pendapatan_akhir') }}" readonly>
+                                </div>
+                                <small class="text-muted">Total uang tunai riil yang wajib disetor = Total Pendapatan − Kasbon Hari Ini + Pelunasan Kasbon Lama.</small>
+                            </div>
                         </div>
 
                         <div class="form-group row">
@@ -635,6 +718,12 @@
                 const pendapatan = rupiah_penjualan - total_spendings;
                 $('#pendapatan').val(pendapatan);
 
+                // Hutang Bakulan & Pendapatan Akhir Kas
+                const hutang_bakulan = parseFloat($('#hutang_bakulan').val()) || 0;
+                const pelunasan_bakulan = parseFloat($('#pelunasan_bakulan').val()) || 0;
+                const pendapatan_akhir = Math.round(pendapatan - hutang_bakulan + pelunasan_bakulan);
+                $('#pendapatan_akhir').val(pendapatan_akhir);
+
                 // Recalculate setoran breakdown dynamically
                 let total_setoran = 0;
                 $('.setoran-input').each(function() {
@@ -642,12 +731,16 @@
                 });
                 $('#disetorkan').val(total_setoran);
 
-                const selisih = total_setoran - pendapatan;
+                const selisih = total_setoran - pendapatan_akhir;
                 $('#selisih_setoran').val(selisih);
 
                 const belum_disetorkan_kemarin = {{ $belum_disetorkan }};
-                $('#belum_disetorkan').val(belum_disetorkan_kemarin + pendapatan - total_setoran);
+                $('#belum_disetorkan').val(belum_disetorkan_kemarin + pendapatan_akhir - total_setoran);
             }
+
+            $(document).on('input', '.bakulan-input', function() {
+                updateTotals();
+            });
 
             $(document).on('input', '.change-harga-jual, .change-totalisator', function() {
                 updateTotals();

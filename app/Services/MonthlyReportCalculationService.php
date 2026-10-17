@@ -111,6 +111,31 @@ class MonthlyReportCalculationService
             $hasilBelumDisetor = floatval($lastRow['setoran']['belum_setor'] ?? 0);
         }
         $piutang = floatval($report->piutang ?? 0);
+        if ($piutang <= 0) {
+            $piutang = floatval(\App\Models\Receivable::where('shop_id', $shop->id)
+                ->where('tanggal', '<=', $period->copy()->endOfMonth()->toDateString())
+                ->selectRaw('SUM(jumlah_piutang - jumlah_dibayar) as total')
+                ->value('total') ?? 0);
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Agregasi Hutang Bakulan & Nett Cashflow (Spec Section 4.1)
+        // Nett Cashflow = Omset_Gross - Biaya_Ops - Hutang_Bakulan + Pelunasan_Hutang
+        // ─────────────────────────────────────────────────────────────────
+        $monthDailyReports = DailyReport::where('shop_id', $shop->id)
+            ->whereMonth('report_date', $month)
+            ->whereYear('report_date', $year)
+            ->get();
+
+        $totalHutangBakulan = floatval($monthDailyReports->sum('hutang_bakulan'));
+        $totalPelunasanBakulan = floatval($monthDailyReports->sum('pelunasan_bakulan'));
+
+        $totalOmsetGross = floatval($monthDailyReports->sum('rupiah_penjualan_aktual'));
+        if ($totalOmsetGross <= 0) {
+            $totalOmsetGross = collect($segments)->sum('jumlah_penjualan_rp');
+        }
+
+        $nettCashflow = $totalOmsetGross - $totalBiaya - $totalHutangBakulan + $totalPelunasanBakulan;
 
         // Sub Total A: Saldo Awal Modal Bulan Sebelumnya (= Total Aset Lancar Awal/Akhir)
         $subtotalASaldoAkhirModal = $saldoAwalModal;
@@ -184,6 +209,12 @@ class MonthlyReportCalculationService
             'subtotal_b'               => $subtotalBPenambahan,
             'subtotal_c'               => $subtotalCSaldoModal,
             'total_saldo_akhir_modal'  => $totalSaldoAkhirModal,
+
+            // Metrik Arus Kas Bersih (Nett Cashflow) - Spec Section 4.1
+            'total_omset_gross'        => $totalOmsetGross,
+            'total_hutang_bakulan'     => $totalHutangBakulan,
+            'total_pelunasan_bakulan'  => $totalPelunasanBakulan,
+            'nett_cashflow'            => $nettCashflow,
 
             // Hal 4
             'capital_recaps'           => $capitalRecaps,
@@ -374,55 +405,139 @@ class MonthlyReportCalculationService
      */
     private static function buildSegmentsFromDaily(Shop $shop, int $month, int $year, array $dataParsed): array
     {
-        $dailyReports = DailyReport::where('shop_id', $shop->id)
-            ->whereMonth('created_at', $month)
-            ->whereYear('created_at', $year)
-            ->orderBy('created_at', 'asc')
+        $dailyReports = DailyReport::with(['price', 'periods.price'])
+            ->where('shop_id', $shop->id)
+            ->whereMonth('report_date', $month)
+            ->whereYear('report_date', $year)
+            ->orderBy('report_date', 'asc')
             ->get();
 
         if ($dailyReports->isEmpty()) {
             return [];
         }
 
-        $firstRep = $dailyReports->first();
-        $lastRep = $dailyReports->last();
+        // Ambil riwayat harga untuk toko ini
+        $allPrices = Price::where(function($q) use ($shop) {
+                $q->where('shop_id', $shop->id)->orWhereNull('shop_id');
+            })
+            ->orderBy('effective_at', 'asc')
+            ->get();
 
-        $price = Price::where('shop_id', $shop->id)->latest('effective_at')->first();
-        $hargaBeli = $price ? floatval($price->harga_beli) : 15334.81;
-        $hargaJual = $price ? floatval($price->harga_jual) : 16150;
+        // Kelompokkan laporan harian menjadi segmen-segmen harga berurutan
+        $segmentGroups = [];
+        $currentGroup = [];
+        $currentPriceKey = null;
 
-        $stokAwal = floatval($firstRep->stok_awal ?? 0);
-        $totalTerimaBbm = $dailyReports->sum('penerimaan');
-        $jumlahPembelian = $stokAwal + $totalTerimaBbm;
-        $jumlahPembelianRp = $jumlahPembelian * $hargaBeli;
+        foreach ($dailyReports as $rep) {
+            $repDate = Carbon::parse($rep->report_date)->format('Y-m-d');
+            $hBeli = 0;
+            $hJual = 0;
 
-        $totAwal = floatval($firstRep->totalisator_awal ?? 0);
-        $totAkhir = floatval($lastRep->totalisator_akhir ?? 0);
-        $totalPenjualanFisik = max(0, $totAkhir - $totAwal);
-        $testPump = $dailyReports->sum('test_pump');
-        $jumlahPenjualan = max(0, $totalPenjualanFisik - $testPump);
-        $jumlahPenjualanRp = $jumlahPenjualan * $hargaJual;
+            if (floatval($rep->harga_jual_snapshot) > 0 && floatval($rep->harga_beli_snapshot) > 0) {
+                $hBeli = floatval($rep->harga_beli_snapshot);
+                $hJual = floatval($rep->harga_jual_snapshot);
+            } elseif ($rep->price) {
+                $hBeli = floatval($rep->price->harga_beli);
+                $hJual = floatval($rep->price->harga_jual);
+            } else {
+                $effectivePrice = $allPrices->filter(function($p) use ($repDate) {
+                    return $p->effective_at <= $repDate;
+                })->last();
 
-        $sisaStokTeoretis = max(0, $jumlahPembelian - $jumlahPenjualan);
-        $sisaStokTeoretisRp = $sisaStokTeoretis * $hargaBeli;
+                if ($effectivePrice) {
+                    $hBeli = floatval($effectivePrice->harga_beli);
+                    $hJual = floatval($effectivePrice->harga_jual);
+                } else {
+                    $fallbackPrice = $allPrices->last();
+                    $hBeli = $fallbackPrice ? floatval($fallbackPrice->harga_beli) : 11376.29;
+                    $hJual = $fallbackPrice ? floatval($fallbackPrice->harga_jual) : 12200;
+                }
+            }
 
-        $stokAkhirFisik = floatval($lastRep->stok_akhir_aktual ?? $sisaStokTeoretis);
-        $stokAkhirFisikRp = $stokAkhirFisik * $hargaBeli;
+            $priceKey = number_format($hBeli, 2, '.', '') . '_' . number_format($hJual, 2, '.', '');
 
-        $lossesGain = $stokAkhirFisik - $sisaStokTeoretis;
-        $lossesGainPersen = $jumlahPenjualan > 0 ? ($lossesGain / $jumlahPenjualan) * 100 : 0;
-        $lossesGainRp = $lossesGain * $hargaBeli;
+            if ($currentPriceKey !== null && $priceKey !== $currentPriceKey) {
+                $segmentGroups[] = [
+                    'price_key'  => $currentPriceKey,
+                    'harga_beli' => $currentGroup[0]['harga_beli'],
+                    'harga_jual' => $currentGroup[0]['harga_jual'],
+                    'reports'    => collect(array_column($currentGroup, 'report')),
+                ];
+                $currentGroup = [];
+            }
 
-        $penjualanBersih = ($jumlahPenjualanRp + $sisaStokTeoretisRp) + $lossesGainRp;
-        $labaKotor = $penjualanBersih - $jumlahPembelianRp;
+            $currentPriceKey = $priceKey;
+            $currentGroup[] = [
+                'harga_beli' => $hBeli,
+                'harga_jual' => $hJual,
+                'report'     => $rep,
+            ];
+        }
 
-        return [
-            [
-                'segmen_index'             => 1,
-                'start_date'               => $firstRep->created_at->format("d M'y"),
-                'end_date'                 => $lastRep->created_at->format("d M'y"),
-                'start_datetime_label'     => $firstRep->created_at->format("d M'y") . " Jam 06.00",
-                'end_datetime_label'       => $lastRep->created_at->format("d M'y") . " Jam 18.00",
+        if (!empty($currentGroup)) {
+            $segmentGroups[] = [
+                'price_key'  => $currentPriceKey,
+                'harga_beli' => $currentGroup[0]['harga_beli'],
+                'harga_jual' => $currentGroup[0]['harga_jual'],
+                'reports'    => collect(array_column($currentGroup, 'report')),
+            ];
+        }
+
+        $segments = [];
+        $prevStokAkhirFisik = null;
+
+        foreach ($segmentGroups as $index => $group) {
+            $segIndex = $index + 1;
+            $reps = $group['reports'];
+            $firstRep = $reps->first();
+            $lastRep = $reps->last();
+            $hargaBeli = $group['harga_beli'];
+            $hargaJual = $group['harga_jual'];
+
+            // Stok Awal segmen: segmen 1 ambil stok awal, segmen berikutnya estafet dari akhir fisik segmen sebelumnya
+            if ($prevStokAkhirFisik !== null) {
+                $stokAwal = $prevStokAkhirFisik;
+            } else {
+                $stokAwal = floatval($firstRep->stok_awal ?? 0);
+            }
+
+            $totalTerimaBbm = $reps->sum('penerimaan');
+            $jumlahPembelian = $stokAwal + $totalTerimaBbm;
+            $jumlahPembelianRp = $jumlahPembelian * $hargaBeli;
+
+            $totAwal = floatval($firstRep->totalisator_awal ?? 0);
+            $totAkhir = floatval($lastRep->totalisator_akhir ?? 0);
+            $totalPenjualanFisik = max(0, $totAkhir - $totAwal);
+            $testPump = $reps->sum('test_pump');
+            $jumlahPenjualan = max(0, $totalPenjualanFisik - $testPump);
+            $jumlahPenjualanRp = $jumlahPenjualan * $hargaJual;
+
+            $sisaStokTeoretis = max(0, $jumlahPembelian - $jumlahPenjualan);
+            $sisaStokTeoretisRp = $sisaStokTeoretis * $hargaBeli;
+
+            $stokAkhirFisik = floatval($lastRep->stok_akhir_aktual ?? $sisaStokTeoretis);
+            $stokAkhirFisikRp = $stokAkhirFisik * $hargaBeli;
+            $prevStokAkhirFisik = $stokAkhirFisik;
+
+            $lossesGain = $stokAkhirFisik - $sisaStokTeoretis;
+            $lossesGainPersen = $jumlahPenjualan > 0 ? ($lossesGain / $jumlahPenjualan) * 100 : 0;
+            $lossesGainRp = $lossesGain * $hargaBeli;
+
+            // Penjualan Bersih = Penjualan Kotor + (Sisa Stok Teoritis * Harga Beli) + (Losses/Gain * Harga Beli)
+            // = Penjualan Kotor + (Stok Akhir Fisik * Harga Beli)
+            $penjualanBersih = ($jumlahPenjualanRp + $sisaStokTeoretisRp) + $lossesGainRp;
+            // Laba Kotor = Penjualan Bersih - Total Pembelian = (Penjualan * (Harga Jual - Harga Beli)) + Losses/Gain Rp
+            $labaKotor = $penjualanBersih - $jumlahPembelianRp;
+
+            $startDateLabel = Carbon::parse($firstRep->report_date)->format("d M'y");
+            $endDateLabel   = Carbon::parse($lastRep->report_date)->format("d M'y");
+
+            $segments[] = [
+                'segmen_index'             => $segIndex,
+                'start_date'               => $startDateLabel,
+                'end_date'                 => $endDateLabel,
+                'start_datetime_label'     => $startDateLabel . " Jam 06.00",
+                'end_datetime_label'       => $endDateLabel . " Jam 18.00",
                 'harga_beli'               => $hargaBeli,
                 'harga_jual'               => $hargaJual,
                 'stok_awal'                => $stokAwal,
@@ -447,8 +562,10 @@ class MonthlyReportCalculationService
                 'stok_akhir_fisik_rp'      => $stokAkhirFisikRp,
                 'jumlah_penjualan_bersih'  => $penjualanBersih,
                 'laba_kotor'               => $labaKotor,
-            ]
-        ];
+            ];
+        }
+
+        return $segments;
     }
 
     /**

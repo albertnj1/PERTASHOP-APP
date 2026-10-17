@@ -30,11 +30,11 @@ class LabaKotorController extends Controller
         list($year, $month) = explode("-", $year_month);
 
         $segments = collect();
-        $daily_reports = DailyReport::with(['periods.price', 'price'])
+        $daily_reports = DailyReport::with(['periods.price', 'price', 'testPumps', 'incomings', 'shop'])
             ->where('shop_id', $shop_id)
-            ->whereYear('created_at', $year)
-            ->whereMonth('created_at', $month)
-            ->orderBy('created_at', 'asc')
+            ->whereYear('report_date', $year)
+            ->whereMonth('report_date', $month)
+            ->orderBy('report_date', 'asc')
             ->get();
 
         foreach ($daily_reports as $report) {
@@ -92,12 +92,12 @@ class LabaKotorController extends Controller
             $stik_akhir = collect($group_segments)->whereNotNull('stik_akhir')->last() ? collect($group_segments)->whereNotNull('stik_akhir')->last()['stik_akhir'] : 0;
 
             if ($i == 0) {
-                $daily_report_sebelumnya = DailyReport::where('shop_id', $shop_id)->where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first();
+                $daily_report_sebelumnya = DailyReport::where('shop_id', $shop_id)->where('report_date', '<', collect($group_segments)->first()['report']->report_date)->orderBy('report_date', 'desc')->first();
                 $stok_awal = $daily_report_sebelumnya ? $daily_report_sebelumnya->stok_akhir_aktual : ($shop->kapasitas ?? 3500);
                 
-                $stok_awal_harga_beli = $daily_report_sebelumnya ? ($daily_report_sebelumnya->price ? $daily_report_sebelumnya->price->harga_beli : $harga_beli) : (Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first()->harga_beli : $harga_beli);
+                $stok_awal_harga_beli = $daily_report_sebelumnya ? ($daily_report_sebelumnya->harga_beli_snapshot ?? ($daily_report_sebelumnya->price ? $daily_report_sebelumnya->price->harga_beli : $harga_beli)) : (Price::where('created_at', '<', collect($group_segments)->first()['report']->report_date)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->report_date)->latest()->first()->harga_beli : $harga_beli);
             } else {
-                $stok_awal_harga_beli = Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->created_at)->latest()->first()->harga_beli : $harga_beli;
+                $stok_awal_harga_beli = Price::where('created_at', '<', collect($group_segments)->first()['report']->report_date)->latest()->first() ? Price::where('created_at', '<', collect($group_segments)->first()['report']->report_date)->latest()->first()->harga_beli : $harga_beli;
             }
 
             $stok_awal_rp = $stok_awal * $stok_awal_harga_beli;
@@ -124,12 +124,11 @@ class LabaKotorController extends Controller
             // Stok Fisik > Stok Teoritis -> Pendapatan Gain
             $pendapatan_gain_rp = $losses_gain > 0 ? $losses_gain * $harga_beli : 0;
             
-            $beban_test_pump_rp = $test_pump * $harga_beli;
-            $beban_keluar_lain_rp = $bbm_keluar_lain * $harga_beli;
+            $beban_test_pump_rp = $test_pump * $harga_jual;
+            $beban_keluar_lain_rp = $bbm_keluar_lain * $harga_jual;
 
-            // Gain dicatat secara terpisah, tidak otomatis mengurangi HPP atau menambah Laba Kotor
-            // sesuai dengan arahan audit untuk diselaraskan dengan metode manual Excel.
-            $laba_kotor = $omzet - $hpp;
+            // Laba Kotor diselaraskan dengan formula Excel: (Omzet - HPP) + (Losses/Gain * Harga Beli)
+            $laba_kotor = ($omzet - $hpp) + ($losses_gain * $harga_beli);
 
             $persen_losses_gain = $penjualan_aktual != 0 ? $losses_gain / $penjualan_aktual * 100 : 0;
 
@@ -211,6 +210,8 @@ class LabaKotorController extends Controller
             'pendapatan_gain_rp' => $sum_pendapatan_gain,
             'beban_test_pump_rp' => $sum_beban_test_pump,
             'beban_keluar_lain_rp' => $sum_beban_keluar_lain,
+            'total_losses_gain_vol' => $reports->sum('losses_gain'),
+            'total_losses_gain_rp' => $sum_beban_losses - $sum_pendapatan_gain,
         ];
 
         return $summary;
@@ -221,13 +222,14 @@ class LabaKotorController extends Controller
 
         if ($request->ajax()) {
             $shop_id = $request->input('shop_id');
+            $defaultShopId = Shop::first()?->id ?: 1;
             if (Auth::user()->role == 'investor') {
                 $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
                 if (!$shop_id || !in_array($shop_id, $investor_shops)) {
-                    $shop_id = reset($investor_shops) ?: 1;
+                    $shop_id = reset($investor_shops) ?: $defaultShopId;
                 }
             } else {
-                $shop_id = $shop_id ?: 1;
+                $shop_id = $shop_id ?: $defaultShopId;
             }
 
             $salesQuery = \Illuminate\Support\Facades\DB::table('daily_reports')

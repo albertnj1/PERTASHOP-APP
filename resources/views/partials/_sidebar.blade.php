@@ -41,6 +41,9 @@
   <a href="{{ route('backdate-excel-files.index') }}" class="nav-item {{ request()->routeIs('backdate-excel-files.*') ? 'active' : '' }}">
     UPLOAD FILE BACKDATE
   </a>
+  <a href="{{ route('so-orders.index') }}" class="nav-item {{ request()->routeIs('so-orders.*') ? 'active' : '' }}">
+    ORDER SO
+  </a>
   <a href="{{ route('purchases.index') }}" class="nav-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
     PEMBELIAN
   </a>
@@ -145,6 +148,11 @@
 @endif
 
   <div class="nav-group-label">AKUN</div>
+  @if(in_array(Auth::user()->role, ['super-admin', 'super_admin']))
+  <a href="{{ route('account.settings') }}" class="nav-item {{ request()->routeIs('account.settings*') ? 'active' : '' }}">
+    <i class="fas fa-user-cog mr-1"></i> PENGATURAN AKUN
+  </a>
+  @endif
   <a href="javascript:void(0)" onclick="confirmLogout(event)" class="nav-item">
     LOGOUT
   </a>

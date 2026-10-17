@@ -50,15 +50,51 @@
                                 <select name="purchase_id" id="purchase_id"
                                     class="form-control @error('purchase_id') is-invalid @enderror">
                                     <option value="">--Pilih No. SO--</option>
-                                    @foreach ($purchases as $purchase)
-                                        <option value="{{ $purchase->id }}" @selected($purchase->id == old('purchase_id'))
-                                            data-purchase='@json($purchase)'>
-                                            {{ $purchase->no_so }}</option>
-                                    @endforeach
+
+                                    {{-- SO Trips (Multi-Trip) - Ditampilkan pertama --}}
+                                    @if(isset($pendingSoTrips) && $pendingSoTrips->count() > 0)
+                                    <optgroup label="📦 Order SO (Multi-Trip)">
+                                        @foreach ($pendingSoTrips as $trip)
+                                            <option value="so_trip_{{ $trip->id }}"
+                                                @selected(old('so_order_trip_id') == $trip->id)
+                                                data-type="so_trip"
+                                                data-trip-id="{{ $trip->id }}"
+                                                data-volume="{{ $trip->quantity_liter }}"
+                                                data-so-number="{{ $trip->soOrder->so_number }}"
+                                                data-supplier="{{ $trip->soOrder->supplier->nama ?? '-' }}">
+                                                [{{ $trip->soOrder->so_number }}] - Trip {{ $trip->trip_number }} dari {{ $trip->soOrder->total_trips }} (Vol: {{ number_format($trip->quantity_liter, 0, ',', '.') }} L | Tgl: {{ $trip->estimated_delivery_date->format('d/m/Y') }})
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                    @endif
+
+                                    {{-- Legacy Purchases (SO Lama) --}}
+                                    @if($purchases->count() > 0)
+                                    <optgroup label="📋 Pembelian DO (Legacy)">
+                                        @foreach ($purchases as $purchase)
+                                            <option value="{{ $purchase->id }}" @selected($purchase->id == old('purchase_id'))
+                                                data-type="purchase"
+                                                data-purchase='@json($purchase)'>
+                                                {{ $purchase->no_so }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                    @endif
                                 </select>
+                                {{-- Hidden field untuk SO Trip ID --}}
+                                <input type="hidden" name="so_order_trip_id" id="so_order_trip_id" value="{{ old('so_order_trip_id') }}">
                                 @error('purchase_id')
                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                 @enderror
+                                @error('so_order_trip_id')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+
+                                {{-- Info panel: muncul saat SO Trip dipilih --}}
+                                <div id="so-trip-info" class="alert alert-info mt-2 mb-0 py-2 px-3" style="display: none; font-size: 0.85rem;">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>SO Trip:</strong> <span id="so-trip-detail"></span>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group row">
@@ -282,7 +318,43 @@
         }
 
         $(document).ready(function() {
-            //calculate volume aktual (stok akhir - stok awal)
+            /**
+             * Handle SO dropdown change — mengelola purchase_id dan so_order_trip_id
+             */
+            $('#purchase_id').on('change', function() {
+                let selectedOption = $(this).find(':selected');
+                let type = selectedOption.data('type');
+                let val = $(this).val();
+
+                if (type === 'so_trip') {
+                    // SO Trip dipilih — set hidden so_order_trip_id, clear purchase_id value
+                    let tripId = selectedOption.data('trip-id');
+                    $('#so_order_trip_id').val(tripId);
+                    // Ubah name dropdown agar tidak mengirim purchase_id
+                    $(this).attr('name', '_purchase_id_disabled');
+
+                    // Tampilkan info panel
+                    let soNum = selectedOption.data('so-number');
+                    let supplier = selectedOption.data('supplier');
+                    let volume = parseFloat(selectedOption.data('volume')) || 0;
+                    $('#so-trip-detail').text(`${soNum} — Supplier: ${supplier} — Volume: ${volume.toLocaleString('id-ID')} L`);
+                    $('#so-trip-info').slideDown(200);
+                } else {
+                    // Legacy purchase dipilih atau kosong
+                    $('#so_order_trip_id').val('');
+                    $(this).attr('name', 'purchase_id');
+                    $('#so-trip-info').slideUp(200);
+                }
+            });
+
+            // Trigger on load for old() repopulation
+            if ($('#purchase_id').val()) {
+                $('#purchase_id').trigger('change');
+            }
+
+            /**
+             * Calculate volume aktual & losses/gain
+             */
             $('#stik_akhir, #stik_awal, #purchase_id').on('input change', function() {
                 let stik_akhir = parseFloat($('#stik_akhir').val()) || 0;
                 let stik_awal = parseFloat($('#stik_awal').val()) || 0;
@@ -294,20 +366,29 @@
                 $('#stok_akhir').val(stok_akhir.toFixed(2));
                 $('#penerimaan_real').val(volume_aktual.toFixed(2));
 
-                // Calculate losses/gain
+                // Calculate losses/gain — support both legacy purchase and SO trip
                 let selectedSO = $('#purchase_id').find(':selected');
-                if (selectedSO.val() && selectedSO.data('purchase')) {
-                    let purchaseVol = parseFloat(selectedSO.data('purchase').volume) || 0;
-                    let diff = volume_aktual - purchaseVol;
+                let expectedVolume = 0;
+
+                if (selectedSO.data('type') === 'so_trip') {
+                    expectedVolume = parseFloat(selectedSO.data('volume')) || 0;
+                } else if (selectedSO.val() && selectedSO.data('purchase')) {
+                    expectedVolume = parseFloat(selectedSO.data('purchase').volume) || 0;
+                }
+
+                if (expectedVolume > 0) {
+                    let diff = volume_aktual - expectedVolume;
                     
-                    let lgText = diff > 0 ? `Gain: +${diff.toFixed(2)} &ell;` : (diff < 0 ? `Loses: ${diff.toFixed(2)} &ell;` : `Loses/Gain: 0`);
-                    let lgColor = diff > 0 ? 'text-success' : (diff < -6 ? 'text-danger' : 'text-primary'); // Assuming 6L tolerance
+                    let lgText = diff > 0 ? `Gain: +${diff.toFixed(2)} ℓ` : (diff < 0 ? `Loses: ${diff.toFixed(2)} ℓ` : `Loses/Gain: 0`);
+                    let lgColor = diff > 0 ? 'text-success' : (diff < -6 ? 'text-danger' : 'text-primary');
                     
                     if ($('#losses_gain_feedback').length === 0) {
                         $('#penerimaan_real').parent().after(`<div id="losses_gain_feedback" class="mt-2 font-weight-bold ${lgColor}">${lgText}</div>`);
                     } else {
                         $('#losses_gain_feedback').removeClass('text-success text-danger text-primary').addClass(lgColor).html(lgText);
                     }
+                } else {
+                    $('#losses_gain_feedback').remove();
                 }
             });
 
@@ -336,6 +417,19 @@
                     $('#pertamax_feedback').remove();
                 }
             });
+
+            /**
+             * Form submit: pastikan purchase_id dikembalikan ke name yang benar
+             * jika user memilih SO trip, purchase_id harus dikosongkan
+             */
+            $('form#insertForm').on('submit', function() {
+                let selectedType = $('#purchase_id').find(':selected').data('type');
+                if (selectedType === 'so_trip') {
+                    // Kosongkan purchase_id agar tidak dikirim, hanya so_order_trip_id
+                    $('#purchase_id').attr('name', 'purchase_id').val('');
+                }
+            });
         })
     </script>
 @endpush
+

@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Shop;
 use App\Models\User;
 use App\Models\Operator;
+use App\Support\CredentialPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 
 class OperatorController extends Controller
@@ -137,28 +141,30 @@ class OperatorController extends Controller
             $validated['pas_foto'] = $request->file('pas_foto')->store('pas_foto', 'public');
         }
 
-        $baseEmail = strtolower(str_replace(' ', '.', trim($request->name))) . '@pertashop.com';
-        $email = $baseEmail;
-        $counter = 1;
-        while (\App\Models\User::where('email', $email)->exists()) {
-            $email = strtolower(str_replace(' ', '.', trim($request->name))) . $counter . '@pertashop.com';
-            $counter++;
-        }
+        $shop = Shop::find($request->shop_id);
 
-        $user = \App\Models\User::create([
-            'name' => $request->name,
-            'email' => $email,
-            'password' => Hash::make('123'),
-            'encrypted_password' => Crypt::encryptString('123'),
-            'role' => 'operator',
-            'shop_id' => $request->shop_id,
-        ]);
+        // Kredensial awal mengikuti kebijakan baru: nama@pertashop[lokasi].com + sandi kuat acak
+        $email    = CredentialPolicy::suggestEmail($request->name, $shop?->nama);
+        $password = CredentialPolicy::generatePassword();
 
-        $validated['user_id'] = $user->id;
+        DB::transaction(function () use ($request, $email, $password, &$validated) {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $email,
+                'password' => Hash::make($password),
+                'encrypted_password' => Crypt::encryptString($password),
+                'password_changed_at' => now(),
+                'role' => 'operator',
+            ]);
 
-        Operator::create($validated);
+            $validated['user_id'] = $user->id;
+            $validated['email_pertashop'] = $email;
+            $validated['sandi_email_pertashop'] = null; // jangan simpan sandi plain text
 
-        return redirect()->route('operators.index')->with('success', 'Operator berhasil ditambahkan');
+            Operator::create($validated);
+        });
+
+        return redirect()->route('operators.index')->with('success', "Operator berhasil ditambahkan. Email: {$email} | Sandi awal: {$password} (dapat disalin ulang di menu Edit > Pengaturan Akun)");
     }
 
     /**
@@ -184,6 +190,8 @@ class OperatorController extends Controller
      */
     public function update(Request $request, Operator $operator)
     {
+        $isSuperAdmin = Auth::user()->role === 'super-admin';
+
         $rules = [
             'shop_id' => 'required',
             'name' => 'required',
@@ -191,7 +199,6 @@ class OperatorController extends Controller
             'no_hp' => 'required',
             'no_rekening' => 'required',
             'nama_bank' => 'required',
-            'password' => 'nullable',
             'atas_nama_rekening' => 'required',
             'nik' => 'required',
             'tempat_lahir' => 'required',
@@ -218,14 +225,17 @@ class OperatorController extends Controller
             'pas_foto' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ];
 
-        // Removed email pertashop rules
-
-        if (\Illuminate\Support\Facades\Auth::user()->role === 'super-admin') {
-            $rules['email'] = 'required|email|unique:users,email,' . $operator->user_id;
+        // Kredensial hanya boleh diubah Super Admin
+        if ($isSuperAdmin) {
+            $rules['email']    = CredentialPolicy::emailRules($operator->user, $request->input('email'));
+            $rules['password'] = CredentialPolicy::passwordRules();
         }
 
-        $validated = $request->validate($rules);
-        
+        $validated = $request->validate($rules, CredentialPolicy::messages());
+
+        // Field kredensial tidak disimpan ke tabel operators (sumber kebenaran: tabel users)
+        unset($validated['email'], $validated['password']);
+
         if ($request->hasFile('pas_foto')) {
             if ($operator->pas_foto) {
                 Storage::disk('public')->delete($operator->pas_foto);
@@ -233,24 +243,36 @@ class OperatorController extends Controller
             $validated['pas_foto'] = $request->file('pas_foto')->store('pas_foto', 'public');
         }
 
-        $operator->update($validated);
-        $updateData = [
-            'name' => $request->name,
-        ];
-        if (\Illuminate\Support\Facades\Auth::user()->role === 'super-admin' && $request->has('email')) {
-            $updateData['email'] = $request->email;
-        }
-        $operator->user->update($updateData);
-
-        if ($request->password) {
-            $operator->user->update([
-                'password' => bcrypt($request->password),
-                'encrypted_password' => Crypt::encryptString($request->password),
-                'password_changed_at' => now(),
-            ]);
+        $user = $operator->user;
+        if (!$user) {
+            return back()->withErrors(['email' => 'Akun user untuk operator ini tidak ditemukan!']);
         }
 
-        return redirect()->route('operators.index')->with('success', 'Operator berhasil diupdate');
+        $changes = DB::transaction(function () use ($operator, $user, $validated, $request, $isSuperAdmin) {
+            $email    = $isSuperAdmin ? $request->input('email') : null;
+            $password = $isSuperAdmin ? $request->input('password') : null;
+
+            // 1. Tabel users (autentikasi)
+            $changes = CredentialPolicy::applyToUser($user, $email, $password, $request->name);
+
+            // 2. Tabel operators (profil) + cermin email login
+            if (\Illuminate\Support\Facades\Schema::hasColumn('operators', 'email_pertashop')) {
+                $validated['email_pertashop'] = $user->email;
+            }
+            if ($password && \Illuminate\Support\Facades\Schema::hasColumn('operators', 'sandi_email_pertashop')) {
+                $validated['sandi_email_pertashop'] = null;
+            }
+            $operator->update($validated);
+
+            return $changes;
+        });
+
+        $msg = 'Data operator berhasil diupdate.';
+        if ($changes) {
+            $msg .= ' Kredensial login (' . implode(' & ', $changes) . ') diperbarui; sesi lama operator otomatis diputus.';
+        }
+
+        return redirect()->route('operators.index')->with('success', $msg);
     }
 
     /**
@@ -267,23 +289,45 @@ class OperatorController extends Controller
 
     public function updateCredentials(Request $request, Operator $operator)
     {
-        if (\Illuminate\Support\Facades\Auth::user()->role !== 'super-admin') {
+        if (Auth::user()->role !== 'super-admin') {
             abort(403, 'Unauthorized action.');
         }
 
-        $validated = $request->validate([
-            'email' => 'required|email|unique:users,email,' . $operator->user_id,
-            'password' => 'nullable|string|min:3',
-        ]);
-
-        $updateData = ['email' => $validated['email']];
-        if (!empty($validated['password'])) {
-            $updateData['password'] = \Illuminate\Support\Facades\Hash::make($validated['password']);
+        $operator->loadMissing('user');
+        $user = $operator->user;
+        if (!$user) {
+            return back()->withErrors(['email' => 'Akun user untuk operator ini tidak ditemukan!']);
         }
 
-        $operator->user->update($updateData);
+        // Endpoint khusus kredensial: TIDAK memvalidasi data profil,
+        // sehingga tetap bisa dipakai walau data profil operator belum lengkap.
+        $validated = $request->validate([
+            'email'    => CredentialPolicy::emailRules($user, $request->input('email')),
+            'password' => CredentialPolicy::passwordRules(),
+        ], CredentialPolicy::messages());
 
-        return redirect()->back()->with('success', 'Kredensial login berhasil diperbarui');
+        $changes = DB::transaction(function () use ($operator, $user, $validated) {
+            $changes = CredentialPolicy::applyToUser($user, $validated['email'], $validated['password'] ?? null);
+
+            $opUpdate = [];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('operators', 'email_pertashop')) {
+                $opUpdate['email_pertashop'] = $user->email;
+            }
+            if (!empty($validated['password']) && \Illuminate\Support\Facades\Schema::hasColumn('operators', 'sandi_email_pertashop')) {
+                $opUpdate['sandi_email_pertashop'] = null;
+            }
+            if (!empty($opUpdate)) {
+                $operator->update($opUpdate);
+            }
+
+            return $changes;
+        });
+
+        $msg = $changes
+            ? 'Kredensial login operator (' . implode(' & ', $changes) . ') berhasil diperbarui. Sesi lama operator otomatis diputus.'
+            : 'Tidak ada perubahan kredensial.';
+
+        return redirect()->route('operators.edit', $operator)->with('success', $msg)->with('open_tab', 'akun');
     }
 
     public function toggleStatus(Operator $operator)

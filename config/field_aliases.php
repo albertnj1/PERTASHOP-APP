@@ -73,4 +73,14 @@ return [
         'setor tunai', 'setoran bank', 'transfer',
     ],
 
+    'hutang_bakulan' => [
+        'hutang bakulan', 'kasbon', 'piutang', 'piutang bbm', 'kasbon bbm',
+        'bakulan', 'hutang', 'tempo', 'bon', 'bon bbm', 'piutang harian',
+    ],
+
+    'pelunasan_bakulan' => [
+        'pelunasan bakulan', 'bayar kasbon', 'pelunasan piutang', 'bayar hutang',
+        'pelunasan', 'bayar bon', 'cicilan piutang', 'pelunasan bon',
+    ],
+
 ];

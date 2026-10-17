@@ -24,6 +24,10 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'is_active',
+        'shop_id',
+        'encrypted_password',
+        'password_changed_at',
     ];
 
     /**
@@ -44,11 +48,27 @@ class User extends Authenticatable
      * @var array<string, string>
      */
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
+        'email_verified_at'   => 'datetime',
+        'password_changed_at' => 'datetime',
+        'is_active'           => 'boolean',
+        // PERHATIAN: Jangan tambahkan 'password' => 'hashed' di sini!
+        // Semua controller sudah memanggil Hash::make() secara eksplisit.
+        // Cast 'hashed' akan menyebabkan double-hashing dan password tidak bisa diverifikasi.
     ];
 
     protected $appends = ['short_name'];
+
+    // ── Mutator: Normalisasi email saat disimpan ──
+
+    /**
+     * Selalu simpan email dalam bentuk lowercase dan trimmed.
+     */
+    public function setEmailAttribute($value)
+    {
+        $this->attributes['email'] = strtolower(trim($value));
+    }
+
+    // ── Relationships ──
 
     public function operator()
     {
@@ -65,9 +85,12 @@ class User extends Authenticatable
         return $this->hasOne(Investor::class);
     }
 
+    // ── Accessors ──
+
     #accessor to get short name
     public function getShortNameAttribute()
     {
         return explode(' ', $this->name)[0];
     }
 }
+
