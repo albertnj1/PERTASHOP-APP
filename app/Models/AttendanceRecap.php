@@ -26,7 +26,7 @@ class AttendanceRecap extends Model
             ->whereMonth('tanggal', $bulan)
             ->whereYear('tanggal', $tahun)
             ->selectRaw('
-                COUNT(*) as total_dijadwalkan,
+                SUM(CASE WHEN status != "libur" THEN 1 ELSE 0 END) as total_dijadwalkan,
                 SUM(CASE WHEN status = "hadir"  THEN 1 ELSE 0 END) as total_hadir,
                 SUM(CASE WHEN status = "alpha"  THEN 1 ELSE 0 END) as total_alpha,
                 SUM(CASE WHEN status = "izin"   THEN 1 ELSE 0 END) as total_izin,

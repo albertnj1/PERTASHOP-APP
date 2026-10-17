@@ -63,6 +63,7 @@ class DashboardController extends Controller
                     'estimasi_thp' => 0,
                     'saldo_tabungan' => 0,
                     'monthlySalesChart' => ['labels' => [], 'data' => []],
+                    'todaySchedule' => null,
                     'data' => $data,
                 ]);
             }
@@ -142,6 +143,12 @@ class DashboardController extends Controller
             $totalPengambilanTabungan = \App\Models\EmployeeSavings::where('operator_id', $operator_id)->where('jenis', 'pengambilan')->sum('jumlah');
             $saldo_tabungan = max(0, $totalSetoranTabungan - $totalPengambilanTabungan);
 
+            // Jadwal & status presensi hari ini untuk notifikasi libur/pesan manajemen
+            $todaySchedule = \App\Models\ShiftSchedule::with('shop')
+                ->where('operator_id', $operator_id)
+                ->whereDate('tanggal', \Carbon\Carbon::today())
+                ->first();
+
             return view('dashboard.operator', compact(
                 'belum_disetorkan',
                 'stok_akhir',
@@ -154,6 +161,7 @@ class DashboardController extends Controller
                 'estimasi_kurang_setoran',
                 'estimasi_thp',
                 'saldo_tabungan',
+                'todaySchedule',
                 'data'
             ));
         }

@@ -120,6 +120,12 @@
     border: 1px solid #cbd5e1;
   }
 
+  .presence-libur {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px dashed #38bdf8;
+  }
+
   /* Status Indicator Badges */
   .status-dot {
     position: absolute;
@@ -134,6 +140,7 @@
   .status-dot.alpha { background-color: #ef4444; }
   .status-dot.izin { background-color: #f59e0b; }
   .status-dot.sakit { background-color: #3b82f6; }
+  .status-dot.libur { background-color: #0284c7; }
 
   /* Empty Slot Button (+ Quick Assign) */
   .btn-slot-empty {
@@ -349,6 +356,7 @@
                             'alpha'       => ['label' => 'Alpha', 'icon' => 'fa-times', 'class' => 'presence-alpha'],
                             'izin'        => ['label' => 'Izin',  'icon' => 'fa-calendar-minus', 'class' => 'presence-izin'],
                             'sakit'       => ['label' => 'Sakit', 'icon' => 'fa-medkit', 'class' => 'presence-sakit'],
+                            'libur'       => ['label' => 'Libur', 'icon' => 'fa-mug-hot', 'class' => 'presence-libur'],
                             'dijadwalkan' => ['label' => 'Jadwal', 'icon' => 'fa-clock', 'class' => 'presence-dijadwalkan'],
                           ];
                           $st = $statusLabels[$s->status] ?? $statusLabels['hadir'];
@@ -400,6 +408,7 @@
           <span class="status-badge-legend" style="background: #fee2e2; color: #b91c1c;"><i class="fas fa-circle text-danger mr-1" style="font-size: 8px;"></i> Alpha</span>
           <span class="status-badge-legend" style="background: #fef3c7; color: #d97706;"><i class="fas fa-circle text-warning mr-1" style="font-size: 8px;"></i> Izin</span>
           <span class="status-badge-legend" style="background: #eff6ff; color: #2563eb;"><i class="fas fa-circle text-primary mr-1" style="font-size: 8px;"></i> Sakit</span>
+          <span class="status-badge-legend" style="background: #e0f2fe; color: #0369a1;"><i class="fas fa-circle text-info mr-1" style="font-size: 8px;"></i> Libur</span>
         </div>
       </div>
     </div>
@@ -505,6 +514,7 @@
               <option value="alpha">Alpha</option>
               <option value="izin">Izin</option>
               <option value="sakit">Sakit</option>
+              <option value="libur">Libur / Diliburkan</option>
             </select>
           </div>
 
@@ -576,6 +586,7 @@
               <option value="alpha">❌ Alpha (Tidak Hadir)</option>
               <option value="izin">⚠️ Izin</option>
               <option value="sakit">🩺 Sakit</option>
+              <option value="libur">☕ Libur / Diliburkan</option>
               <option value="dijadwalkan">🗓️ Terjadwal</option>
             </select>
           </div>
@@ -665,6 +676,7 @@
                 <option value="alpha">Alpha</option>
                 <option value="izin">Izin</option>
                 <option value="sakit">Sakit</option>
+                <option value="libur">Libur / Diliburkan</option>
               </select>
             </div>
           @else
@@ -702,6 +714,14 @@
                   <span style="font-weight: 700; color: #2563eb; font-size: 13px;"><i class="fas fa-medkit text-primary mr-1"></i> Sakit</span>
                 </div>
                 <span class="badge badge-primary px-2 py-1" style="border-radius: 6px;">Sakit</span>
+              </label>
+
+              <label class="btn-shift-option mb-0 p-2">
+                <div class="d-flex align-items-center" style="gap: 10px;">
+                  <input type="radio" name="status" value="libur">
+                  <span style="font-weight: 700; color: #0284c7; font-size: 13px;"><i class="fas fa-mug-hot text-info mr-1"></i> Libur / Diliburkan</span>
+                </div>
+                <span class="badge badge-info px-2 py-1" style="border-radius: 6px;">Libur</span>
               </label>
 
               <label class="btn-shift-option mb-0 p-2">
@@ -761,6 +781,7 @@
               <option value="alpha">Alpha (Tidak Hadir)</option>
               <option value="izin">Izin</option>
               <option value="sakit">Sakit</option>
+              <option value="libur">Libur / Diliburkan</option>
             </select>
           </div>
 

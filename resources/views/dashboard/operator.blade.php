@@ -36,6 +36,48 @@
         </div>
     </div>
 
+    {{-- NOTIFIKASI STATUS LIBUR & PESAN MANAJEMEN HARI INI --}}
+    @if(isset($todaySchedule) && $todaySchedule->status === 'libur')
+        <div class="alert mb-4 shadow-sm" style="border-radius: 16px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; padding: 20px 24px;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 16px;">
+                <div class="d-flex align-items-center" style="gap: 16px;">
+                    <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">
+                        <i class="fas fa-mug-hot text-warning"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; opacity: 0.9;">
+                            <i class="far fa-calendar-check mr-1"></i> Pemberitahuan Hari Ini ({{ \Carbon\Carbon::today()->translatedFormat('l, d F Y') }})
+                        </div>
+                        <h4 class="mb-1 font-weight-bold" style="font-size: 19px; color: #ffffff;">Hari Ini Anda Diliburkan oleh Manajemen</h4>
+                        <p class="mb-0" style="font-size: 13.5px; opacity: 0.95;">
+                            Pesan/Alasan: <strong>"{{ $todaySchedule->keterangan ?: 'Diliburkan oleh Super Admin / Manajemen Operasional.' }}"</strong>
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ route('operator.presensi') }}" class="btn btn-light font-weight-bold shadow-sm" style="border-radius: 10px; color: #0369a1; padding: 10px 20px; font-size: 13px;">
+                    <i class="fas fa-calendar-alt mr-1"></i> Buka Menu Presensi
+                </a>
+            </div>
+        </div>
+    @elseif(isset($todaySchedule) && !empty($todaySchedule->keterangan))
+        <div class="alert mb-4 shadow-sm" style="border-radius: 16px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 16px 22px;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 12px;">
+                <div class="d-flex align-items-center" style="gap: 14px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
+                        <i class="fas fa-bell"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b;">Catatan Manajemen Hari Ini</div>
+                        <div style="font-size: 14px; font-weight: 700; color: #1e293b;">{{ $todaySchedule->keterangan }}</div>
+                    </div>
+                </div>
+                <a href="{{ route('operator.presensi') }}" class="btn btn-primary btn-sm font-weight-bold" style="border-radius: 8px; padding: 6px 16px;">
+                    Lihat Detail Presensi
+                </a>
+            </div>
+        </div>
+    @endif
+
     <!-- SUMMARY CARDS -->
     <div class="summary-grid">
         <div class="metric-card pos">
@@ -401,6 +443,43 @@
             $('input[name=filter]').on('change', function() { getData(); });
 
             getData();
+
+            @if(isset($todaySchedule) && $todaySchedule->status === 'libur')
+                const liburPopupKey = 'alert_libur_{{ \Carbon\Carbon::today()->format("Ymd") }}';
+                if (!sessionStorage.getItem(liburPopupKey)) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'Pemberitahuan Libur',
+                            html: `
+                                <div style="text-align: center; padding: 6px 0;">
+                                    <div style="font-size: 16px; font-weight: 700; color: #0284c7; margin-bottom: 10px;">
+                                        Hari Ini Anda Diliburkan oleh Manajemen
+                                    </div>
+                                    <div style="font-size: 13.5px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; text-align: left;">
+                                        <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">
+                                            <i class="fas fa-comment-alt mr-1"></i> Pesan / Alasan Manajemen:
+                                        </div>
+                                        <div style="font-size: 14px; font-weight: 700; color: #0f172a;">
+                                            "{{ addslashes($todaySchedule->keterangan ?: 'Diliburkan oleh Super Admin / Manajemen Operasional.') }}"
+                                        </div>
+                                    </div>
+                                </div>
+                            `,
+                            icon: 'info',
+                            confirmButtonText: '<i class="fas fa-check mr-1"></i> Saya Mengerti',
+                            confirmButtonColor: '#0284c7',
+                            showCancelButton: true,
+                            cancelButtonText: '<i class="fas fa-calendar-alt mr-1"></i> Buka Presensi',
+                            cancelButtonColor: '#64748b',
+                        }).then((result) => {
+                            sessionStorage.setItem(liburPopupKey, 'seen');
+                            if (result.dismiss === Swal.DismissReason.cancel) {
+                                window.location.href = "{{ route('operator.presensi') }}";
+                            }
+                        });
+                    }
+                }
+            @endif
         });
     </script>
 @endpush

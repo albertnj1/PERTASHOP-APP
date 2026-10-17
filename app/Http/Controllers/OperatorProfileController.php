@@ -95,4 +95,67 @@ class OperatorProfileController extends Controller
 
         return $pdf->download($filename);
     }
+
+    public function presensi(Request $request)
+    {
+        $operator = Auth::user()->operator;
+
+        if (!$operator) {
+            return redirect()->route('dashboard')->with('error', 'Hanya akun operator yang dapat mengakses halaman ini.');
+        }
+
+        $selectedMonth = $request->input('bulan', Carbon::now()->format('Y-m'));
+        [$year, $month] = explode('-', $selectedMonth);
+
+        $today = Carbon::today();
+
+        // Jadwal & status hari ini
+        $todaySchedule = ShiftSchedule::with('shop')
+            ->where('operator_id', $operator->id)
+            ->whereDate('tanggal', $today)
+            ->first();
+
+        // Pesan / pemberitahuan manajemen (jadwal dengan status libur atau ada catatan keterangan)
+        $recentNotices = ShiftSchedule::with('shop')
+            ->where('operator_id', $operator->id)
+            ->where(function ($q) {
+                $q->where('status', 'libur')
+                  ->orWhere(function ($sub) {
+                      $sub->whereNotNull('keterangan')
+                          ->where('keterangan', '!=', '');
+                  });
+            })
+            ->where('tanggal', '>=', Carbon::now()->subDays(60))
+            ->orderBy('tanggal', 'desc')
+            ->get();
+
+        // Rekap kehadiran bulan terpilih
+        $recap = AttendanceRecap::where('operator_id', $operator->id)
+            ->where('tahun', $year)
+            ->where('bulan', (int)$month)
+            ->first();
+
+        // Seluruh jadwal bulan terpilih
+        $monthSchedules = ShiftSchedule::with('shop')
+            ->where('operator_id', $operator->id)
+            ->whereYear('tanggal', $year)
+            ->whereMonth('tanggal', (int)$month)
+            ->orderBy('tanggal', 'desc')
+            ->get();
+
+        // Total hari libur bulan ini
+        $totalLiburBulanIni = $monthSchedules->where('status', 'libur')->count();
+
+        return view('operator.presensi', compact(
+            'operator',
+            'todaySchedule',
+            'recentNotices',
+            'recap',
+            'monthSchedules',
+            'totalLiburBulanIni',
+            'selectedMonth',
+            'year',
+            'month'
+        ));
+    }
 }

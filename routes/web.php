@@ -90,6 +90,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     // ── Fase D.2 — Investor Financial Dashboard ───────────────────────────────
     Route::get('/investor/dashboard', [\App\Http\Controllers\InvestorDashboardController::class, 'index'])->name('investor.dashboard');
     Route::get('operator/performa', [OperatorProfileController::class, 'index'])->name('operator.performa');
+    Route::get('operator/presensi', [OperatorProfileController::class, 'presensi'])->name('operator.presensi');
     Route::get('operator/slip-gaji/{payrollDetail}/export-pdf', [OperatorProfileController::class, 'exportSlipPdf'])->name('operator.slip-gaji.pdf');
 
     // Kasbon / Employee Loans (Operator dapat mengajukan & melihat riwayat kasbon miliknya)
@@ -405,6 +406,12 @@ Route::get('/migrasi-server', function () {
             });
             $log[] = "Tabel 'so_order_trips' berhasil dibuat.";
         }
+
+        // 4. Update kolom status shift_schedules agar mendukung status libur
+        try {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'dijadwalkan'");
+            $log[] = "Kolom status pada 'shift_schedules' diperbarui (mendukung status libur).";
+        } catch (\Throwable $e) {}
 
         \Illuminate\Support\Facades\Artisan::call('cache:clear');
         \Illuminate\Support\Facades\Artisan::call('config:clear');

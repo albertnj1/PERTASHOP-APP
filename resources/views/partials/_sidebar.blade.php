@@ -138,8 +138,25 @@
   <a href="{{ route('operator.performa') }}" class="nav-item {{ request()->routeIs('operator.performa') ? 'active' : '' }}">
     PERFORMA SAYA
   </a>
-  <a href="{{ route('shift-schedules.index') }}" class="nav-item {{ request()->routeIs('shift-schedules.*') ? 'active' : '' }}">
-    JADWAL SHIFT
+  @php
+    $operatorNoticeCount = 0;
+    if (Auth::user()?->operator) {
+        $operatorNoticeCount = \App\Models\ShiftSchedule::where('operator_id', Auth::user()->operator->id)
+            ->whereDate('tanggal', \Carbon\Carbon::today())
+            ->where(function($q) {
+                $q->where('status', 'libur')
+                  ->orWhere(function($sub) {
+                      $sub->whereNotNull('keterangan')->where('keterangan', '!=', '');
+                  });
+            })
+            ->count();
+    }
+  @endphp
+  <a href="{{ route('operator.presensi') }}" class="nav-item d-flex align-items-center justify-content-between {{ request()->routeIs('operator.presensi') ? 'active' : '' }}">
+    <span>PRESENSI</span>
+    @if($operatorNoticeCount > 0)
+      <span class="badge badge-warning" style="font-size: 10px; padding: 2px 7px; border-radius: 9999px; font-weight: 800; background: #f59e0b; color: #ffffff;">{{ $operatorNoticeCount }}</span>
+    @endif
   </a>
   <a href="{{ route('employee-loans.index') }}" class="nav-item {{ request()->routeIs('employee-loans.*') ? 'active' : '' }}">
     KASBON SAYA

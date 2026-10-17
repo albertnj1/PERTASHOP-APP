@@ -94,7 +94,7 @@ class ShiftScheduleController extends Controller
                 'operator_id' => 'required|exists:operators,id',
                 'tanggal'     => 'required|date',
                 'shift_ke'    => ['required', 'integer', \Illuminate\Validation\Rule::in($allowedShifts)],
-                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit',
+                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit,libur',
                 'keterangan'  => 'nullable|string|max:255',
             ], [
                 'shift_ke.in' => 'Pilihan shift tidak valid untuk cabang ini (Hanya tersedia Shift 1 dan Shift 2).',
@@ -140,7 +140,7 @@ class ShiftScheduleController extends Controller
                 'shop_id'     => 'required|exists:shops,id',
                 'operator_id' => 'required|exists:operators,id',
                 'tanggal'     => 'required|date',
-                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit',
+                'status'      => 'nullable|in:dijadwalkan,hadir,alpha,izin,sakit,libur',
                 'keterangan'  => 'nullable|string|max:255',
             ]);
 
@@ -278,7 +278,7 @@ class ShiftScheduleController extends Controller
     public function update(Request $request, ShiftSchedule $shiftSchedule)
     {
         $validated = $request->validate([
-            'status'     => 'required|in:dijadwalkan,hadir,alpha,izin,sakit',
+            'status'     => 'required|in:dijadwalkan,hadir,alpha,izin,sakit,libur',
             'keterangan' => 'nullable|string|max:255',
         ]);
 

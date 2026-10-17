@@ -80,11 +80,12 @@ class PayrollCalculationService
             throw new \Exception("Belum ada operator yang terdaftar untuk cabang ini di periode {$bulan}/{$tahun}.");
         }
 
-        // 5. Ambil shift schedules bulan ini untuk tahu siapa bertugas kapan
+        // 5. Ambil shift schedules bulan ini untuk tahu siapa bertugas kapan (kecuali yang berstatus libur)
         $shiftSchedules = ShiftSchedule::where('shop_id', $shopId)
             ->whereYear('tanggal', $tahun)
             ->whereMonth('tanggal', $bulan)
             ->whereIn('operator_id', $operatorIds)
+            ->where('status', '!=', 'libur')
             ->get()
             ->groupBy(fn($s) => $s->tanggal->format('Y-m-d'));
 
