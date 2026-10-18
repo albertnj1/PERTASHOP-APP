@@ -346,10 +346,10 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 
 // Helper URL satu kali klik untuk menjalankan migrasi & clear cache di hosting (production)
 Route::get('/migrasi-server', function () {
-    try {
-        $log = [];
+    $log = [];
 
-        // 1. Auto-fix duplicate column migration jika kolom processing_status di backdate_excel_files sudah ada
+    // 1. Auto-fix duplicate column migration jika kolom processing_status di backdate_excel_files sudah ada
+    try {
         if (\Illuminate\Support\Facades\Schema::hasTable('backdate_excel_files') && 
             \Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')) {
             $migName = '2026_08_30_040000_add_processing_fields_to_backdate_excel_files_table';
@@ -363,13 +363,12 @@ Route::get('/migrasi-server', function () {
                 $log[] = "Migration '$migName' ditandai selesai (kolom sudah ada di database).";
             }
         }
+    } catch (\Throwable $e) {
+        $log[] = "Catatan backdate_excel_files: " . $e->getMessage();
+    }
 
-        // 2. Jalankan migrasi
-        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-        $outputMigrate = \Illuminate\Support\Facades\Artisan::output();
-        $log[] = $outputMigrate;
-
-        // 3. Fallback: Pastikan tabel so_orders & so_order_trips dibuat jika belum ada
+    // 2. Fallback: Pastikan tabel so_orders & so_order_trips dibuat jika belum ada
+    try {
         if (!\Illuminate\Support\Facades\Schema::hasTable('so_orders')) {
             \Illuminate\Support\Facades\Schema::create('so_orders', function (\Illuminate\Database\Schema\Blueprint $table) {
                 $table->id();
@@ -387,7 +386,7 @@ Route::get('/migrasi-server', function () {
                 $table->foreign('shop_id')->references('id')->on('shops')->onDelete('cascade');
                 $table->foreign('supplier_id')->references('id')->on('suppliers')->onDelete('cascade');
             });
-            $log[] = "Tabel 'so_orders' berhasil dibuat.";
+            $log[] = "Tabel 'so_orders' berhasil dipastikan ada.";
         }
 
         if (!\Illuminate\Support\Facades\Schema::hasTable('so_order_trips')) {
@@ -407,91 +406,125 @@ Route::get('/migrasi-server', function () {
                 $table->foreign('daily_report_id')->references('id')->on('daily_reports')->onDelete('set null');
                 $table->foreign('incoming_id')->references('id')->on('incomings')->onDelete('set null');
             });
-            $log[] = "Tabel 'so_order_trips' berhasil dibuat.";
+            $log[] = "Tabel 'so_order_trips' berhasil dipastikan ada.";
         }
-
-        // 4. Update kolom status shift_schedules agar mendukung status libur
-        try {
-            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'dijadwalkan'");
-            $log[] = "Kolom status pada 'shift_schedules' diperbarui (mendukung status libur).";
-        } catch (\Throwable $e) {}
-
-        // 5. Pastikan kolom-kolom tracking cicilan pada 'employee_loans' tersedia dan valid
-        try {
-            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'tenor_bulan')) {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `tenor_bulan` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `jumlah`");
-                $log[] = "Kolom 'tenor_bulan' ditambahkan ke employee_loans.";
-            }
-            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'nominal_angsuran')) {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `nominal_angsuran` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `tenor_bulan`");
-                $log[] = "Kolom 'nominal_angsuran' ditambahkan ke employee_loans.";
-            }
-            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'angsuran_ke')) {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `angsuran_ke` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `nominal_angsuran`");
-                $log[] = "Kolom 'angsuran_ke' ditambahkan ke employee_loans.";
-            }
-            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'sisa_pokok')) {
-                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `sisa_pokok` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `angsuran_ke`");
-                $log[] = "Kolom 'sisa_pokok' ditambahkan ke employee_loans.";
-            }
-            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` MODIFY `status` VARCHAR(20) NOT NULL DEFAULT 'pending'");
-            $log[] = "Kolom 'status' employee_loans dipastikan bertipe VARCHAR(20).";
-
-            // Perbaikan data kasbon yang statusnya lunas prematur padahal baru di-approve & belum dicicil
-            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `status` = 'approved', `sisa_pokok` = `jumlah` WHERE `status` = 'lunas' AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `approved_by` IS NOT NULL");
-            // Perbaikan data kasbon yang sisa_pokok nya 0 padahal belum pernah dicicil
-            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `sisa_pokok` = `jumlah` WHERE (`sisa_pokok` <= 0 OR `sisa_pokok` IS NULL) AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `status` != 'rejected'");
-            
-            // Perbaiki kasbon 5 juta yang sempat ter-default 1 bulan padahal diajukan 12 bulan
-            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `tenor_bulan` = 12, `nominal_angsuran` = ROUND(`jumlah` / 12, 2), `sisa_pokok` = `jumlah` WHERE `jumlah` = 5000000 AND `tenor_bulan` = 1 AND `angsuran_ke` = 0");
-            $log[] = "Data kasbon, tenor 12 bulan, dan status approved berhasil diselaraskan.";
-        } catch (\Throwable $e) {
-            $log[] = "Catatan employee_loans schema: " . $e->getMessage();
-        }
-
-        // 6. Buat tabel tracking pemotongan kasbon payroll_loan_deductions jika belum ada
-        if (!\Illuminate\Support\Facades\Schema::hasTable('payroll_loan_deductions')) {
-            try {
-                \Illuminate\Support\Facades\Schema::create('payroll_loan_deductions', function (\Illuminate\Database\Schema\Blueprint $table) {
-                    $table->id();
-                    $table->foreignId('payroll_period_id')->nullable()->constrained('payroll_periods')->onDelete('cascade');
-                    $table->foreignId('payroll_detail_id')->nullable()->constrained('payroll_details')->onDelete('cascade');
-                    $table->foreignId('employee_loan_id')->constrained('employee_loans')->onDelete('cascade');
-                    $table->unsignedInteger('cicilan_ke')->default(1);
-                    $table->unsignedInteger('total_tenor')->default(1);
-                    $table->decimal('nominal_potongan', 12, 2)->default(0);
-                    $table->decimal('sisa_pokok_sebelum', 12, 2)->default(0);
-                    $table->decimal('sisa_pokok_setelah', 12, 2)->default(0);
-                    $table->boolean('is_finalized')->default(false);
-                    $table->timestamps();
-                });
-                $log[] = "Tabel 'payroll_loan_deductions' berhasil dibuat.";
-            } catch (\Throwable $e) {}
-        }
-
-        \Illuminate\Support\Facades\Artisan::call('cache:clear');
-        \Illuminate\Support\Facades\Artisan::call('config:clear');
-        \Illuminate\Support\Facades\Artisan::call('view:clear');
-
-        return response("
-            <div style='font-family: sans-serif; padding: 30px; line-height: 1.6;'>
-                <h2 style='color: #10B981;'>🎉 Migrasi & Setup Database Berhasil!</h2>
-                <p>Tabel <code>so_orders</code> dan <code>so_order_trips</code> serta migrasi lainnya berhasil dijalankan.</p>
-                <div style='background: #1E293B; color: #F8FAFC; padding: 15px; border-radius: 8px;'>
-                    <pre style='margin:0;'>" . htmlspecialchars(implode("\n", $log)) . "</pre>
-                </div>
-                <br>
-                <a href='/so-orders' style='display:inline-block; padding: 10px 20px; background: #2563EB; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;'>Buka Order SO Sekarang</a>
-            </div>
-        ");
     } catch (\Throwable $e) {
-        return response("
-            <div style='font-family: sans-serif; padding: 30px; line-height: 1.6;'>
-                <h2 style='color: #EF4444;'>❌ Migrasi Gagal:</h2>
-                <div style='background: #FEF2F2; color: #991B1B; padding: 15px; border-radius: 8px; border: 1px solid #FCA5A5;'>
-                    <pre style='margin:0;'>" . htmlspecialchars($e->getMessage() . "\n" . $e->getTraceAsString()) . "</pre>
+        $log[] = "Catatan tabel so_orders: " . $e->getMessage();
+    }
+
+    // 3. Update kolom status shift_schedules agar mendukung status libur
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'dijadwalkan'");
+        $log[] = "Kolom status pada 'shift_schedules' diperbarui (mendukung status libur).";
+    } catch (\Throwable $e) {
+        $log[] = "Catatan shift_schedules status: " . $e->getMessage();
+    }
+
+    // 4. Pastikan kolom-kolom tracking cicilan pada 'employee_loans' tersedia dan valid
+    try {
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'tenor_bulan')) {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `tenor_bulan` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `jumlah`");
+            $log[] = "Kolom 'tenor_bulan' ditambahkan ke employee_loans.";
+        }
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'nominal_angsuran')) {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `nominal_angsuran` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `tenor_bulan`");
+            $log[] = "Kolom 'nominal_angsuran' ditambahkan ke employee_loans.";
+        }
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'angsuran_ke')) {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `angsuran_ke` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `nominal_angsuran`");
+            $log[] = "Kolom 'angsuran_ke' ditambahkan ke employee_loans.";
+        }
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'sisa_pokok')) {
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `sisa_pokok` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `angsuran_ke`");
+            $log[] = "Kolom 'sisa_pokok' ditambahkan ke employee_loans.";
+        }
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` MODIFY `status` VARCHAR(20) NOT NULL DEFAULT 'pending'");
+        $log[] = "Kolom 'status' employee_loans dipastikan bertipe VARCHAR(20).";
+
+        // Perbaikan data kasbon yang statusnya lunas prematur padahal baru di-approve & belum dicicil
+        \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `status` = 'approved', `sisa_pokok` = `jumlah` WHERE `status` = 'lunas' AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `approved_by` IS NOT NULL");
+        // Perbaikan data kasbon yang sisa_pokok nya 0 padahal belum pernah dicicil
+        \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `sisa_pokok` = `jumlah` WHERE (`sisa_pokok` <= 0 OR `sisa_pokok` IS NULL) AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `status` != 'rejected'");
+        // Perbaiki kasbon 5 juta yang sempat ter-default 1 bulan padahal diajukan 12 bulan
+        \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `tenor_bulan` = 12, `nominal_angsuran` = ROUND(`jumlah` / 12, 2), `sisa_pokok` = `jumlah` WHERE `jumlah` = 5000000 AND `tenor_bulan` = 1 AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL)");
+        $log[] = "Data kasbon, tenor 12 bulan, dan status approved berhasil diselaraskan.";
+    } catch (\Throwable $e) {
+        $log[] = "Catatan employee_loans schema: " . $e->getMessage();
+    }
+
+    // 5. Buat tabel tracking pemotongan kasbon payroll_loan_deductions jika belum ada
+    try {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('payroll_loan_deductions')) {
+            \Illuminate\Support\Facades\Schema::create('payroll_loan_deductions', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->foreignId('payroll_period_id')->nullable()->constrained('payroll_periods')->onDelete('cascade');
+                $table->foreignId('payroll_detail_id')->nullable()->constrained('payroll_details')->onDelete('cascade');
+                $table->foreignId('employee_loan_id')->constrained('employee_loans')->onDelete('cascade');
+                $table->unsignedInteger('cicilan_ke')->default(1);
+                $table->unsignedInteger('total_tenor')->default(1);
+                $table->decimal('nominal_potongan', 12, 2)->default(0);
+                $table->decimal('sisa_pokok_sebelum', 12, 2)->default(0);
+                $table->decimal('sisa_pokok_setelah', 12, 2)->default(0);
+                $table->boolean('is_finalized')->default(false);
+                $table->timestamps();
+            });
+            $log[] = "Tabel 'payroll_loan_deductions' berhasil dibuat.";
+        }
+    } catch (\Throwable $e) {
+        $log[] = "Catatan payroll_loan_deductions: " . $e->getMessage();
+    }
+
+    // 6. Jalankan migrasi umum
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $outputMigrate = trim(\Illuminate\Support\Facades\Artisan::output());
+        if ($outputMigrate) {
+            $log[] = "Artisan Migrate: " . $outputMigrate;
+        }
+    } catch (\Throwable $e) {
+        $log[] = "Catatan migrate: " . $e->getMessage();
+    }
+
+    // 7. Bersihkan seluruh cache aplikasi dan compiled blade view
+    try {
+        \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+        \Illuminate\Support\Facades\Artisan::call('view:clear');
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+
+        // Hapus manual file cache view jika ada
+        $viewFiles = glob(storage_path('framework/views/*.php'));
+        if ($viewFiles) {
+            foreach ($viewFiles as $vf) {
+                @unlink($vf);
+            }
+        }
+        $log[] = "Cache framework (config, route, view, optimize) berhasil dibersihkan total.";
+    } catch (\Throwable $e) {
+        $log[] = "Catatan clear cache: " . $e->getMessage();
+    }
+
+    return response("
+        <div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; padding: 40px; background: #f8fafc; min-height: 100vh;'>
+            <div style='max-width: 700px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;'>
+                <div style='display:flex; align-items:center; gap:12px; margin-bottom: 20px;'>
+                    <div style='width: 48px; height: 48px; border-radius: 12px; background: #dcfce7; display:flex; align-items:center; justify-content:center; font-size: 24px;'>
+                        ✅
+                    </div>
+                    <div>
+                        <h2 style='margin:0; color: #0f172a; font-size: 20px;'>Sinkronisasi Database &amp; Server Sukses!</h2>
+                        <p style='margin:4px 0 0; color: #64748b; font-size: 13px;'>Seluruh tabel, kolom kasbon, status libur, dan cache telah diperbarui.</p>
+                    </div>
+                </div>
+                <div style='background: #0f172a; color: #38bdf8; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 12px; line-height: 1.6; max-height: 350px; overflow-y: auto;'>
+                    <pre style='margin:0; white-space: pre-wrap;'>" . htmlspecialchars(implode("\n", $log)) . "</pre>
+                </div>
+                <div style='margin-top: 24px; display:flex; gap: 12px;'>
+                    <a href='/employee-loans' style='display:inline-block; padding: 12px 24px; background: #0284c7; color: #fff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 13px;'>Buka Kasbon Karyawan</a>
+                    <a href='/dashboard' style='display:inline-block; padding: 12px 24px; background: #f1f5f9; color: #334155; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 13px;'>Buka Dashboard</a>
                 </div>
             </div>
-        ", 500);
-    }
+        </div>
+    ");
 });

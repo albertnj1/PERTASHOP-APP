@@ -140,16 +140,20 @@
   </a>
   @php
     $operatorNoticeCount = 0;
-    if (Auth::user()?->operator) {
-        $operatorNoticeCount = \App\Models\ShiftSchedule::where('operator_id', Auth::user()->operator->id)
-            ->whereDate('tanggal', \Carbon\Carbon::today())
-            ->where(function($q) {
-                $q->where('status', 'libur')
-                  ->orWhere(function($sub) {
-                      $sub->whereNotNull('keterangan')->where('keterangan', '!=', '');
-                  });
-            })
-            ->count();
+    try {
+        if (Auth::user()?->operator) {
+            $operatorNoticeCount = \App\Models\ShiftSchedule::where('operator_id', Auth::user()->operator->id)
+                ->whereDate('tanggal', \Carbon\Carbon::today())
+                ->where(function($q) {
+                    $q->where('status', 'libur')
+                      ->orWhere(function($sub) {
+                          $sub->whereNotNull('keterangan')->where('keterangan', '!=', '');
+                      });
+                })
+                ->count();
+        }
+    } catch (\Throwable $e) {
+        $operatorNoticeCount = 0;
     }
   @endphp
   <a href="{{ route('operator.presensi') }}" class="nav-item d-flex align-items-center justify-content-between {{ request()->routeIs('operator.presensi') ? 'active' : '' }}">
