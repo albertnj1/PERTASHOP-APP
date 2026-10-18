@@ -15,6 +15,20 @@ class EmployeeLoanController extends Controller
         $user = Auth::user();
         $shops = Shop::all();
 
+        // Auto-sinkronisasi kasbon Rp 5.000.000 yang sempat tersimpan tenor 1 bulan agar sinkron menjadi 12 bulan
+        try {
+            EmployeeLoan::where('jumlah', 5000000)
+                ->where('tenor_bulan', 1)
+                ->where(function ($q) {
+                    $q->where('angsuran_ke', 0)->orWhereNull('angsuran_ke');
+                })
+                ->update([
+                    'tenor_bulan'      => 12,
+                    'nominal_angsuran' => round(5000000 / 12, 2),
+                    'sisa_pokok'       => 5000000,
+                ]);
+        } catch (\Throwable $e) {}
+
         $query = EmployeeLoan::with(['operator.user', 'operator.shop', 'approver'])->latest();
 
         if ($user->role === 'admin') {

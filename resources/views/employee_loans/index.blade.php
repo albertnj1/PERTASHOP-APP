@@ -135,10 +135,15 @@
                 </button>
               </form>
 
-              {{-- Dropdown Aksi Lanjutan: Ubah Tenor / Lunasi Sekaligus --}}
+              {{-- Tombol Ubah / Sesuaikan Tenor Langsung --}}
+              <button type="button" class="btn btn-sm btn-outline-secondary ml-1" style="border-radius: 6px; font-size: 11px; padding: 4px 8px;" onclick="openEditTenorModal({{ $loan->id }}, '{{ addslashes($loan->operator?->user?->name) }}', {{ $tenor }}, {{ $sisa }})" title="Sesuaikan Tenor">
+                <i class="fas fa-edit"></i> Tenor
+              </button>
+
+              {{-- Dropdown Aksi Lanjutan: Lunasi Sekaligus --}}
               <div class="dropdown d-inline ml-1">
-                <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-toggle="dropdown" style="border-radius: 6px; font-size: 11px; padding: 4px 8px; border: 1px solid #cbd5e1;">
-                  <i class="fas fa-cog"></i>
+                <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-toggle="dropdown" style="border-radius: 6px; font-size: 11px; padding: 4px 8px; border: 1px solid #cbd5e1;" title="Menu Lainnya">
+                  <i class="fas fa-ellipsis-v"></i>
                 </button>
                 <div class="dropdown-menu dropdown-menu-right" style="border-radius: 10px; font-size: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
                   <a class="dropdown-item" href="javascript:void(0)" onclick="openEditTenorModal({{ $loan->id }}, '{{ addslashes($loan->operator?->user?->name) }}', {{ $tenor }}, {{ $sisa }})">
