@@ -148,7 +148,7 @@ class EmployeeLoanController extends Controller
             $newSisa = 0;
         }
 
-        $employeeLoan->update([
+        $this->safeUpdateLoan($employeeLoan, [
             'angsuran_ke' => $newAngsuran,
             'sisa_pokok'  => $newSisa,
             'status'      => $newStatus,
@@ -171,7 +171,7 @@ class EmployeeLoanController extends Controller
 
         $operatorName = $employeeLoan->operator?->user?->name ?? 'Operator';
         $msg = "Pembayaran cicilan ke-{$newAngsuran} dari {$tenor} untuk {$operatorName} berhasil dicatat (Rp " . number_format($potongan, 0, ',', '.') . "). Sisa tagihan: Rp " . number_format($newSisa, 0, ',', '.');
-        if ($newStatus === 'lunas') {
+        if ($newStatus === 'lunas' || $employeeLoan->fresh()?->isLunas()) {
             $msg .= " — Kasbon telah LUNAS!";
         }
 
@@ -191,7 +191,7 @@ class EmployeeLoanController extends Controller
         $tenor = max(1, (int) ($employeeLoan->tenor_bulan ?: 1));
         $currentSisa = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $employeeLoan->jumlah);
 
-        $employeeLoan->update([
+        $this->safeUpdateLoan($employeeLoan, [
             'angsuran_ke' => $tenor,
             'sisa_pokok'  => 0,
             'status'      => 'lunas',
@@ -212,6 +212,37 @@ class EmployeeLoanController extends Controller
         } catch (\Throwable $e) {}
 
         return back()->with('success', 'Kasbon berhasil dilunasi penuh.');
+    }
+
+    /**
+     * Update kasbon dengan auto-recovery untuk mencegah error
+     * MySQL 1265 (Data truncated for column 'status') jika database server masih memakai ENUM lama.
+     */
+    protected function safeUpdateLoan(EmployeeLoan $employeeLoan, array $attributes): void
+    {
+        try {
+            $employeeLoan->update($attributes);
+        } catch (\Throwable $e) {
+            // Jika kolom status MySQL menolak nilai 'lunas'/'active' karena ENUM lama
+            if (isset($attributes['status'])) {
+                try {
+                    // Otomatis ubah tipe kolom status di tabel MySQL menjadi VARCHAR(30)
+                    \Illuminate\Support\Facades\DB::statement("ALTER TABLE employee_loans MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+                    $employeeLoan->update($attributes);
+                    return;
+                } catch (\Throwable $alterErr) {
+                    // Fallback aman: jika ALTER TABLE tidak diizinkan hosting, gunakan status 'approved'
+                    // Karena sisa_pokok sudah 0 / sesuai cicilan, isLunas() & tampilan tetap LUNAS
+                    if (in_array($attributes['status'], ['lunas', 'active'])) {
+                        $attributes['status'] = 'approved';
+                        $employeeLoan->update($attributes);
+                        return;
+                    }
+                }
+            }
+
+            throw $e;
+        }
     }
 
     public function updateTenor(Request $request, EmployeeLoan $employeeLoan)

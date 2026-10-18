@@ -63,6 +63,10 @@ class EmployeeLoan extends Model
 
     public function getStatusLabelAttribute(): string
     {
+        if ($this->isLunas()) {
+            return 'Lunas';
+        }
+
         return match ($this->status) {
             'approved' => 'Disetujui',
             'active'   => 'Aktif Berjalan',
