@@ -15,18 +15,28 @@ class EmployeeLoanController extends Controller
         $user = Auth::user();
         $shops = Shop::all();
 
-        // Auto-sinkronisasi kasbon Rp 5.000.000 yang sempat tersimpan tenor 1 bulan agar sinkron menjadi 12 bulan
+        // Auto-heal universal:
+        // Kasbon yang belum pernah dicicil (angsuran_ke = 0) tetapi statusnya 'lunas' atau sisa_pokok-nya 0
+        // otomatis diperbaiki agar statusnya kembali 'approved' dan sisa_pokok sama dengan nominal pinjaman awal.
         try {
-            EmployeeLoan::where('jumlah', 5000000)
-                ->where('tenor_bulan', 1)
+            EmployeeLoan::where('status', '!=', 'rejected')
                 ->where(function ($q) {
                     $q->where('angsuran_ke', 0)->orWhereNull('angsuran_ke');
                 })
-                ->update([
-                    'tenor_bulan'      => 12,
-                    'nominal_angsuran' => round(5000000 / 12, 2),
-                    'sisa_pokok'       => 5000000,
-                ]);
+                ->where(function ($q) {
+                    $q->where('sisa_pokok', '<=', 0)
+                      ->orWhereNull('sisa_pokok')
+                      ->orWhere('status', 'lunas');
+                })
+                ->each(function ($loan) {
+                    $tenor = max(1, (int) ($loan->tenor_bulan ?: 1));
+                    $jumlah = floatval($loan->jumlah);
+                    $loan->update([
+                        'status'           => 'approved',
+                        'sisa_pokok'       => $jumlah,
+                        'nominal_angsuran' => round($jumlah / $tenor, 2),
+                    ]);
+                });
         } catch (\Throwable $e) {}
 
         $query = EmployeeLoan::with(['operator.user', 'operator.shop', 'approver'])->latest();
