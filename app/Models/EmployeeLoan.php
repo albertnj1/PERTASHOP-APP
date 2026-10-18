@@ -53,7 +53,7 @@ class EmployeeLoan extends Model
 
     public function isLunas(): bool
     {
-        return $this->status === 'lunas' || floatval($this->sisa_pokok) <= 0;
+        return $this->status === 'lunas' || ($this->angsuran_ke > 0 && floatval($this->sisa_pokok) <= 0 && !in_array($this->status, ['pending', 'rejected']));
     }
 
     public function isRejected(): bool

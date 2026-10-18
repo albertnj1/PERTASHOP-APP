@@ -97,6 +97,9 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::resource('employee-loans', \App\Http\Controllers\EmployeeLoanController::class);
     Route::post('employee-loans/{employeeLoan}/approve', [\App\Http\Controllers\EmployeeLoanController::class, 'approve'])->name('employee-loans.approve');
     Route::post('employee-loans/{employeeLoan}/reject', [\App\Http\Controllers\EmployeeLoanController::class, 'reject'])->name('employee-loans.reject');
+    Route::post('employee-loans/{employeeLoan}/pay-installment', [\App\Http\Controllers\EmployeeLoanController::class, 'payInstallment'])->name('employee-loans.pay-installment');
+    Route::post('employee-loans/{employeeLoan}/pay-full', [\App\Http\Controllers\EmployeeLoanController::class, 'payFull'])->name('employee-loans.pay-full');
+    Route::post('employee-loans/{employeeLoan}/update-tenor', [\App\Http\Controllers\EmployeeLoanController::class, 'updateTenor'])->name('employee-loans.update-tenor');
 
     Route::middleware('role:super-admin,admin,investor')->group(function () {
         Route::resources([
@@ -412,6 +415,59 @@ Route::get('/migrasi-server', function () {
             \Illuminate\Support\Facades\DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'dijadwalkan'");
             $log[] = "Kolom status pada 'shift_schedules' diperbarui (mendukung status libur).";
         } catch (\Throwable $e) {}
+
+        // 5. Pastikan kolom-kolom tracking cicilan pada 'employee_loans' tersedia dan valid
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'tenor_bulan')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `tenor_bulan` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `jumlah`");
+                $log[] = "Kolom 'tenor_bulan' ditambahkan ke employee_loans.";
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'nominal_angsuran')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `nominal_angsuran` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `tenor_bulan`");
+                $log[] = "Kolom 'nominal_angsuran' ditambahkan ke employee_loans.";
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'angsuran_ke')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `angsuran_ke` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `nominal_angsuran`");
+                $log[] = "Kolom 'angsuran_ke' ditambahkan ke employee_loans.";
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', 'sisa_pokok')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `sisa_pokok` DECIMAL(12, 2) NOT NULL DEFAULT 0 AFTER `angsuran_ke`");
+                $log[] = "Kolom 'sisa_pokok' ditambahkan ke employee_loans.";
+            }
+            \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` MODIFY `status` VARCHAR(20) NOT NULL DEFAULT 'pending'");
+            $log[] = "Kolom 'status' employee_loans dipastikan bertipe VARCHAR(20).";
+
+            // Perbaikan data kasbon yang statusnya lunas prematur padahal baru di-approve & belum dicicil
+            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `status` = 'approved', `sisa_pokok` = `jumlah` WHERE `status` = 'lunas' AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `approved_by` IS NOT NULL");
+            // Perbaikan data kasbon yang sisa_pokok nya 0 padahal belum pernah dicicil
+            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `sisa_pokok` = `jumlah` WHERE (`sisa_pokok` <= 0 OR `sisa_pokok` IS NULL) AND (`angsuran_ke` = 0 OR `angsuran_ke` IS NULL) AND `status` != 'rejected'");
+            
+            // Perbaiki kasbon 5 juta yang sempat ter-default 1 bulan padahal diajukan 12 bulan
+            \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `tenor_bulan` = 12, `nominal_angsuran` = ROUND(`jumlah` / 12, 2), `sisa_pokok` = `jumlah` WHERE `jumlah` = 5000000 AND `tenor_bulan` = 1 AND `angsuran_ke` = 0");
+            $log[] = "Data kasbon, tenor 12 bulan, dan status approved berhasil diselaraskan.";
+        } catch (\Throwable $e) {
+            $log[] = "Catatan employee_loans schema: " . $e->getMessage();
+        }
+
+        // 6. Buat tabel tracking pemotongan kasbon payroll_loan_deductions jika belum ada
+        if (!\Illuminate\Support\Facades\Schema::hasTable('payroll_loan_deductions')) {
+            try {
+                \Illuminate\Support\Facades\Schema::create('payroll_loan_deductions', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->id();
+                    $table->foreignId('payroll_period_id')->nullable()->constrained('payroll_periods')->onDelete('cascade');
+                    $table->foreignId('payroll_detail_id')->nullable()->constrained('payroll_details')->onDelete('cascade');
+                    $table->foreignId('employee_loan_id')->constrained('employee_loans')->onDelete('cascade');
+                    $table->unsignedInteger('cicilan_ke')->default(1);
+                    $table->unsignedInteger('total_tenor')->default(1);
+                    $table->decimal('nominal_potongan', 12, 2)->default(0);
+                    $table->decimal('sisa_pokok_sebelum', 12, 2)->default(0);
+                    $table->decimal('sisa_pokok_setelah', 12, 2)->default(0);
+                    $table->boolean('is_finalized')->default(false);
+                    $table->timestamps();
+                });
+                $log[] = "Tabel 'payroll_loan_deductions' berhasil dibuat.";
+            } catch (\Throwable $e) {}
+        }
 
         \Illuminate\Support\Facades\Artisan::call('cache:clear');
         \Illuminate\Support\Facades\Artisan::call('config:clear');

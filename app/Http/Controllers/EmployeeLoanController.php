@@ -54,11 +54,11 @@ class EmployeeLoanController extends Controller
             'operator_id' => 'required|exists:operators,id',
             'tanggal'     => 'required|date',
             'jumlah'      => 'required|numeric|min:1000',
-            'tenor_bulan' => 'nullable|integer|between:1,12',
+            'tenor_bulan' => 'required|integer|between:1,36',
             'keterangan'  => 'nullable|string|max:500',
         ]);
 
-        $tenor = !empty($validated['tenor_bulan']) ? (int) $validated['tenor_bulan'] : 1;
+        $tenor = max(1, (int) ($validated['tenor_bulan'] ?? 1));
         $jumlah = floatval($validated['jumlah']);
         $nominalAngsuran = round($jumlah / $tenor, 2);
 
@@ -70,7 +70,7 @@ class EmployeeLoanController extends Controller
 
         EmployeeLoan::create($validated);
 
-        return back()->with('success', 'Pengajuan kasbon/hutang berhasil disimpan. Menunggu persetujuan Admin.');
+        return back()->with('success', "Pengajuan kasbon sebesar Rp " . number_format($jumlah, 0, ',', '.') . " ({$tenor} Bulan) berhasil disimpan. Menunggu persetujuan Admin.");
     }
 
     public function approve(EmployeeLoan $employeeLoan)
@@ -84,19 +84,21 @@ class EmployeeLoanController extends Controller
         }
 
         $tenor = max(1, (int) ($employeeLoan->tenor_bulan ?: 1));
-        $sisaPokok = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $employeeLoan->jumlah);
-        $nominalAngsuran = floatval($employeeLoan->nominal_angsuran > 0 ? $employeeLoan->nominal_angsuran : round($employeeLoan->jumlah / $tenor, 2));
+        $jumlah = floatval($employeeLoan->jumlah);
+        $sisaPokok = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $jumlah);
+        $nominalAngsuran = floatval($employeeLoan->nominal_angsuran > 0 ? $employeeLoan->nominal_angsuran : round($jumlah / $tenor, 2));
 
         $employeeLoan->update([
             'status'           => 'approved',
             'tenor_bulan'      => $tenor,
             'nominal_angsuran' => $nominalAngsuran,
+            'angsuran_ke'      => 0,
             'sisa_pokok'       => $sisaPokok,
             'approved_by'      => Auth::id(),
             'approved_at'      => now(),
         ]);
 
-        return back()->with('success', 'Pengajuan kasbon berhasil disetujui.');
+        return back()->with('success', 'Pengajuan kasbon berhasil disetujui (Status: Disetujui/Aktif).');
     }
 
     public function reject(EmployeeLoan $employeeLoan)
@@ -116,5 +118,127 @@ class EmployeeLoanController extends Controller
         ]);
 
         return back()->with('success', 'Pengajuan kasbon telah ditolak.');
+    }
+
+    public function payInstallment(Request $request, EmployeeLoan $employeeLoan)
+    {
+        if (!collect(['super-admin', 'admin'])->contains(Auth::user()->role)) {
+            abort(403, 'Hanya Admin/Super-Admin yang dapat mencatat pembayaran cicilan.');
+        }
+
+        if (in_array($employeeLoan->status, ['pending', 'rejected'])) {
+            return back()->withErrors(['loan' => 'Kasbon belum disetujui atau sudah ditolak.']);
+        }
+
+        if ($employeeLoan->status === 'lunas' || (floatval($employeeLoan->sisa_pokok) <= 0 && (int)$employeeLoan->angsuran_ke > 0)) {
+            return back()->withErrors(['loan' => 'Kasbon ini sudah berstatus lunas.']);
+        }
+
+        $tenor = max(1, (int) ($employeeLoan->tenor_bulan ?: 1));
+        $currentAngsuran = (int) ($employeeLoan->angsuran_ke ?? 0);
+        $currentSisa = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $employeeLoan->jumlah);
+        $nominalAngsuran = floatval($employeeLoan->nominal_angsuran > 0 ? $employeeLoan->nominal_angsuran : round($employeeLoan->jumlah / $tenor, 2));
+
+        $potongan = min($nominalAngsuran, $currentSisa);
+        $newSisa = max(0, $currentSisa - $potongan);
+        $newAngsuran = $currentAngsuran + 1;
+
+        $newStatus = ($newSisa <= 0 || $newAngsuran >= $tenor) ? 'lunas' : 'active';
+        if ($newStatus === 'lunas') {
+            $newSisa = 0;
+        }
+
+        $employeeLoan->update([
+            'angsuran_ke' => $newAngsuran,
+            'sisa_pokok'  => $newSisa,
+            'status'      => $newStatus,
+        ]);
+
+        // Simpan log histori pemotongan cicilan
+        try {
+            \App\Models\PayrollLoanDeduction::create([
+                'payroll_period_id'  => null,
+                'payroll_detail_id'  => null,
+                'employee_loan_id'   => $employeeLoan->id,
+                'cicilan_ke'         => $newAngsuran,
+                'total_tenor'        => $tenor,
+                'nominal_potongan'   => $potongan,
+                'sisa_pokok_sebelum' => $currentSisa,
+                'sisa_pokok_setelah' => $newSisa,
+                'is_finalized'       => true,
+            ]);
+        } catch (\Throwable $e) {}
+
+        $operatorName = $employeeLoan->operator?->user?->name ?? 'Operator';
+        $msg = "Pembayaran cicilan ke-{$newAngsuran} dari {$tenor} untuk {$operatorName} berhasil dicatat (Rp " . number_format($potongan, 0, ',', '.') . "). Sisa tagihan: Rp " . number_format($newSisa, 0, ',', '.');
+        if ($newStatus === 'lunas') {
+            $msg .= " — Kasbon telah LUNAS!";
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function payFull(EmployeeLoan $employeeLoan)
+    {
+        if (!collect(['super-admin', 'admin'])->contains(Auth::user()->role)) {
+            abort(403, 'Hanya Admin/Super-Admin yang dapat mencatat pelunasan kasbon.');
+        }
+
+        if (in_array($employeeLoan->status, ['pending', 'rejected'])) {
+            return back()->withErrors(['loan' => 'Kasbon belum disetujui atau sudah ditolak.']);
+        }
+
+        $tenor = max(1, (int) ($employeeLoan->tenor_bulan ?: 1));
+        $currentSisa = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $employeeLoan->jumlah);
+
+        $employeeLoan->update([
+            'angsuran_ke' => $tenor,
+            'sisa_pokok'  => 0,
+            'status'      => 'lunas',
+        ]);
+
+        try {
+            \App\Models\PayrollLoanDeduction::create([
+                'payroll_period_id'  => null,
+                'payroll_detail_id'  => null,
+                'employee_loan_id'   => $employeeLoan->id,
+                'cicilan_ke'         => $tenor,
+                'total_tenor'        => $tenor,
+                'nominal_potongan'   => $currentSisa,
+                'sisa_pokok_sebelum' => $currentSisa,
+                'sisa_pokok_setelah' => 0,
+                'is_finalized'       => true,
+            ]);
+        } catch (\Throwable $e) {}
+
+        return back()->with('success', 'Kasbon berhasil dilunasi penuh.');
+    }
+
+    public function updateTenor(Request $request, EmployeeLoan $employeeLoan)
+    {
+        $user = Auth::user();
+        if (!collect(['super-admin', 'admin'])->contains($user->role)) {
+            if ($user->role !== 'operator' || $employeeLoan->operator_id !== $user->operator?->id || $employeeLoan->status !== 'pending') {
+                abort(403, 'Anda tidak memiliki hak untuk mengubah tenor kasbon ini.');
+            }
+        }
+
+        $validated = $request->validate([
+            'tenor_bulan' => 'required|integer|between:1,36',
+        ]);
+
+        $newTenor = (int) $validated['tenor_bulan'];
+        $jumlah = floatval($employeeLoan->jumlah);
+        $sisaPokok = floatval($employeeLoan->sisa_pokok > 0 ? $employeeLoan->sisa_pokok : $jumlah);
+        $sisaTenor = max(1, $newTenor - (int)($employeeLoan->angsuran_ke ?? 0));
+        $newNominalAngsuran = round($sisaPokok / $sisaTenor, 2);
+
+        $employeeLoan->update([
+            'tenor_bulan'      => $newTenor,
+            'nominal_angsuran' => $newNominalAngsuran,
+            'sisa_pokok'       => $sisaPokok,
+        ]);
+
+        return back()->with('success', "Tenor kasbon berhasil disesuaikan menjadi {$newTenor} bulan (Rp " . number_format($newNominalAngsuran, 0, ',', '.') . " / bulan).");
     }
 }
