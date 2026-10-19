@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
+@if(Auth::user()->role === 'operator')
+    @include('price.partials._operator_view')
+@else
 <section class="content-header">
     <div class="container-fluid">
         <div class="row mb-3 align-items-center">
@@ -71,6 +74,7 @@
                                         @endif
                                         <th>Lokasi</th>
                                         <th>Status</th>
+                                        <th>Konfirmasi Outlet</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
@@ -115,9 +119,11 @@
         </div>
     </div>
 </section>
+@endif
 @endsection
 
 @push('script')
+@if(Auth::user()->role !== 'operator')
 <script>
 $(document).ready(function() {
 
@@ -160,6 +166,7 @@ $(document).ready(function() {
                         : '<span class="badge badge-warning" style="font-size:11px;">Mendatang</span>';
                 }
             },
+            { title: 'Konfirmasi Outlet', data: 'confirmation_status', orderable: false, searchable: false },
             { title: 'Aksi', data: 'action', orderable: false, searchable: false },
         ],
         order: [[2, 'desc']],
@@ -293,4 +300,5 @@ $('.nav-link').on('shown.bs.tab', function() {
     .nav-tabs .nav-link { border-radius: 0; padding: 10px 18px; }
     .nav-tabs .nav-link.active { background: #fff; border-bottom: 3px solid #00796B !important; color: #0f172a !important; }
 </style>
+@endif
 @endpush

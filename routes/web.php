@@ -70,6 +70,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     // API: Daftar trip SO PENDING untuk Operator Penerimaan BBM
     Route::get('/api/so-orders/pending-trips', [SoOrderController::class, 'pendingTripsForShop'])->name('api.so-orders.pending-trips');
     Route::resource('prices', PriceController::class);
+    Route::post('prices/confirm', [\App\Http\Controllers\PriceController::class, 'confirmPriceChange'])->name('prices.confirm');
 
     // ── Fase C.1 — Approval & Lock Workflow Routes ────────────────────────────
     Route::get('/reports/approval', [\App\Http\Controllers\ReportApprovalController::class, 'index'])->name('reports.approval.index');
@@ -480,6 +481,29 @@ Route::get('/migrasi-server', function () {
         $log[] = "Kategori pengeluaran (Ongkos Bongkar, Biaya Transfer, ATK, Listrik, Air, Cashback, Internet, Lain-lain) dipastikan tersedia.";
     } catch (\Throwable $e) {
         $log[] = "Catatan spending categories: " . $e->getMessage();
+    }
+
+    // 5c. Pastikan tabel price_confirmations tersedia untuk bukti penyesuaian harga operator
+    try {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('price_confirmations')) {
+            \Illuminate\Support\Facades\Schema::create('price_confirmations', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('price_id');
+                $table->unsignedBigInteger('shop_id');
+                $table->unsignedBigInteger('operator_id')->nullable();
+                $table->string('status_operator', 30)->default('menunggu_konfirmasi');
+                $table->string('foto_bukti')->nullable();
+                $table->timestamp('dikonfirmasi_pada')->nullable();
+                $table->text('catatan')->nullable();
+                $table->timestamps();
+
+                $table->foreign('price_id')->references('id')->on('prices')->onDelete('cascade');
+                $table->foreign('shop_id')->references('id')->on('shops')->onDelete('cascade');
+            });
+            $log[] = "Tabel 'price_confirmations' berhasil dibuat.";
+        }
+    } catch (\Throwable $e) {
+        $log[] = "Catatan price_confirmations: " . $e->getMessage();
     }
 
     // 6. Jalankan migrasi umum

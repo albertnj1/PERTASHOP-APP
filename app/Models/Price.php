@@ -22,4 +22,9 @@ class Price extends Model
     {
         return $this->belongsTo(Shop::class);
     }
+
+    public function confirmations()
+    {
+        return $this->hasMany(PriceConfirmation::class);
+    }
 }
