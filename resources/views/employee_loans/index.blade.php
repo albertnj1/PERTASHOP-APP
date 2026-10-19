@@ -5,14 +5,48 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <div>
     <h1 class="page-title mb-1">Kasbon &amp; Pinjaman Karyawan</h1>
-    <p class="text-muted mb-0" style="font-size: 13px;">Pengajuan, tracking cicilan, dan alur persetujuan kasbon operator Pertashop</p>
+    <p class="text-muted mb-0" style="font-size: 13px;">
+      @if(Auth::user()->role === 'investor')
+        Monitoring transparansi kasbon operator di outlet Anda (hanya lihat / read-only)
+      @else
+        Pengajuan, tracking cicilan, dan alur persetujuan kasbon operator Pertashop
+      @endif
+    </p>
   </div>
+  @if(Auth::user()->role !== 'investor')
   <div>
     <button type="button" class="btn btn-primary" style="border-radius: 9px; font-weight: 600; font-size: 13px;" data-toggle="modal" data-target="#modalPengajuanKasbon">
       Ajukan Kasbon Baru
     </button>
   </div>
+  @endif
 </div>
+
+@if(Auth::user()->role === 'investor' && !empty($investorSummary))
+<div class="row mb-4">
+  <div class="col-12 col-md-4 mb-3 mb-md-0">
+    <div class="panel h-100" style="padding: 18px 20px; border-left: 4px solid #dc2626;">
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: .4px;">Total Kasbon Berjalan (Piutang Karyawan)</div>
+      <div style="font-size: 24px; font-weight: 800; color: #b91c1c; margin-top: 6px;">Rp {{ number_format($investorSummary['piutang_aktif'], 0, ',', '.') }}</div>
+      <small class="text-muted">Sisa kasbon yang belum lunas di outlet Anda</small>
+    </div>
+  </div>
+  <div class="col-12 col-md-4 mb-3 mb-md-0">
+    <div class="panel h-100" style="padding: 18px 20px; border-left: 4px solid #0284c7;">
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: .4px;">Potongan Cicilan Masuk Bulan Ini</div>
+      <div style="font-size: 24px; font-weight: 800; color: #0369a1; margin-top: 6px;">Rp {{ number_format($investorSummary['cicilan_bulan_ini'], 0, ',', '.') }}</div>
+      <small class="text-muted">Estimasi pengembalian via potong gaji bulan berjalan</small>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="panel h-100" style="padding: 18px 20px; border-left: 4px solid #16a34a;">
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: .4px;">Total Kasbon Selesai (Lunas)</div>
+      <div style="font-size: 24px; font-weight: 800; color: #15803d; margin-top: 6px;">Rp {{ number_format($investorSummary['total_lunas'], 0, ',', '.') }}</div>
+      <small class="text-muted">{{ $investorSummary['jumlah_lunas'] }} pengajuan telah lunas</small>
+    </div>
+  </div>
+</div>
+@endif
 
 @if(session('success'))
   <div class="alert alert-success alert-dismissible fade show mb-4" style="border-radius: 10px; border: none; background: #dcfce7; color: #15803d;">

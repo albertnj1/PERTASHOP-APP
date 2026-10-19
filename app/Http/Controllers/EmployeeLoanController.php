@@ -110,12 +110,52 @@ class EmployeeLoanController extends Controller
 
         $loans = $query->get();
 
-        return view('employee_loans.index', compact('loans', 'shops', 'operators'));
+        // Ringkasan finansial khusus Investor (read-only, hanya outlet miliknya)
+        $investorSummary = null;
+        if ($user->role === 'investor') {
+            $piutangAktif = 0;
+            $cicilanBulanIni = 0;
+            $totalLunas = 0;
+            $jumlahLunas = 0;
+
+            foreach ($loans as $loan) {
+                if ($loan->status === 'rejected' || $loan->status === 'pending') {
+                    continue;
+                }
+                $ke = (int) ($loan->angsuran_ke ?? 0);
+                $tenor = max(1, (int) ($loan->tenor_bulan ?: 1));
+                $isLunas = $loan->status === 'lunas' || ($ke > 0 && floatval($loan->sisa_pokok) <= 0);
+
+                if ($isLunas) {
+                    $totalLunas += floatval($loan->jumlah);
+                    $jumlahLunas++;
+                    continue;
+                }
+
+                $sisa = floatval($loan->sisa_pokok > 0 ? $loan->sisa_pokok : $loan->jumlah);
+                $angsuran = floatval($loan->nominal_angsuran > 0 ? $loan->nominal_angsuran : round($loan->jumlah / $tenor, 2));
+                $piutangAktif += $sisa;
+                $cicilanBulanIni += min($angsuran, $sisa);
+            }
+
+            $investorSummary = [
+                'piutang_aktif'    => $piutangAktif,
+                'cicilan_bulan_ini' => $cicilanBulanIni,
+                'total_lunas'      => $totalLunas,
+                'jumlah_lunas'     => $jumlahLunas,
+            ];
+        }
+
+        return view('employee_loans.index', compact('loans', 'shops', 'operators', 'investorSummary'));
     }
 
     public function store(Request $request)
     {
         $user = Auth::user();
+
+        if ($user->role === 'investor') {
+            abort(403, 'Investor hanya memiliki akses baca (read-only) pada data kasbon.');
+        }
 
         if ($user->role === 'operator') {
             $operator = Operator::where('user_id', $user->id)->first();
