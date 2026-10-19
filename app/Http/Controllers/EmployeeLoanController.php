@@ -93,15 +93,18 @@ class EmployeeLoanController extends Controller
         $query = EmployeeLoan::with(['operator.user', 'operator.shop', 'approver'])->latest();
 
         if ($user->role === 'admin') {
-            $query->whereHas('operator', fn($q) => $q->where('shop_id', $user->admin?->shop_id));
-            $operators = Operator::with(['user', 'shop'])->where('shop_id', $user->admin?->shop_id)->get();
+            $adminShopId = $user->admin ? $user->admin->shop_id : null;
+            $query->whereHas('operator', fn($q) => $q->where('shop_id', $adminShopId));
+            $operators = Operator::with(['user', 'shop'])->where('shop_id', $adminShopId)->get();
         } elseif ($user->role === 'operator') {
             $operator = Operator::where('user_id', $user->id)->first();
-            $query->where('operator_id', $operator?->id ?? 0);
+            $query->where('operator_id', $operator ? $operator->id : 0);
             $operators = $operator ? collect([$operator]) : collect();
         } elseif ($user->role === 'investor') {
-            $investorShopIds = $user->investor?->shops->pluck('id')->toArray() ?? [];
-            $shops = $user->investor?->shops ?? collect();
+            $investor = $user->investor;
+            $investorShops = ($investor && $investor->shops) ? $investor->shops : collect();
+            $investorShopIds = $investorShops->pluck('id')->toArray();
+            $shops = $investorShops;
             $query->whereHas('operator', fn($q) => $q->whereIn('shop_id', $investorShopIds));
             $operators = Operator::with(['user', 'shop'])->whereIn('shop_id', $investorShopIds)->get();
         } else {
@@ -290,9 +293,10 @@ class EmployeeLoanController extends Controller
             ]);
         } catch (\Throwable $e) {}
 
-        $operatorName = $employeeLoan->operator?->user?->name ?? 'Operator';
+        $operatorName = ($employeeLoan->operator && $employeeLoan->operator->user) ? $employeeLoan->operator->user->name : 'Operator';
         $msg = "Pembayaran cicilan ke-{$newAngsuran} dari {$tenor} untuk {$operatorName} berhasil dicatat (Rp " . number_format($potongan, 0, ',', '.') . "). Sisa tagihan: Rp " . number_format($newSisa, 0, ',', '.');
-        if ($newStatus === 'lunas' || $employeeLoan->fresh()?->isLunas()) {
+        $freshLoan = $employeeLoan->fresh();
+        if ($newStatus === 'lunas' || ($freshLoan && $freshLoan->isLunas())) {
             $msg .= " — Kasbon telah LUNAS!";
         }
 
@@ -370,7 +374,8 @@ class EmployeeLoanController extends Controller
     {
         $user = Auth::user();
         if (!collect(['super-admin', 'admin'])->contains($user->role)) {
-            if ($user->role !== 'operator' || $employeeLoan->operator_id !== $user->operator?->id || $employeeLoan->status !== 'pending') {
+            $ownOperatorId = $user->operator ? $user->operator->id : null;
+            if ($user->role !== 'operator' || $employeeLoan->operator_id !== $ownOperatorId || $employeeLoan->status !== 'pending') {
                 abort(403, 'Anda tidak memiliki hak untuk mengubah tenor kasbon ini.');
             }
         }
