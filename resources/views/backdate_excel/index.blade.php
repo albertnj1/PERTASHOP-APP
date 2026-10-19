@@ -257,8 +257,8 @@
                           <i class="fas fa-file-pdf mr-1"></i> PDF
                         </a>
 
-                        {{-- Tombol Unduh Master Excel (v2) --}}
-                        <a href="{{ route('backdate-excel-files.download-report-excel', $file->id) }}" class="btn btn-sm btn-success" style="font-size: 11px; font-weight: 600; border-radius: 4px; margin-right: 4px;" title="Download Master Excel Terstandarisasi">
+                        {{-- Tombol Unduh Berkas Excel Asli --}}
+                        <a href="{{ route('backdate-excel-files.download', $file->id) }}" class="btn btn-sm btn-success" style="font-size: 11px; font-weight: 600; border-radius: 4px; margin-right: 4px;" title="Unduh Berkas Excel Asli ({{ $file->original_filename }})">
                           <i class="fas fa-file-excel mr-1"></i> Excel
                         </a>
 
@@ -694,8 +694,8 @@ function displayProcessingResults(data) {
                 <a href="/backdate-excel-files/${out.record_id}/download-pdf" class="btn btn-danger btn-sm flex-fill font-weight-bold" style="border-radius:6px; font-size:12px;">
                   <i class="fas fa-file-pdf mr-1"></i> Download PDF
                 </a>
-                <a href="/backdate-excel-files/${out.record_id}/download-report-excel" class="btn btn-success btn-sm flex-fill font-weight-bold" style="border-radius:6px; font-size:12px;">
-                  <i class="fas fa-file-excel mr-1"></i> Master Excel
+                <a href="/backdate-excel-files/${out.record_id}/download" class="btn btn-success btn-sm flex-fill font-weight-bold" style="border-radius:6px; font-size:12px;">
+                  <i class="fas fa-file-excel mr-1"></i> Excel Asli
                 </a>
               </div>
             </div>

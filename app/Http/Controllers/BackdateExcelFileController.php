@@ -384,7 +384,13 @@ class BackdateExcelFileController extends Controller
         $filePath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
 
         if (!file_exists($filePath) || !is_file($filePath)) {
-            abort(404, 'Berkas asli tidak ditemukan di server.');
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($backdateExcelFile->file_path)) {
+                $filePath = \Illuminate\Support\Facades\Storage::disk('public')->path($backdateExcelFile->file_path);
+            }
+        }
+
+        if (!file_exists($filePath) || !is_file($filePath)) {
+            return redirect()->back()->with('error', 'Berkas asli tidak ditemukan di server.');
         }
 
         $filename = $backdateExcelFile->original_filename ?: basename($filePath);
@@ -396,8 +402,14 @@ class BackdateExcelFileController extends Controller
             }
         }
 
-        // Unduh berkas fisik aslinya secara langsung tanpa di-generate ulang
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $contentType = ($ext === 'xls')
+            ? 'application/vnd.ms-excel'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+        // Unduh berkas fisik aslinya secara langsung tanpa di-generate ulang oleh PHP
         return response()->download($filePath, $filename, [
+            'Content-Type'  => $contentType,
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma'        => 'no-cache',
             'Expires'       => '0',
@@ -830,41 +842,12 @@ class BackdateExcelFileController extends Controller
     }
 
     /**
-     * Download Master Excel bersih & terstandarisasi dari data processing result.
+     * Download Berkas Excel Asli (Pure Binary File Download).
+     * Mengunduh langsung file mentah yang diunggah tanpa digenerate ulang agar tidak corrupt.
      */
     public function downloadReportExcel(BackdateExcelFile $backdateExcelFile)
     {
-        $this->authorizeShopAccess($backdateExcelFile->shop_id);
-        $backdateExcelFile->load('shop');
-
-        $shop = $backdateExcelFile->shop;
-        $period = $backdateExcelFile->bulan_tahun;
-        $summary = $backdateExcelFile->processing_result;
-
-        // Fallback: re-parse jika kosong
-        if (empty($summary)) {
-            $fullPath = $this->resolvePhysicalPath($backdateExcelFile->file_path);
-            if (file_exists($fullPath) && is_file($fullPath)) {
-                $summary = BackdateExcelSummaryService::extract($fullPath, $shop, $period);
-                $backdateExcelFile->update([
-                    'processing_result' => $summary,
-                    'processing_status' => 'completed',
-                    'processed_at' => now(),
-                ]);
-            }
-        }
-
-        if (empty($summary)) {
-            return redirect()->back()->with('error', 'Data laporan belum tersedia.');
-        }
-
-        $excelPath = \App\Services\BackdateExcelExportService::generate($summary, $shop, $period);
-
-        $shopSlug = \Illuminate\Support\Str::slug($shop->nama ?? 'pertashop');
-        $dateSlug = \Illuminate\Support\Str::slug($period);
-        $downloadName = "Master_Excel_{$shopSlug}_{$dateSlug}.xlsx";
-
-        return response()->download($excelPath, $downloadName)->deleteFileAfterSend(true);
+        return $this->download($backdateExcelFile);
     }
 
     private function formatPeriodLabel(string $period): string
