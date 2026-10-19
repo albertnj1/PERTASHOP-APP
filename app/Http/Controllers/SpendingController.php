@@ -236,7 +236,7 @@ class SpendingController extends Controller
         try {
             $parsedDate = Carbon::parse($validated['created_at'])->format('Y-m-d');
         } catch (\Throwable $e) {
-            $parsedDate = $spending->created_at?->format('Y-m-d') ?? date('Y-m-d');
+            $parsedDate = $spending->created_at ? $spending->created_at->format('Y-m-d') : date('Y-m-d');
         }
 
         $spending->update([
