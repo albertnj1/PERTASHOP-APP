@@ -9,6 +9,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
+// Pastikan model PriceConfirmation selalu termuat secara instan (mengatasi isu cache classmap composer di server/cPanel)
+if (!class_exists(\App\Models\PriceConfirmation::class, false)) {
+    $modelFile = app_path('Models/PriceConfirmation.php');
+    if (file_exists($modelFile)) {
+        require_once $modelFile;
+    }
+}
+
 class PriceController extends Controller
 {
     public function __construct()

@@ -532,6 +532,11 @@ Route::get('/migrasi-server', function () {
                 @unlink($vf);
             }
         }
+        // Reset OPcache jika aktif di hosting
+        if (function_exists('opcache_reset')) {
+            @opcache_reset();
+            $log[] = "PHP OPcache berhasil di-reset.";
+        }
         $log[] = "Cache framework (config, route, view, optimize) berhasil dibersihkan total.";
     } catch (\Throwable $e) {
         $log[] = "Catatan clear cache: " . $e->getMessage();
