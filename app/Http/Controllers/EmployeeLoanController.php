@@ -94,7 +94,9 @@ class EmployeeLoanController extends Controller
 
         if ($user->role === 'admin') {
             $adminShopId = $user->admin ? $user->admin->shop_id : null;
-            $query->whereHas('operator', fn($q) => $q->where('shop_id', $adminShopId));
+            $query->whereHas('operator', function ($q) use ($adminShopId) {
+                $q->where('shop_id', $adminShopId);
+            });
             $operators = Operator::with(['user', 'shop'])->where('shop_id', $adminShopId)->get();
         } elseif ($user->role === 'operator') {
             $operator = Operator::where('user_id', $user->id)->first();
@@ -105,7 +107,9 @@ class EmployeeLoanController extends Controller
             $investorShops = ($investor && $investor->shops) ? $investor->shops : collect();
             $investorShopIds = $investorShops->pluck('id')->toArray();
             $shops = $investorShops;
-            $query->whereHas('operator', fn($q) => $q->whereIn('shop_id', $investorShopIds));
+            $query->whereHas('operator', function ($q) use ($investorShopIds) {
+                $q->whereIn('shop_id', $investorShopIds);
+            });
             $operators = Operator::with(['user', 'shop'])->whereIn('shop_id', $investorShopIds)->get();
         } else {
             $operators = Operator::with(['user', 'shop'])->get();
