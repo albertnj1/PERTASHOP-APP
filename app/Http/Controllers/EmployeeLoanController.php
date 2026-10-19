@@ -92,7 +92,13 @@ class EmployeeLoanController extends Controller
         $validated['sisa_pokok']       = $jumlah;
         $validated['status']           = 'pending';
 
-        EmployeeLoan::create($validated);
+        $loan = EmployeeLoan::create($validated);
+
+        // Verifikasi: pastikan tenor benar-benar tersimpan di database
+        $savedTenor = (int) \Illuminate\Support\Facades\DB::table('employee_loans')->where('id', $loan->id)->value('tenor_bulan');
+        if ($savedTenor !== $tenor) {
+            return back()->withErrors(['loan' => "Kasbon tersimpan tetapi tenor tercatat {$savedTenor} bulan (seharusnya {$tenor}). Jalankan /migrasi-server lalu sesuaikan tenor."]);
+        }
 
         return back()->with('success', "Pengajuan kasbon sebesar Rp " . number_format($jumlah, 0, ',', '.') . " ({$tenor} Bulan) berhasil disimpan. Menunggu persetujuan Admin.");
     }
@@ -293,6 +299,12 @@ class EmployeeLoanController extends Controller
             'nominal_angsuran' => $newNominalAngsuran,
             'sisa_pokok'       => $sisaPokok,
         ]);
+
+        // Verifikasi: pastikan tenor benar-benar tersimpan di database
+        $savedTenor = (int) \Illuminate\Support\Facades\DB::table('employee_loans')->where('id', $employeeLoan->id)->value('tenor_bulan');
+        if ($savedTenor !== $newTenor) {
+            return back()->withErrors(['loan' => "Tenor gagal tersimpan (database masih mencatat {$savedTenor} bulan). Jalankan /migrasi-server lalu coba lagi."]);
+        }
 
         return back()->with('success', "Tenor kasbon berhasil disesuaikan menjadi {$newTenor} bulan (Rp " . number_format($newNominalAngsuran, 0, ',', '.') . " / bulan).");
     }
