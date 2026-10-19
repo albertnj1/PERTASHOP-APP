@@ -62,11 +62,12 @@ class SpendingController extends Controller
 
         if ($request->ajax()) {
             if (Auth::user()->role == 'admin') {
-                $shop_id = Auth::user()->admin->shop_id;
+                $shop_id = Auth::user()->admin ? Auth::user()->admin->shop_id : 1;
             } elseif (Auth::user()->role == 'operator') {
-                $shop_id = Auth::user()->operator->shop_id;
+                $shop_id = Auth::user()->operator ? Auth::user()->operator->shop_id : 1;
             } elseif (Auth::user()->role == 'investor') {
-                $investor_shops = Auth::user()->investor?->shops->pluck('id')->toArray() ?? [];
+                $investor = Auth::user()->investor;
+                $investor_shops = ($investor && $investor->shops) ? $investor->shops->pluck('id')->toArray() : [];
                 $shop_id = $request->input('shop_id');
                 if (!$shop_id || !in_array($shop_id, $investor_shops)) {
                     $shop_id = reset($investor_shops) ?: 1;
@@ -112,7 +113,8 @@ class SpendingController extends Controller
 
         $shops = Shop::all();
         if (Auth::user()->role == 'investor') {
-            $shops = Auth::user()->investor?->shops ?? Shop::all();
+            $investor = Auth::user()->investor;
+            $shops = ($investor && $investor->shops) ? $investor->shops : Shop::all();
         }
 
         // Tampilkan 8 kategori lengkap untuk semua role (dengan Lain-lain selalu di urutan terakhir)
@@ -137,9 +139,9 @@ class SpendingController extends Controller
         self::ensureCategories();
 
         if (Auth::user()->role == 'admin') {
-            $shop_id = Auth::user()->admin?->shop_id;
+            $shop_id = Auth::user()->admin ? Auth::user()->admin->shop_id : 1;
         } elseif (Auth::user()->role == 'operator') {
-            $shop_id = Auth::user()->operator?->shop_id;
+            $shop_id = Auth::user()->operator ? Auth::user()->operator->shop_id : 1;
         } else {
             $shop_id = $request->input('shop_id', 1);
         }
@@ -179,7 +181,7 @@ class SpendingController extends Controller
 
         Spending::create([
             'shop_id'              => $shop_id,
-            'operator_id'          => Auth::user()->role == 'operator' ? Auth::user()->operator?->id : null,
+            'operator_id'          => (Auth::user()->role == 'operator' && Auth::user()->operator) ? Auth::user()->operator->id : null,
             'created_at'           => Auth::user()->role == 'operator' ? Carbon::now()->format('Y-m-d H:i:s') : $parsedDate . ' ' . date('H:i:s'),
             'spending_category_id' => $validated['spending_category_id'],
             'keterangan'           => $validated['keterangan'] ?? null,
