@@ -135,13 +135,18 @@ class PriceController extends Controller
                 }
             }
 
-            return view('price.index', compact(
-                'operator',
-                'shop',
+            $currentPrice = $activePrice;
+            $pendingPrice = $hasNewPriceUpdate ? $latestPrice : null;
+
+            return view('price.operator_index', compact(
+                'currentPrice',
+                'pendingPrice',
+                'confirmation',
                 'activePrice',
                 'latestPrice',
-                'confirmation',
-                'hasNewPriceUpdate'
+                'hasNewPriceUpdate',
+                'operator',
+                'shop'
             ));
         }
 
@@ -401,20 +406,26 @@ class PriceController extends Controller
     /**
      * Konfirmasi Penyesuaian Harga Fisik di Dispenser & Display oleh Operator
      */
-    public function confirmPriceChange(Request $request)
+    public function confirmPriceChange(Request $request, $priceId = null)
     {
         self::ensureSchema();
 
+        $priceId = $priceId ?: ($request->input('price_id') ?: $request->route('priceId'));
+        $request->merge(['price_id' => $priceId]);
+
+        $hasConfirm = $request->filled('checkConfirm') || $request->filled('pernyataan_konfirmasi');
+        if (!$hasConfirm) {
+            return redirect()->back()->withErrors(['pernyataan_konfirmasi' => 'Wajib mencentang kotak persetujuan bahwa harga fisik pada mesin dispenser dan totem telah disesuaikan.'])->withInput();
+        }
+
+        $hasFile = $request->hasFile('foto_bukti') || $request->hasFile('bukti_perubahan_harga');
+        if (!$hasFile) {
+            return redirect()->back()->withErrors(['bukti_perubahan_harga' => 'Wajib melampirkan foto bukti fisik display totem atau mesin dispenser.'])->withInput();
+        }
+
         $request->validate([
-            'price_id'              => 'required|exists:prices,id',
-            'pernyataan_konfirmasi' => 'required',
-            'bukti_perubahan_harga' => 'required|image|mimes:jpeg,png,jpg,webp|max:8192',
-            'catatan'               => 'nullable|string|max:255',
-        ], [
-            'pernyataan_konfirmasi.required' => 'Wajib mencentang kotak persetujuan bahwa harga fisik pada mesin dispenser dan totem telah disesuaikan.',
-            'bukti_perubahan_harga.required' => 'Wajib melampirkan foto bukti fisik display totem atau mesin dispenser.',
-            'bukti_perubahan_harga.image'    => 'Berkas bukti harus berupa gambar/foto.',
-            'bukti_perubahan_harga.max'      => 'Ukuran foto maksimal adalah 8MB.',
+            'price_id' => 'required|exists:prices,id',
+            'catatan'  => 'nullable|string|max:255',
         ]);
 
         $user = Auth::user();
@@ -426,14 +437,14 @@ class PriceController extends Controller
         $shopId = $operator->shop_id;
         $path = null;
 
-        if ($request->hasFile('bukti_perubahan_harga')) {
-            $file = $request->file('bukti_perubahan_harga');
+        $file = $request->file('foto_bukti') ?: $request->file('bukti_perubahan_harga');
+        if ($file) {
             $filename = 'bukti_harga_' . $shopId . '_' . time() . '.' . $file->getClientOriginalExtension();
             $path = $file->storeAs('price_confirmations', $filename, 'public');
         }
 
         PriceConfirmation::updateOrCreate([
-            'price_id' => $request->price_id,
+            'price_id' => $priceId,
             'shop_id'  => $shopId,
         ], [
             'operator_id'       => $operator->id,

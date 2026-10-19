@@ -70,7 +70,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     // API: Daftar trip SO PENDING untuk Operator Penerimaan BBM
     Route::get('/api/so-orders/pending-trips', [SoOrderController::class, 'pendingTripsForShop'])->name('api.so-orders.pending-trips');
     Route::resource('prices', PriceController::class);
-    Route::post('prices/confirm', [\App\Http\Controllers\PriceController::class, 'confirmPriceChange'])->name('prices.confirm');
+    Route::post('prices/confirm/{priceId?}', [\App\Http\Controllers\PriceController::class, 'confirmPriceChange'])->name('prices.confirm');
 
     // ── Fase C.1 — Approval & Lock Workflow Routes ────────────────────────────
     Route::get('/reports/approval', [\App\Http\Controllers\ReportApprovalController::class, 'index'])->name('reports.approval.index');
