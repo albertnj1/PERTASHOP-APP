@@ -10,6 +10,57 @@ use Illuminate\Support\Facades\Auth;
 
 class EmployeeLoanController extends Controller
 {
+    public function __construct()
+    {
+        $this->ensureLoanSchema();
+    }
+
+    /**
+     * Pastikan kolom cicilan ada di tabel employee_loans.
+     * Database server produksi ternyata belum menjalankan migrasi tenor, sehingga
+     * kolom-kolom ini ditambahkan otomatis (masing-masing independen agar satu
+     * kegagalan tidak membatalkan yang lain).
+     */
+    protected function ensureLoanSchema(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+        $checked = true;
+
+        $columns = [
+            'tenor_bulan'      => "INT UNSIGNED NOT NULL DEFAULT 1",
+            'nominal_angsuran' => "DECIMAL(12,2) NOT NULL DEFAULT 0",
+            'angsuran_ke'      => "INT UNSIGNED NOT NULL DEFAULT 0",
+            'sisa_pokok'       => "DECIMAL(12,2) NOT NULL DEFAULT 0",
+        ];
+
+        $added = [];
+        foreach ($columns as $name => $definition) {
+            try {
+                if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_loans', $name)) {
+                    \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` ADD COLUMN `{$name}` {$definition}");
+                    $added[] = $name;
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Gagal menambah kolom employee_loans.{$name}: " . $e->getMessage());
+            }
+        }
+
+        // Status lama berupa ENUM tanpa 'active'/'lunas' → ubah ke VARCHAR
+        if (!empty($added)) {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `employee_loans` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'pending'");
+            } catch (\Throwable $e) {}
+
+            // Isi data lama: anggap belum dicicil, sisa = nominal pinjaman
+            try {
+                \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `nominal_angsuran` = ROUND(`jumlah` / GREATEST(`tenor_bulan`, 1), 2) WHERE `nominal_angsuran` <= 0");
+                \Illuminate\Support\Facades\DB::statement("UPDATE `employee_loans` SET `sisa_pokok` = `jumlah` WHERE `sisa_pokok` <= 0 AND `angsuran_ke` = 0");
+            } catch (\Throwable $e) {}
+        }
+    }
     public function index(Request $request)
     {
         $user = Auth::user();
