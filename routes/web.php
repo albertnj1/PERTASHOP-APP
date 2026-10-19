@@ -474,6 +474,14 @@ Route::get('/migrasi-server', function () {
         $log[] = "Catatan payroll_loan_deductions: " . $e->getMessage();
     }
 
+    // 5b. Pastikan 8 kategori pengeluaran operasional tersedia di tabel spending_categories
+    try {
+        \App\Http\Controllers\SpendingController::ensureCategories();
+        $log[] = "Kategori pengeluaran (Ongkos Bongkar, Biaya Transfer, ATK, Listrik, Air, Cashback, Internet, Lain-lain) dipastikan tersedia.";
+    } catch (\Throwable $e) {
+        $log[] = "Catatan spending categories: " . $e->getMessage();
+    }
+
     // 6. Jalankan migrasi umum
     try {
         \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);

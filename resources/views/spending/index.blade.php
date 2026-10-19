@@ -85,30 +85,55 @@
                             <div class="col-sm-8">
                                 <select name="spending_category_id" id="spending_category_id" class="form-control" required>
                                     <option value="">--Pilih Kategori--</option>
+                                    @php
+                                        $expectedCategories = [
+                                            'Ongkos Bongkar',
+                                            'Biaya Transfer',
+                                            'Fotocopy & ATK',
+                                            'Listrik',
+                                            'Air Bersih',
+                                            'Cashback',
+                                            'Internet',
+                                            'Lain-lain',
+                                        ];
+                                        $existingNames = $spendingCategories->pluck('nama')->map(fn($n) => strtolower(trim($n)))->toArray();
+                                    @endphp
                                     @foreach ($spendingCategories as $category)
-                                        <option value="{{ $category->id }}">
+                                        <option value="{{ $category->id }}" data-nama="{{ $category->nama }}">
                                             {{ $category->nama }}</option>
+                                    @endforeach
+                                    {{-- Fallback jika ada kategori yang belum tersimpan di database --}}
+                                    @foreach ($expectedCategories as $expCat)
+                                        @if(!in_array(strtolower(trim($expCat)), $existingNames))
+                                            <option value="{{ $expCat }}" data-nama="{{ $expCat }}">
+                                                {{ $expCat }}</option>
+                                        @endif
                                     @endforeach
                                 </select>
                             </div>
                         </div>
-                        <div id="form_keterangan" class="form-group row d-none">
-                            <label for="keterangan" class="col-sm-4 col-form-label">Keterangan</label>
+                        {{-- Kolom Keterangan Dinamis: Otomatis tampil wajib saat kategori "Lain-lain" dipilih --}}
+                        <div id="wrapperKeteranganLain" class="form-group row" style="display: none;">
+                            <label for="keterangan" class="col-sm-4 col-form-label">
+                                Keterangan <span class="text-danger">*</span>
+                            </label>
                             <div class="col-sm-8">
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="keterangan" name="keterangan"
+                                        placeholder="Contoh: Beli sabun cuci tangan / perbaikan kran / dll"
                                         value="">
                                 </div>
+                                <small class="text-muted" style="font-size: 11.5px;">Wajib diisi untuk mendeskripsikan pengeluaran kategori Lain-lain</small>
                             </div>
                         </div>
                         <div class="form-group row">
-                            <label for="jumlah" class="col-sm-4 col-form-label">Jumlah</label>
+                            <label for="jumlah" class="col-sm-4 col-form-label">Jumlah (Rp)</label>
                             <div class="col-sm-8">
                                 <div class="input-group">
                                     <div class="input-group-prepend">
                                         <span class="input-group-text">Rp</span>
                                     </div>
-                                    <input type="number" class="form-control" id="jumlah" name="jumlah" value=""
+                                    <input type="number" class="form-control" id="jumlah" name="jumlah" value="" min="0" step="any" placeholder="Masukkan jumlah nominal"
                                         required>
                                 </div>
                             </div>
@@ -117,7 +142,9 @@
                     </div>
                     <div class="modal-footer justify-content-between">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Simpan</button>
+                        <button type="submit" class="btn btn-success font-weight-bold" style="background:#15803d; border:none; padding: 6px 20px;">
+                            <i class="fas fa-save mr-1"></i> Simpan
+                        </button>
                     </div>
                 </form>
             </div>
@@ -158,13 +185,12 @@
                         title: 'Kategori',
                         data: 'category.nama',
                         name: 'category',
-                        //if category_id is 99, show keterangan
                         render: function(data, type, row) {
-                            if (row.spending_category_id == 99) {
-                                return `${data} (${row.keterangan})`;
-                            } else {
-                                return data;
+                            var catName = (row.category && row.category.nama) ? row.category.nama : (data || '-');
+                            if (row.keterangan && row.keterangan.trim() !== '') {
+                                return `<strong>${catName}</strong><br><small class="text-muted"><i class="fas fa-info-circle mr-1"></i>${row.keterangan}</small>`;
                             }
+                            return catName;
                         }
                     },
 
@@ -236,12 +262,36 @@
 
 
             //show modal add
+            function checkKategoriLainLain() {
+                var selectedOption = $('#spending_category_id option:selected');
+                var val = selectedOption.val();
+                var text = (selectedOption.data('nama') || selectedOption.text() || '').trim().toLowerCase();
+
+                if (val == '99' || val === 'Lain-lain' || text === 'lain-lain') {
+                    $('#wrapperKeteranganLain').slideDown(200);
+                    $('#keterangan').attr('required', 'required');
+                } else {
+                    $('#wrapperKeteranganLain').slideUp(200);
+                    $('#keterangan').removeAttr('required');
+                    if (!$('#modal_spending').hasClass('is-editing')) {
+                        $('#keterangan').val('');
+                    }
+                }
+            }
+
+            $('#spending_category_id').on('change', function() {
+                checkKategoriLainLain();
+            });
+
+            //show modal add
             $('.btn-add').on('click', function() {
-                $('#modal_spending').modal('show');
+                $('#modal_spending').removeClass('is-editing').modal('show');
                 $('#modal_spending .modal-title').text('Tambah Pengeluaran');
                 $('#form_spending').attr('action', "{{ route('spendings.store') }}");
                 $('#form_spending').attr('method', "POST");
                 $('#form_spending').trigger('reset');
+                $('#wrapperKeteranganLain').hide();
+                $('#keterangan').removeAttr('required').val('');
             });
 
             //show modal edit
@@ -251,7 +301,7 @@
                     type: "GET",
                     url: "{{ url('') }}" + "/spendings/" + id + "/edit",
                     success: function(response) {
-                        $('#modal_spending').modal('show');
+                        $('#modal_spending').addClass('is-editing').modal('show');
                         $('#modal_spending .modal-title').text('Edit Pengeluaran');
                         $('#form_spending').attr('action', "{{ url('') }}" +
                             "/spendings/" + id);
@@ -259,25 +309,11 @@
                         $('#spending_category_id').val(response.spending.spending_category_id);
                         $('#keterangan').val(response.spending.keterangan);
                         $('#jumlah').val(response.spending.jumlah);
-                        //format repsonse.spending.created_at to yyyy-mm-dd
                         let dt = new Date(response.spending.created_at);
-                        console.log('$ ~ date:', dt.toLocaleDateString("en-CA"));
-
-                        $('#created_at').val(dt.toLocaleDateString("en-CA"))
-                        $('#spending_category_id').trigger('change');
+                        $('#created_at').val(dt.toLocaleDateString("en-CA"));
+                        checkKategoriLainLain();
                     }
                 });
-            });
-
-            //show keterangan if category_id is 99
-            $('#spending_category_id').on('change', function() {
-                if ($(this).val() == 99) {
-                    $('#form_keterangan').removeClass('d-none');
-                    $('#keterangan').attr('required', true);
-                } else {
-                    $('#form_keterangan').addClass('d-none');
-                    $('#keterangan').attr('required', false);
-                }
             });
 
             //submit form spending
@@ -296,11 +332,24 @@
                             title: 'Berhasil!',
                             text: response.message,
                             showConfirmButton: false,
-                            timer: 1500 // milliseconds
+                            timer: 1500
+                        });
+                    },
+                    error: function(xhr) {
+                        var msg = 'Terjadi kesalahan saat menyimpan data.';
+                        if (xhr.responseJSON && xhr.responseJSON.errors) {
+                            msg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        }
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal Menyimpan',
+                            html: msg,
                         });
                     }
                 });
-            })
+            });
 
             //delete spending
             $('.table').on('click', '.btn-delete', function() {
