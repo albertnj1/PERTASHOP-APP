@@ -114,10 +114,11 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::get('monthly-reports/{id}/download', [\App\Http\Controllers\MonthlyReportController::class, 'download'])->name('monthly-reports.download');
         Route::resource('monthly-reports', \App\Http\Controllers\MonthlyReportController::class);
 
-        // Sistem Penggajian: halaman index bisa dilihat investor (Tab Perbandingan Toko)
+        // Sistem Penggajian: halaman index & download slip pdf bisa dilihat investor
         Route::get('payroll-systems', [PayrollSystemController::class, 'index'])->name('payroll-systems.index');
         Route::get('payroll-systems/by-shop/{shop}', [PayrollSystemController::class, 'byShop'])->name('payroll-systems.by-shop');
         Route::get('payroll-systems/defaults-by-shop/{shop}', [PayrollSystemController::class, 'defaultsByShop'])->name('payroll-systems.defaults-by-shop');
+        Route::get('payroll/{payroll}/export-pdf', [PayrollController::class, 'exportPdf'])->name('payroll.export-pdf');
 
         // Arsip Upload File Excel Backdate (per Pertashop Container) & Engine v2
         Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');
@@ -212,7 +213,6 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::post('payroll/{payroll}/detail/{detail}/items', [PayrollController::class, 'addItem'])->name('payroll.detail.add-item');
         Route::delete('payroll/{payroll}/detail/{detail}/items/{item}', [PayrollController::class, 'deleteItem'])->name('payroll.detail.delete-item');
         Route::post('payroll/{payroll}/finalize', [PayrollController::class, 'finalize'])->name('payroll.finalize');
-        Route::get('payroll/{payroll}/export-pdf', [PayrollController::class, 'exportPdf'])->name('payroll.export-pdf');
         Route::delete('payroll/{payroll}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
         // ────────────────────────────────────────────────────────────────────
     });

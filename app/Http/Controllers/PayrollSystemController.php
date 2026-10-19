@@ -25,6 +25,11 @@ class PayrollSystemController extends Controller
         $user  = Auth::user();
         $shops = $this->getAccessibleShops();
 
+        // Mode khusus Investor: Tampilan Read-Only Beban Penggajian & Terbatas ke Outlet Milik Sendiri
+        if ($user->role === 'investor') {
+            return $this->investorIndex($request, $shops);
+        }
+
         // Toko & periode yang dipilih
         $selectedShopId = $request->input('shop_id', $shops->first()?->id);
         $selectedMonth  = $request->input('year_month', now()->format('Y-m'));
@@ -89,10 +94,10 @@ class PayrollSystemController extends Controller
 
         $semuaLaporanTerverifikasi = ($jumlahLaporanMasuk > 0) && ($laporanBelumVerifikasi === 0);
 
-        // ─── TAB 4: Perbandingan Toko (super-admin & investor only) ────────────
+        // ─── TAB 4: Perbandingan Toko (super-admin only) ────────────
         $benchmarkMonth   = $request->input('benchmark_month', now()->format('Y-m'));
         $benchmarks       = collect();
-        $canViewBenchmark = in_array($user->role, ['super-admin', 'super_admin', 'investor']);
+        $canViewBenchmark = in_array($user->role, ['super-admin', 'super_admin']);
 
         if ($canViewBenchmark) {
             [$bYear, $bMonth] = array_map('intval', explode('-', $benchmarkMonth));
@@ -142,6 +147,121 @@ class PayrollSystemController extends Controller
             'semuaLaporanTerverifikasi',
             // Tab 4
             'canViewBenchmark',
+            'benchmarks',
+            'benchmarkMonth'
+        ));
+    }
+
+    /**
+     * Tampilan Khusus Role Investor:
+     * - Mode Read-Only (Rekap Beban Penggajian Final)
+     * - Tidak ada tombol hitung, edit rumus, atau kunci periode
+     * - Hanya menampilkan outlet yang dimiliki investor
+     * - Menampilkan data final saja: Nama Operator, Total Jam Kerja/Kehadiran, Total Nominal Gaji, Status Pembayaran
+     * - Tab Perbandingan Outlet difilter hanya ke outlet milik investor tersebut
+     */
+    private function investorIndex(Request $request, $shops)
+    {
+        $investorShopIds = $shops->pluck('id')->toArray();
+        $selectedShopId  = $request->input('shop_id', $shops->first()?->id);
+
+        // Validasi keamanan: cegah investor memilih outlet di luar kepemilikan via parameter URL
+        if (!in_array($selectedShopId, $investorShopIds)) {
+            $selectedShopId = reset($investorShopIds) ?: null;
+        }
+
+        $selectedTahun  = (int) $request->input('tahun', now()->year);
+        $selectedBulan  = $request->input('bulan', 'all');
+        $availableYears = range(now()->year, now()->year - 3);
+
+        // Sajikan data final saja: riwayat penggajian yang sudah disetujui & dikunci Super Admin
+        $periodsQuery = PayrollPeriod::with([
+                'shop',
+                'payrollSystem',
+                'details.operator.user',
+                'generatedBy',
+                'approver'
+            ])
+            ->where('shop_id', $selectedShopId)
+            ->where('tahun', $selectedTahun)
+            ->where('status', 'final')
+            ->orderByDesc('bulan');
+
+        if ($selectedBulan !== 'all' && is_numeric($selectedBulan)) {
+            $periodsQuery->where('bulan', (int) $selectedBulan);
+        }
+
+        $periods = $periodsQuery->get();
+
+        // Cek apakah ada draft periode untuk bulan ini yang belum difinalisasi Super Admin
+        $hasPendingDraft = false;
+        if ($selectedBulan !== 'all' && is_numeric($selectedBulan)) {
+            $hasPendingDraft = PayrollPeriod::where('shop_id', $selectedShopId)
+                ->where('tahun', $selectedTahun)
+                ->where('bulan', (int) $selectedBulan)
+                ->where('status', '!=', 'final')
+                ->exists();
+        }
+
+        // Kalkulasi Agregat Finansial Rekap Gaji
+        $totalBebanGaji = $periods->sum(function ($p) {
+            return $p->details->sum(fn($d) => $d->hitungTHP());
+        });
+
+        $totalOperatorTergaji = $periods->flatMap->details->pluck('operator_id')->unique()->count();
+        $totalHariKerja       = $periods->flatMap->details->sum('total_hari_kerja');
+
+        // Tab 2 (Investor): Perbandingan Antar Outlet (HANYA outlet kepemilikan investor)
+        $benchmarkMonth = $request->input('benchmark_month', now()->format('Y-m'));
+        [$bYear, $bMonth] = array_map('intval', explode('-', $benchmarkMonth));
+
+        $benchmarks = $shops->map(function ($shop) use ($bYear, $bMonth) {
+            $reports = DailyReport::where('shop_id', $shop->id)
+                ->whereYear('created_at', $bYear)
+                ->whereMonth('created_at', $bMonth)
+                ->get();
+
+            $totalVol    = $reports->sum('volume_penjualan_teoritis');
+            $totalRupiah = $reports->sum('rupiah_penjualan');
+            $totalCost   = $reports->sum('total_spendings');
+            $totalProfit = $reports->sum('pendapatan');
+            $totalLosses = $reports->sum('losses_gain');
+
+            $payrollFinal = PayrollPeriod::where('shop_id', $shop->id)
+                ->where('tahun', $bYear)
+                ->where('bulan', $bMonth)
+                ->where('status', 'final')
+                ->with('details')
+                ->first();
+
+            $totalGaji = $payrollFinal ? $payrollFinal->details->sum(fn($d) => $d->hitungTHP()) : 0;
+
+            return [
+                'shop_id'      => $shop->id,
+                'nama'         => $shop->nama,
+                'total_volume' => $totalVol,
+                'total_rupiah' => $totalRupiah,
+                'total_cost'   => $totalCost,
+                'total_profit' => $totalProfit,
+                'total_losses' => $totalLosses,
+                'total_gaji'   => $totalGaji,
+            ];
+        })->sortByDesc('total_volume')->values();
+
+        $selectedShop = $shops->firstWhere('id', $selectedShopId);
+
+        return view('payroll_systems.investor_index', compact(
+            'shops',
+            'selectedShop',
+            'selectedShopId',
+            'selectedTahun',
+            'selectedBulan',
+            'availableYears',
+            'periods',
+            'hasPendingDraft',
+            'totalBebanGaji',
+            'totalOperatorTergaji',
+            'totalHariKerja',
             'benchmarks',
             'benchmarkMonth'
         ));
@@ -282,8 +402,12 @@ class PayrollSystemController extends Controller
 
     private function getAccessibleShops()
     {
-        if (Auth::user()->role === 'admin') {
-            return Shop::where('id', Auth::user()->admin->shop_id)->get();
+        $user = Auth::user();
+        if ($user->role === 'admin') {
+            return Shop::where('id', $user->admin?->shop_id)->get();
+        }
+        if ($user->role === 'investor') {
+            return $user->investor?->shops ?? collect();
         }
         return Shop::all();
     }

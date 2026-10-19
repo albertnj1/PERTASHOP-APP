@@ -100,7 +100,7 @@
   <a href="{{ route('operators.index') }}" class="nav-item {{ request()->routeIs('operators.*') ? 'active' : '' }}">DATA OPERATOR</a>
   <a href="{{ route('shift-schedules.index') }}" class="nav-item {{ request()->routeIs('shift-schedules.*') ? 'active' : '' }}">JADWAL SHIFT</a>
   <a href="{{ route('employee-loans.index') }}" class="nav-item {{ request()->routeIs('employee-loans.*') ? 'active' : '' }}">KASBON</a>
-  <a href="{{ route('payroll-systems.index') }}?tab=perbandingan" class="nav-item {{ request()->routeIs('payroll-systems.*') ? 'active' : '' }}">SISTEM PENGGAJIAN</a>
+  <a href="{{ route('payroll-systems.index') }}" class="nav-item {{ request()->routeIs('payroll-systems.*') || request()->routeIs('payroll.*') ? 'active' : '' }}">REKAP PENGGAJIAN</a>
 
   <div class="nav-group-label">FINANCE</div>
   <a href="{{ route('laba-kotor.index') }}" class="nav-item {{ request()->routeIs('laba-kotor.*') ? 'active' : '' }}">LABA KOTOR</a>

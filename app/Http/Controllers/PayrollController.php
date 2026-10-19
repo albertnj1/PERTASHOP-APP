@@ -269,6 +269,18 @@ class PayrollController extends Controller
      */
     public function exportPdf(PayrollPeriod $payroll)
     {
+        $user = Auth::user();
+        if ($user->role === 'investor') {
+            $investorShops = $user->investor?->shops?->pluck('id')->toArray() ?? [];
+            if (!in_array($payroll->shop_id, $investorShops)) {
+                abort(403, 'Anda tidak memiliki hak akses ke data penggajian outlet ini.');
+            }
+        } elseif ($user->role === 'admin') {
+            if ($payroll->shop_id != $user->admin?->shop_id) {
+                abort(403, 'Anda tidak memiliki hak akses ke data penggajian outlet ini.');
+            }
+        }
+
         $payroll->load([
             'shop',
             'payrollSystem',
@@ -304,8 +316,12 @@ class PayrollController extends Controller
 
     private function getAccessibleShops()
     {
-        if (Auth::user()->role === 'admin') {
-            return Shop::where('id', Auth::user()->admin->shop_id)->get();
+        $user = Auth::user();
+        if ($user->role === 'admin') {
+            return Shop::where('id', $user->admin?->shop_id)->get();
+        }
+        if ($user->role === 'investor') {
+            return $user->investor?->shops ?? collect();
         }
         return Shop::all();
     }

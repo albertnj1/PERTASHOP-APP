@@ -76,6 +76,10 @@ class ReportApprovalController extends Controller
             'reason'     => 'nullable|string',
         ]);
 
+        if (!in_array(Auth::user()->role, ['super-admin', 'super_admin', 'admin'])) {
+            return back()->withErrors(['approval' => 'Wewenang verifikasi dan persetujuan laporan operasional hanya milik Super Admin.']);
+        }
+
         try {
             $actor = Auth::user();
             $res = $this->approvalService->transitionMonthlyBatch(
@@ -93,10 +97,14 @@ class ReportApprovalController extends Controller
     }
 
     /**
-     * Lock Period (Owner / Supervisor).
+     * Lock Period (Super Admin / Admin Only).
      */
     public function lockPeriod(Request $request)
     {
+        if (!in_array(Auth::user()->role, ['super-admin', 'super_admin', 'admin'])) {
+            return back()->withErrors(['lock' => 'Wewenang penguncian periode buku kas dan verifikasi operasional hanya milik Super Admin.']);
+        }
+
         $request->validate([
             'shop_id'    => 'required|exists:shops,id',
             'year_month' => 'required|string',
@@ -113,10 +121,14 @@ class ReportApprovalController extends Controller
     }
 
     /**
-     * Reopen Period (Owner Only with Mandatory Reason).
+     * Reopen Period (Super Admin Only with Mandatory Reason).
      */
     public function reopenPeriod(Request $request)
     {
+        if (!in_array(Auth::user()->role, ['super-admin', 'super_admin'])) {
+            return back()->withErrors(['reopen' => 'Wewenang membuka kunci periode hanya dapat dilakukan oleh Super Admin.']);
+        }
+
         $request->validate([
             'shop_id'    => 'required|exists:shops,id',
             'year_month' => 'required|string',
