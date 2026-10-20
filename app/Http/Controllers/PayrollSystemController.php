@@ -250,7 +250,11 @@ class PayrollSystemController extends Controller
 
         $selectedShop = $shops->firstWhere('id', $selectedShopId);
 
-        return view('payroll_systems.investor_index', compact(
+        $viewName = view()->exists('payroll_systems.investor_index')
+            ? 'payroll_systems.investor_index'
+            : (view()->exists('payroll_systems. investor_index') ? 'payroll_systems. investor_index' : 'payroll_systems.investor_index');
+
+        return view($viewName, compact(
             'shops',
             'selectedShop',
             'selectedShopId',
