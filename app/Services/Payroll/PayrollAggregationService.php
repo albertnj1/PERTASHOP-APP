@@ -60,7 +60,8 @@ class PayrollAggregationService
 
         // 1. Ambil Laporan Harian Ter-Approved / Locked
         $reports = DailyReport::where('shop_id', $shop->id)
-            ->whereDate('created_at', 'like', "{$yearMonth}%")
+            ->whereYear('created_at', $tahun)
+            ->whereMonth('created_at', $bulan)
             ->whereIn('status_lifecycle', [ReportStatus::APPROVED, ReportStatus::LOCKED])
             ->get();
 

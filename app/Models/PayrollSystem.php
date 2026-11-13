@@ -66,6 +66,45 @@ class PayrollSystem extends Model
     }
 
     /**
+     * Dapatkan perlakuan losses/gain aktif untuk gerai ini pada tanggal tertentu,
+     * dengan hierarki prioritas:
+     * 1. Override spesifik gerai di BusinessRule registry (value_json[shop_id])
+     * 2. Konfigurasi per gerai di tabel payroll_systems (perlakuan_losses_gain)
+     * 3. Fallback default BusinessRule terpusat (value_string / value_json['default'])
+     */
+    public function getEffectivePerlakuanLossesGain(?string $date = null): string
+    {
+        $ruleValue = null;
+        try {
+            $registry = app(\App\Services\Registry\BusinessRuleRegistryService::class);
+            $ruleValue = $registry->getValue('PERLAKUAN_LOSSES_GAIN', $date);
+            if (is_array($ruleValue)) {
+                $shopKey = (string) $this->shop_id;
+                if (isset($ruleValue[$shopKey])) {
+                    return $ruleValue[$shopKey];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback ke kolom payroll_system
+        }
+
+        // Pengaturan per gerai di payroll_system
+        if (!empty($this->perlakuan_losses_gain)) {
+            return $this->perlakuan_losses_gain;
+        }
+
+        // Fallback default business rule
+        if (is_string($ruleValue) && !empty($ruleValue)) {
+            return $ruleValue;
+        }
+        if (is_array($ruleValue) && isset($ruleValue['default'])) {
+            return $ruleValue['default'];
+        }
+
+        return 'losses_only';
+    }
+
+    /**
      * Hitung volume_dihitung berdasarkan konfigurasi perlakuan_losses_gain.
      *
      * Sesuai spesifikasi:
@@ -78,11 +117,14 @@ class PayrollSystem extends Model
      *
      * @param float $volumePenjualanAktual
      * @param float $lossesGain  (negatif = losses/Losses, nol = Pas, positif = Gain)
+     * @param string|null $date
      * @return float
      */
-    public function hitungVolumeDihitung(float $volumePenjualanAktual, float $lossesGain): float
+    public function hitungVolumeDihitung(float $volumePenjualanAktual, float $lossesGain, ?string $date = null): float
     {
-        return match ($this->perlakuan_losses_gain) {
+        $perlakuan = $this->getEffectivePerlakuanLossesGain($date);
+
+        return match ($perlakuan) {
             // Losses dikurangi, Gain & Pas diabaikan
             // lossesGain < 0  → Losses: kurangi
             // lossesGain == 0 → Pas:    tidak mengurangi (masuk cabang else)
@@ -94,7 +136,9 @@ class PayrollSystem extends Model
             'losses_dan_gain' => $volumePenjualanAktual + $lossesGain,
             // Losses/gain tidak dihitung ke gaji sama sekali
             'abaikan_losses_gain' => $volumePenjualanAktual,
-            default => $volumePenjualanAktual,
+            default => $lossesGain < 0
+                ? $volumePenjualanAktual + $lossesGain
+                : $volumePenjualanAktual,
         };
     }
 

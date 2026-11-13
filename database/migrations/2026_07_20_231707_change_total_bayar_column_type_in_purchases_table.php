@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         Schema::table('purchases', function (Blueprint $table) {
             $table->unsignedDecimal('total_bayar', 15, 2)->change();
         });

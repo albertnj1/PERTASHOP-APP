@@ -9,5 +9,9 @@ class SpendingCategory extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['id', 'nama'];
+    protected $fillable = ['id', 'nama', 'is_active'];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 }

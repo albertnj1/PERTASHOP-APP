@@ -61,6 +61,11 @@ class EmployeeLoanController extends Controller
             } catch (\Throwable $e) {}
         }
     }
+    public function create()
+    {
+        return redirect()->route('employee-loans.index');
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();

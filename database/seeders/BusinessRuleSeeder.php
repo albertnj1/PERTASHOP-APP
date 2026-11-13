@@ -65,6 +65,16 @@ class BusinessRuleSeeder extends Seeder
                 'value' => -5000000.00,
                 'version' => 'BR-INCOME-v1.0',
             ],
+            [
+                'code' => 'PERLAKUAN_LOSSES_GAIN',
+                'name' => 'Perlakuan Losses/Gain pada Omset Operator',
+                'category' => 'payroll',
+                'data_type' => 'string',
+                'is_system_rule' => true,
+                'description' => 'Aturan perlakuan losses/gain terhadap omset komisi: losses_only (hanya losses mengurangi, gain diabaikan), losses_dan_gain, atau abaikan_losses_gain.',
+                'value' => 'losses_only',
+                'version' => 'BR-LOSSGAIN-v1.0',
+            ],
         ];
 
         // Bersihkan versi non-default hasil tes sebelumnya
@@ -82,14 +92,19 @@ class BusinessRuleSeeder extends Seeder
                 ]
             );
 
+            $isNumeric = is_numeric($item['value']);
+            $valNumeric = $isNumeric ? $item['value'] : null;
+            $valString = is_string($item['value']) && !$isNumeric ? $item['value'] : null;
+
             $exists = DB::table('business_rule_versions')
                 ->where('business_rule_id', $rule->id)
                 ->where('version_code', $item['version'])
                 ->exists();
 
             if ($exists) {
-                DB::statement("UPDATE business_rule_versions SET effective_from = '2026-01-01 00:00:00', effective_until = NULL, value_numeric = ?, is_active = 1 WHERE business_rule_id = ? AND version_code = ?", [
-                    $item['value'],
+                DB::statement("UPDATE business_rule_versions SET effective_from = '2026-01-01 00:00:00', effective_until = NULL, value_numeric = ?, value_string = ?, is_active = 1 WHERE business_rule_id = ? AND version_code = ?", [
+                    $valNumeric,
+                    $valString,
                     $rule->id,
                     $item['version']
                 ]);
@@ -97,7 +112,8 @@ class BusinessRuleSeeder extends Seeder
                 DB::table('business_rule_versions')->insert([
                     'business_rule_id' => $rule->id,
                     'version_code'     => $item['version'],
-                    'value_numeric'    => $item['value'],
+                    'value_numeric'    => $valNumeric,
+                    'value_string'     => $valString,
                     'effective_from'   => '2026-01-01 00:00:00',
                     'effective_until'  => null,
                     'is_active'        => 1,

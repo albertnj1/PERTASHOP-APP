@@ -22,13 +22,15 @@ return new class extends Migration
         });
 
         // Modify payroll_periods status column to allow 'archived'
-        try {
-            DB::statement("ALTER TABLE payroll_periods MODIFY COLUMN status ENUM('draft', 'final', 'archived') NOT NULL DEFAULT 'draft'");
-        } catch (\Throwable $e) {
-            if (Schema::hasColumn('payroll_periods', 'status')) {
-                Schema::table('payroll_periods', function (Blueprint $table) {
-                    $table->string('status', 30)->default('draft')->change();
-                });
+        if (\Illuminate\Support\Facades\DB::getDriverName() !== 'sqlite') {
+            try {
+                DB::statement("ALTER TABLE payroll_periods MODIFY COLUMN status ENUM('draft', 'final', 'archived') NOT NULL DEFAULT 'draft'");
+            } catch (\Throwable $e) {
+                if (Schema::hasColumn('payroll_periods', 'status')) {
+                    Schema::table('payroll_periods', function (Blueprint $table) {
+                        $table->string('status', 30)->default('draft')->change();
+                    });
+                }
             }
         }
 

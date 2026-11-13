@@ -323,6 +323,11 @@ class PayrollSystemController extends Controller
             ->with('success', 'Pengaturan gaji berhasil ditambahkan.');
     }
 
+    public function show(PayrollSystem $payrollSystem)
+    {
+        return redirect()->route('payroll-systems.edit', $payrollSystem->id);
+    }
+
     public function edit(PayrollSystem $payrollSystem)
     {
         $shops = $this->getAccessibleShops();

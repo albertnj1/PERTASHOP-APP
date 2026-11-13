@@ -63,7 +63,7 @@ class TestPumpController extends Controller
      */
     public function create()
     {
-        $shop = Auth::user()->operator->shop;
+        $shop = Auth::user()->operator?->shop ?? (Auth::user()->admin?->shop ?? Shop::first());
 
         return view('test_pump.create', compact('shop'));
     }

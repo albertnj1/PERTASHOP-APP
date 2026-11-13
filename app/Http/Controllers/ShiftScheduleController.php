@@ -17,6 +17,11 @@ class ShiftScheduleController extends Controller
     /**
      * Tampilkan daftar jadwal shift per toko per bulan.
      */
+    public function create()
+    {
+        return redirect()->route('shift-schedules.index');
+    }
+
     public function index(Request $request)
     {
         $shops = Shop::all();

@@ -15,8 +15,10 @@ class PayrollEligibilityChecker
      */
     public function checkEligibility(int $shopId, string $yearMonth): array
     {
+        $monthDate = \Carbon\Carbon::parse($yearMonth . '-01');
         $reports = DailyReport::where('shop_id', $shopId)
-            ->whereDate('created_at', 'like', "{$yearMonth}%")
+            ->whereYear('created_at', (int)$monthDate->format('Y'))
+            ->whereMonth('created_at', (int)$monthDate->format('m'))
             ->get();
 
         if ($reports->isEmpty()) {

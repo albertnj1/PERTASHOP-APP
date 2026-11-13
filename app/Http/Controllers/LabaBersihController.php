@@ -74,9 +74,13 @@ class LabaBersihController extends Controller
         if ($request->ajax()) {
             $shop_id = $request->input('shop_id', 1);
 
+            $dateFormat = \Illuminate\Support\Facades\DB::getDriverName() === 'pgsql'
+                ? "TO_CHAR(created_at, 'YYYY-MM')"
+                : (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite' ? "strftime('%Y-%m', created_at)" : "DATE_FORMAT(created_at, '%Y-%m')");
+
             $salesQuery = \Illuminate\Support\Facades\DB::table('daily_reports')
                 ->where('shop_id', $shop_id)
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan")
+                ->selectRaw("{$dateFormat} as bulan")
                 ->groupBy('bulan');
 
             $dt = DataTables::of($salesQuery)->addIndexColumn();

@@ -34,6 +34,7 @@ class BusinessRule extends Model
                       ->orWhere('effective_until', '>=', $evalDateStr);
             })
             ->orderBy('effective_from', 'desc')
+            ->orderBy('id', 'desc')
             ->first();
     }
 }

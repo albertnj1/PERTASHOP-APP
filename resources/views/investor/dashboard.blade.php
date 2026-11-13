@@ -115,8 +115,10 @@
       <tbody>
         @foreach($shops as $s)
         @php
+          $evalMonthDate = \Carbon\Carbon::parse($selectedMonth . '-01');
           $shopReports = \App\Models\DailyReport::where('shop_id', $s->id)
-              ->whereDate('created_at', 'like', "{$selectedMonth}%")
+              ->whereYear('created_at', (int)$evalMonthDate->format('Y'))
+              ->whereMonth('created_at', (int)$evalMonthDate->format('m'))
               ->get();
 
           $vol = $shopReports->sum(fn($r) => (float) ($r->volume_penjualan ?? $r->volume_terjual ?? 0));

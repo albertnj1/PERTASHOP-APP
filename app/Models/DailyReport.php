@@ -18,6 +18,7 @@ class DailyReport extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
+        'diverifikasi'       => 'boolean',
         'report_date'        => 'date',
         'hutang_bakulan'     => 'float',
         'pelunasan_bakulan'  => 'float',
@@ -54,7 +55,8 @@ class DailyReport extends Model
         'volume_penjualan_teoritis',
         'rupiah_penjualan_teoritis',
         'volume_penjualan_aktual',
-        'rupiah_penjualan_aktual'
+        'rupiah_penjualan_aktual',
+        'omset_plus_losses'
     ];
 
     public function operator()
@@ -119,6 +121,12 @@ class DailyReport extends Model
     protected static $allReportsByShop = [];
     protected static $allReportsByOperator = [];
 
+    public static function clearInternalCache(): void
+    {
+        self::$allReportsByShop = [];
+        self::$allReportsByOperator = [];
+    }
+
     public function latestByShop()
     {
         if (!isset(self::$allReportsByShop[$this->shop_id])) {
@@ -154,7 +162,7 @@ class DailyReport extends Model
         if (isset($this->attributes['totalisator_awal']) && $this->attributes['totalisator_awal'] !== null) {
             return floatval($this->attributes['totalisator_awal']);
         }
-        return $this->latestByShop() ?  $this->latestByShop()->totalisator_akhir : $this->shop->totalisator_awal;
+        return $this->latestByShop() ?  $this->latestByShop()->totalisator_akhir : ($this->shop ? $this->shop->totalisator_awal : 0);
     }
 
     public function getStikAwalAttribute()
@@ -162,30 +170,34 @@ class DailyReport extends Model
         if (isset($this->attributes['stik_awal']) && $this->attributes['stik_awal'] !== null) {
             return floatval($this->attributes['stik_awal']);
         }
-        return  $this->latestByShop() ?  $this->latestByShop()->stik_akhir : $this->shop->stik_awal;
+        return  $this->latestByShop() ?  $this->latestByShop()->stik_akhir : ($this->shop ? $this->shop->stik_awal : 0);
     }
 
     public function getStokAwalAttribute()
     {
         if (isset($this->attributes['stok_awal']) && $this->attributes['stok_awal'] !== null && floatval($this->attributes['stok_awal']) > 0) {
-            return round(floatval($this->attributes['stok_awal']), 2);
+            return round(floatval($this->attributes['stok_awal']), 3);
+        }
+        $prev = $this->latestByShop();
+        if ($prev) {
+            return round(floatval($prev->stok_akhir_aktual), 3);
         }
         $stikAwal = floatval($this->stik_awal);
         if ($stikAwal > 200) {
-            return round($stikAwal, 2);
+            return round($stikAwal, 3);
         }
-        $skala = ($this->shop && floatval($this->shop->skala) > 0) ? floatval($this->shop->skala) : 21.0;
-        return round($stikAwal * $skala, 2);
+        $skala = ($this->shop && floatval($this->shop->skala) > 0) ? floatval($this->shop->skala) : 21.49;
+        return round($stikAwal * $skala, 3);
     }
 
     public function getStokAkhirAktualAttribute()
     {
         $stik = floatval($this->attributes['stik_akhir'] ?? 0);
         if ($stik > 200) {
-            return round($stik, 2);
+            return round($stik, 3);
         }
-        $skala = ($this->shop && floatval($this->shop->skala) > 0) ? floatval($this->shop->skala) : 21.0;
-        return round($stik * $skala, 2);
+        $skala = ($this->shop && floatval($this->shop->skala) > 0) ? floatval($this->shop->skala) : 21.49;
+        return round($stik * $skala, 3);
     }
 
     public function getTestPumpAttribute()
@@ -230,10 +242,23 @@ class DailyReport extends Model
                 $vol = floatval($period->totalisator_akhir) - floatval($period->totalisator_awal);
                 $totalRupiah += ($vol * ($period->price ? floatval($period->price->harga_jual) : 0));
             }
-            return $totalRupiah;
+            return round($totalRupiah, 0);
         }
-        $priceJual = $this->price ? floatval($this->price->harga_jual) : 0;
-        return $this->volume_penjualan_teoritis * $priceJual;
+        $priceJual = (isset($this->attributes['harga_jual_snapshot']) && floatval($this->attributes['harga_jual_snapshot']) > 0)
+            ? floatval($this->attributes['harga_jual_snapshot'])
+            : ($this->price ? floatval($this->price->harga_jual) : 0);
+
+        if ($priceJual <= 0) {
+            $evalDate = $this->report_date ? $this->report_date->toDateString() : Carbon::parse($this->created_at)->toDateString();
+            $fallbackPrice = Price::where(function($q) {
+                $q->where('shop_id', $this->shop_id)->orWhereNull('shop_id');
+            })->where('effective_at', '<=', $evalDate . ' 23:59:59')
+              ->latest('effective_at')
+              ->first();
+            $priceJual = $fallbackPrice ? floatval($fallbackPrice->harga_jual) : 0;
+        }
+
+        return round($this->volume_penjualan_teoritis * $priceJual, 0);
     }
 
     public function getVolumePenjualanAktualAttribute()
@@ -241,7 +266,7 @@ class DailyReport extends Model
         // Volume Aktual = Volume_Teoritis - Test_Pump - BBM_Lain2
         // BBM_Lain2 = BBM keluar tapi bukan penjualan (jarang, default 0)
         $bbmLain2 = floatval($this->attributes['bbm_keluar_lain'] ?? 0);
-        return max(0.0, $this->volume_penjualan_teoritis - $this->test_pump - $bbmLain2);
+        return round(max(0.0, $this->volume_penjualan_teoritis - $this->test_pump - $bbmLain2), 3);
     }
 
     public function getRupiahPenjualanAktualAttribute()
@@ -254,22 +279,25 @@ class DailyReport extends Model
                 $totalRupiah += ($vol * ($period->price ? floatval($period->price->harga_jual) : 0));
                 $lastPriceJual = $period->price ? floatval($period->price->harga_jual) : 0;
             }
-            return max(0.0, $totalRupiah - ($this->test_pump * $lastPriceJual));
+            return round(max(0.0, $totalRupiah - ($this->test_pump * $lastPriceJual)), 0);
         }
         // Prioritaskan snapshot harga untuk integritas data historis
         $priceJual = (isset($this->attributes['harga_jual_snapshot']) && floatval($this->attributes['harga_jual_snapshot']) > 0)
             ? floatval($this->attributes['harga_jual_snapshot'])
             : ($this->price ? floatval($this->price->harga_jual) : 0);
 
-        // Fallback sekunder jika snapshot dan price_id kosong: ambil harga aktif outlet
+        // Fallback sekunder jika snapshot dan price_id kosong: ambil harga aktif outlet berdasarkan effective_at
         if ($priceJual <= 0) {
+            $evalDate = $this->report_date ? $this->report_date->toDateString() : Carbon::parse($this->created_at)->toDateString();
             $fallbackPrice = Price::where(function($q) {
                 $q->where('shop_id', $this->shop_id)->orWhereNull('shop_id');
-            })->latest('effective_at')->first();
+            })->where('effective_at', '<=', $evalDate . ' 23:59:59')
+              ->latest('effective_at')
+              ->first();
             $priceJual = $fallbackPrice ? floatval($fallbackPrice->harga_jual) : 0;
         }
 
-        return $this->volume_penjualan_aktual * $priceJual;
+        return round($this->volume_penjualan_aktual * $priceJual, 0);
     }
 
     public function getVolumePenjualanAttribute()
@@ -290,9 +318,27 @@ class DailyReport extends Model
         return round($this->stok_awal + $this->penerimaan - $this->volume_penjualan_aktual, 3);
     }
 
+    public function getOmsetPlusLossesAttribute()
+    {
+        $lg = $this->losses_gain;
+        $perlakuan = 'losses_only';
+        if ($this->shop && $this->shop->payrollSystems()->exists()) {
+            $ps = $this->shop->payrollSystems()->first();
+            $date = $this->report_date ? $this->report_date->toDateString() : Carbon::parse($this->created_at)->toDateString();
+            $perlakuan = $ps->getEffectivePerlakuanLossesGain($date);
+        }
+
+        return match ($perlakuan) {
+            'losses_only' => $lg < 0 ? max(0.0, round($this->volume_penjualan_aktual + $lg, 3)) : round($this->volume_penjualan_aktual, 3),
+            'losses_dan_gain' => max(0.0, round($this->volume_penjualan_aktual + $lg, 3)),
+            'abaikan_losses_gain' => round($this->volume_penjualan_aktual, 3),
+            default => $lg < 0 ? max(0.0, round($this->volume_penjualan_aktual + $lg, 3)) : round($this->volume_penjualan_aktual, 3),
+        };
+    }
+
     public function getPenjualanLossesDAttribute()
     {
-        return max(0.0, $this->volume_penjualan_aktual + $this->losses_gain);
+        return $this->omset_plus_losses;
     }
 
     public function getLossesGainAttribute()
@@ -324,23 +370,25 @@ class DailyReport extends Model
         } elseif ($this->price && floatval($this->price->harga_beli) > 0) {
             $priceBeli = floatval($this->price->harga_beli);
         } else {
-            // Fallback sekunder jika snapshot dan price_id kosong: ambil harga aktif outlet
+            $evalDate = $this->report_date ? $this->report_date->toDateString() : Carbon::parse($this->created_at)->toDateString();
             $fallbackPrice = Price::where(function($q) {
                 $q->where('shop_id', $this->shop_id)->orWhereNull('shop_id');
-            })->latest('effective_at')->first();
+            })->where('effective_at', '<=', $evalDate . ' 23:59:59')
+              ->latest('effective_at')
+              ->first();
             $priceBeli = $fallbackPrice ? floatval($fallbackPrice->harga_beli) : 0;
         }
-        return $this->losses_gain * $priceBeli;
+        return round($this->losses_gain * $priceBeli, 0);
     }
 
     public function getPengeluaranAttribute()
     {
-        return $this->spendings->sum('jumlah');
+        return round($this->spendings->sum('jumlah'), 0);
     }
 
     public function getPendapatanAttribute()
     {
-        return $this->rupiah_penjualan_aktual - $this->pengeluaran;
+        return round($this->rupiah_penjualan_aktual - $this->pengeluaran, 0);
     }
 
     /**
@@ -352,7 +400,7 @@ class DailyReport extends Model
     {
         $hutangBaru = floatval($this->attributes['hutang_bakulan'] ?? 0);
         $pelunasan  = floatval($this->attributes['pelunasan_bakulan'] ?? 0);
-        return round($this->pendapatan - $hutangBaru + $pelunasan, 2);
+        return round($this->pendapatan - $hutangBaru + $pelunasan, 0);
     }
 
     public function kolektan()
@@ -370,28 +418,28 @@ class DailyReport extends Model
         $hasDeposits = $this->relationLoaded('deposits') ? $this->deposits->isNotEmpty() : $this->deposits()->exists();
         if ($hasDeposits) {
             $deposits = $this->relationLoaded('deposits') ? $this->deposits : $this->deposits()->with('category')->get();
-            return floatval($deposits->filter(fn($d) => $d->category && $d->category->termasuk_dalam_setoran)->sum('jumlah'));
+            return round(floatval($deposits->filter(fn($d) => $d->category && $d->category->termasuk_dalam_setoran)->sum('jumlah')), 0);
         }
         $sum = floatval($this->setor_tunai ?? 0) + floatval($this->setor_qris ?? 0) + floatval($this->setor_transfer ?? 0) + floatval($this->setor_kolektan ?? 0);
         if ($sum > 0) {
-            return $sum;
+            return round($sum, 0);
         }
-        return floatval($this->attributes['disetorkan'] ?? 0);
+        return round(floatval($this->attributes['disetorkan'] ?? 0), 0);
     }
 
     public function getSelisihSetoranAttribute()
     {
         // Selisih_Setoran = Total_Setoran - Pendapatan_Akhir (Kas yang wajib disetor)
         // Positif = lebih setor, Negatif = kurang setor.
-        return round($this->disetorkan - $this->pendapatan_akhir, 2);
+        return round($this->disetorkan - $this->pendapatan_akhir, 0);
     }
 
     public function getBelumDisetorkanAttribute()
     {
         if (isset($this->attributes['running_balance_setoran']) && $this->attributes['running_balance_setoran'] !== null) {
-            return floatval($this->attributes['running_balance_setoran']);
+            return round(floatval($this->attributes['running_balance_setoran']), 0);
         }
-        $kemarin = $this->latestByOperator() ? floatval($this->latestByOperator()->belum_disetorkan) : 0;
-        return $kemarin + $this->pendapatan_akhir - $this->disetorkan;
+        $kemarin = $this->latestByShop() ? floatval($this->latestByShop()->belum_disetorkan) : ($this->shop ? floatval($this->shop->uang_belum_disetor_awal ?? 0) : 0);
+        return round($kemarin + $this->selisih_setoran, 0);
     }
 }

@@ -131,6 +131,11 @@ class SpendingController extends Controller
         //
     }
 
+    public function show(Spending $spending)
+    {
+        return redirect()->route('spendings.edit', $spending->id);
+    }
+
     /**
      * Store a newly created resource in storage.
      */

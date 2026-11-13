@@ -72,6 +72,11 @@ class KolektanController extends Controller
         return redirect()->route('kolektans.index')->with('success', 'Data Kolektan berhasil ditambahkan.');
     }
 
+    public function show(Kolektan $kolektan)
+    {
+        return redirect()->route('kolektans.edit', $kolektan->id);
+    }
+
     /**
      * Show the form for editing the specified resource.
      */

@@ -15,6 +15,10 @@ class Incoming extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'is_pertamax' => 'boolean',
+    ];
+
     protected $appends = ['volume_aktual'];
 
     public function operator()

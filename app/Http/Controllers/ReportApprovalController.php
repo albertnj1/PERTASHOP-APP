@@ -31,9 +31,12 @@ class ReportApprovalController extends Controller
 
         $shop = Shop::findOrFail($selectedShopId);
 
+        $monthDate = Carbon::parse($selectedMonth . '-01');
+
         // Ambil daily reports periode ini
         $reports = DailyReport::where('shop_id', $shop->id)
-            ->whereDate('created_at', 'like', "{$selectedMonth}%")
+            ->whereYear('created_at', (int)$monthDate->format('Y'))
+            ->whereMonth('created_at', (int)$monthDate->format('m'))
             ->orderBy('created_at', 'asc')
             ->get();
 

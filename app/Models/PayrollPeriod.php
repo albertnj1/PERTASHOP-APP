@@ -12,6 +12,7 @@ class PayrollPeriod extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
+        'is_finalized'          => 'boolean',
         'generated_at'          => 'datetime',
         'approved_at'           => 'datetime',
         'total_penjualan_liter' => 'decimal:2',

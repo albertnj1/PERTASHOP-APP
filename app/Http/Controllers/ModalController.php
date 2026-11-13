@@ -30,9 +30,13 @@ class ModalController extends Controller
                 $shop_id = $shop_id ?: (Shop::first()?->id ?: 1);
             }
 
+            $dateFormat = \Illuminate\Support\Facades\DB::getDriverName() === 'pgsql'
+                ? "TO_CHAR(created_at, 'YYYY-MM')"
+                : (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite' ? "strftime('%Y-%m', created_at)" : "DATE_FORMAT(created_at, '%Y-%m')");
+
             $subDaily = \Illuminate\Support\Facades\DB::table('daily_reports')
                 ->where('shop_id', $shop_id)
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as bulan");
+                ->selectRaw("{$dateFormat} as bulan");
 
             $subMonthly = \Illuminate\Support\Facades\DB::table('monthly_reports')
                 ->where('shop_id', $shop_id)
@@ -40,7 +44,7 @@ class ModalController extends Controller
 
             $subRecap = \Illuminate\Support\Facades\DB::table('capital_recaps')
                 ->where('shop_id', $shop_id)
-                ->selectRaw("CONCAT(tahun, '-', LPAD(bulan, 2, '0')) as bulan");
+                ->selectRaw("CONCAT(tahun, '-', LPAD(CAST(bulan AS VARCHAR), 2, '0')) as bulan");
 
             $salesQuery = \Illuminate\Support\Facades\DB::query()->fromSub(
                 $subDaily->union($subMonthly)->union($subRecap),

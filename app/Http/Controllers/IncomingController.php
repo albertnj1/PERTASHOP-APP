@@ -76,7 +76,11 @@ class IncomingController extends Controller
     public function create(Request $request)
     {
         $operator = Auth::user()->operator;
-        $shop = $operator->shop;
+        $shop = $operator?->shop ?? (Auth::user()->admin?->shop ?? Shop::find($request->input('shop_id')) ?? Shop::first());
+        if (!$shop) {
+            return redirect()->route('incomings.index')->with('error', 'Tidak ada data outlet.');
+        }
+
         $purchases = Purchase::with('supplier')
             ->where('shop_id', $shop->id)
             ->get()->where('sisa', '>', 0);
@@ -91,8 +95,8 @@ class IncomingController extends Controller
             ->orderBy('estimated_delivery_date')
             ->get();
 
-        $incoming = Incoming::where('operator_id', $operator->id)
-            ->whereDate('created_at', Carbon::now()->format('Y-m-d'))->first();
+        $incoming = $operator ? Incoming::where('operator_id', $operator->id)
+            ->whereDate('created_at', Carbon::now()->format('Y-m-d'))->first() : null;
         return view('incoming.create', compact('purchases', 'shop', 'pendingSoTrips'));
     }
 

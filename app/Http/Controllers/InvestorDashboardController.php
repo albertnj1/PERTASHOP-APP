@@ -35,7 +35,8 @@ class InvestorDashboardController extends Controller
         $bulan = (int) $evalDate->format('m');
 
         // Filter Daily Reports terbatas pada outlet yang di-assign ke investor ini
-        $queryReports = DailyReport::whereDate('created_at', 'like', "{$selectedMonth}%")
+        $queryReports = DailyReport::whereYear('created_at', $tahun)
+            ->whereMonth('created_at', $bulan)
             ->whereIn('shop_id', $accessibleShopIds);
 
         if ($selectedShopId !== 'all' && in_array((int)$selectedShopId, $accessibleShopIds)) {

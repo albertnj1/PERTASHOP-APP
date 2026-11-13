@@ -785,6 +785,9 @@ class DailyReportController extends Controller
             ->where('status', 'dijadwalkan')
             ->each(fn ($s) => $s->update(['status' => 'hadir']));
 
+        // Rekalkulasi berantai (totalisator, stok, running balance)
+        \App\Services\DailyReportCalculationService::recalculateCascade($shop_id, \Carbon\Carbon::parse($reportDateOnly));
+
         // Invalidate dashboard cache supaya stok & rekapitulasi langsung ter-update
         $this->invalidateDashboardCache($shop_id);
 
@@ -1097,6 +1100,9 @@ class DailyReportController extends Controller
 
         // Simpan data perubahan harga jika diinput oleh operator
         $this->processPriceChanges($dailyReport, $request);
+
+        // Rekalkulasi berantai (totalisator, stok, running balance)
+        \App\Services\DailyReportCalculationService::recalculateCascade($shop_id, \Carbon\Carbon::parse($reportDateOnly));
 
         // Invalidate dashboard cache
         $this->invalidateDashboardCache($shop_id);
