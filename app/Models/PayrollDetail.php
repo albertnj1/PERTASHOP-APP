@@ -12,21 +12,21 @@ class PayrollDetail extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'liter_bagian'          => 'decimal:2',
-        'gaji_variable'         => 'decimal:2',
-        'gaji_pokok'            => 'decimal:2',
-        'lembur'                => 'decimal:2',
-        'lembur_hari_raya'      => 'decimal:2',
-        'bonus'                 => 'decimal:2',
-        'thr'                   => 'decimal:2',
-        'uang_transport'        => 'decimal:2',
-        'potongan_tidak_masuk'  => 'decimal:2',
-        'kurang_setoran'        => 'decimal:2',
-        'tabungan_gaji'         => 'decimal:2',
-        'tabungan_setoran'      => 'decimal:2',
-        'potongan_hutang'       => 'decimal:2',
-        'take_home_pay'         => 'decimal:2',
-        'sisa_kurang_bayar'     => 'decimal:2',
+        'liter_bagian'          => 'decimal:3',
+        'gaji_variable'         => 'decimal:4',
+        'gaji_pokok'            => 'decimal:4',
+        'lembur'                => 'decimal:4',
+        'lembur_hari_raya'      => 'decimal:4',
+        'bonus'                 => 'decimal:4',
+        'thr'                   => 'decimal:4',
+        'uang_transport'        => 'decimal:4',
+        'potongan_tidak_masuk'  => 'decimal:4',
+        'kurang_setoran'        => 'decimal:4',
+        'tabungan_gaji'         => 'decimal:4',
+        'tabungan_setoran'      => 'decimal:4',
+        'potongan_hutang'       => 'decimal:4',
+        'take_home_pay'         => 'decimal:4',
+        'sisa_kurang_bayar'     => 'decimal:4',
     ];
 
     public function period()
@@ -96,10 +96,11 @@ class PayrollDetail extends Model
 
     /**
      * Take Home Pay = Total Gaji Kotor - Total Potongan (Bisa Negatif jika potongan > kotor)
+     * Desimal murni — tanpa pembulatan. Pembulatan hanya di tampilan (number_format).
      */
     public function hitungTHP(): float
     {
-        return round($this->total_gaji_kotor - $this->total_potongan, 2);
+        return $this->total_gaji_kotor - $this->total_potongan;
     }
 
     /**

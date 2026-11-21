@@ -13,11 +13,12 @@ return new class extends Migration
     public function up(): void
     {
         // Ubah kolom status shift_schedules ke VARCHAR(30) agar fleksibel mendukung status libur/diliburkan
-        try {
-            DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` VARCHAR(30) NOT NULL DEFAULT 'dijadwalkan'");
-        } catch (\Throwable $e) {
-            // Abaikan jika bukan MySQL
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE shift_schedules DROP CONSTRAINT IF EXISTS shift_schedules_status_check');
         }
+        Schema::table('shift_schedules', function (Blueprint $table) {
+            $table->string('status', 30)->default('dijadwalkan')->change();
+        });
     }
 
     /**
@@ -25,8 +26,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        try {
-            DB::statement("ALTER TABLE `shift_schedules` MODIFY `status` ENUM('dijadwalkan', 'hadir', 'alpha', 'izin', 'sakit') NOT NULL DEFAULT 'dijadwalkan'");
-        } catch (\Throwable $e) {}
+        Schema::table('shift_schedules', function (Blueprint $table) {
+            $table->string('status', 20)->default('dijadwalkan')->change();
+        });
     }
 };

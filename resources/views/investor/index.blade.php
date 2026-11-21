@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Master Investor & Portofolio Modal')
 
 @push('style')

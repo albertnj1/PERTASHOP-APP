@@ -184,7 +184,7 @@
       @if(!$payroll->payrollSystem->isKomisiMurni() && $detail->gaji_pokok > 0)
       <tr>
         <td class="label">Gaji Pokok</td>
-        <td class="amount">Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}</td>
+        <td class="amount">Rp {{ number_format($detail->gaji_pokok, 2, ',', '.') }}</td>
       </tr>
       @endif
       @if(!$payroll->payrollSystem->isGajiPokokMurni() && ($payroll->payrollSystem->ada_rate_per_liter || $detail->gaji_variable > 0))
@@ -197,13 +197,13 @@
           </span>
           @endif
         </td>
-        <td class="amount">Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</td>
+        <td class="amount">Rp {{ number_format($detail->gaji_variable, 2, ',', '.') }}</td>
       </tr>
       @endif
       @if($detail->uang_transport > 0)
       <tr>
         <td class="label">Uang Transport ({{ $detail->total_hari_kerja }} hari hadir)</td>
-        <td class="amount">Rp {{ number_format($detail->uang_transport, 0, ',', '.') }}</td>
+        <td class="amount">Rp {{ number_format($detail->uang_transport, 2, ',', '.') }}</td>
       </tr>
       @endif
       @if($detail->lembur > 0)
@@ -238,7 +238,7 @@
       @endforeach
       <tr class="subtotal">
         <td class="label">Total Pendapatan Kotor</td>
-        <td class="amount">Rp {{ number_format($detail->total_gaji_kotor, 0, ',', '.') }}</td>
+        <td class="amount">Rp {{ number_format($detail->total_gaji_kotor, 2, ',', '.') }}</td>
       </tr>
 
       {{-- Potongan --}}
@@ -248,7 +248,7 @@
       @if($detail->potongan_tidak_masuk > 0)
       <tr>
         <td class="label">Potongan Tidak Masuk (Alpha)</td>
-        <td class="amount negative">- Rp {{ number_format($detail->potongan_tidak_masuk, 0, ',', '.') }}</td>
+        <td class="amount negative">- Rp {{ number_format($detail->potongan_tidak_masuk, 2, ',', '.') }}</td>
       </tr>
       @endif
       @if($detail->kurang_setoran > 0)
@@ -296,7 +296,7 @@
       @endforeach
       <tr class="subtotal">
         <td class="label">Total Potongan</td>
-        <td class="amount negative">- Rp {{ number_format($detail->total_potongan, 0, ',', '.') }}</td>
+        <td class="amount negative">- Rp {{ number_format($detail->total_potongan, 2, ',', '.') }}</td>
       </tr>
     </tbody>
   </table>
@@ -305,7 +305,7 @@
   <div class="thp-box" style="{{ $detail->take_home_pay < 0 ? 'background:#ffebee;border:1px solid #ef5350;' : '' }}">
     <div class="thp-label">Take Home Pay (Gaji Bersih)</div>
     <div class="thp-amount" style="{{ $detail->take_home_pay < 0 ? 'color:#c62828;' : '' }}">
-      Rp {{ number_format($detail->take_home_pay, 0, ',', '.') }}
+      Rp {{ number_format($detail->take_home_pay, 2, ',', '.') }}
     </div>
     @if($detail->take_home_pay < 0)
     <div style="font-size:10px;color:#c62828;margin-top:4px;">

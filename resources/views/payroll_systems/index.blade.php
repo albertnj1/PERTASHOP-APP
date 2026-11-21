@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Sistem Penggajian')
 
 @push('style')
@@ -168,7 +168,7 @@
     <form method="GET" action="{{ route('payroll-systems.index') }}" class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 12px;">
       <input type="hidden" name="tab" value="pengaturan">
       <div class="d-flex align-items-center" style="gap: 10px;">
-        <label class="text-muted mb-0" style="font-size: 12px; font-weight: 700; text-transform: uppercase;">Filter Pertashop:</label>
+        <label class="text-muted mb-0 text-nowrap" style="font-size: 12px; font-weight: 700; text-transform: uppercase; white-space: nowrap;">Filter Pertashop:</label>
         <select name="shop_id" class="form-control form-control-sm font-weight-bold" style="border-radius: 8px; width: auto; min-width: 180px;" onchange="this.form.submit()">
           @if(in_array(Auth::user()->role, ['super-admin', 'super_admin']))
             <option value="">Semua Pertashop</option>
@@ -505,21 +505,21 @@
                     <td style="font-size: 13px; font-weight: 600; padding: 10px 16px;">{{ $detail->operator->user?->name ?? '-' }}</td>
                     <td class="text-right" style="font-size: 13px;">
                       @if(floatval($detail->gaji_pokok) > 0)
-                        Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}
+                        Rp {{ number_format($detail->gaji_pokok, 2, ',', '.') }}
                       @else
                         <span class="text-muted">—</span>
                       @endif
                     </td>
                     <td class="text-right" style="font-size: 13px;">
                       @if(floatval($detail->gaji_variable) > 0)
-                        Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}
+                        Rp {{ number_format($detail->gaji_variable, 2, ',', '.') }}
                       @else
                         <span class="text-muted">—</span>
                       @endif
                     </td>
                     <td class="text-right" style="font-size: 13px;">
                       @if(floatval($detail->uang_transport) > 0)
-                        Rp {{ number_format($detail->uang_transport, 0, ',', '.') }}
+                        Rp {{ number_format($detail->uang_transport, 2, ',', '.') }}
                       @else
                         <span class="text-muted">—</span>
                       @endif
@@ -527,13 +527,13 @@
                     <td class="text-right" style="font-size: 13px; color: #dc2626;">
                       @php $totalPotongan = floatval($detail->potongan_tidak_masuk) + floatval($detail->kurang_setoran) + floatval($detail->tabungan_gaji) + floatval($detail->tabungan_setoran) + floatval($detail->potongan_hutang); @endphp
                       @if($totalPotongan > 0)
-                        - Rp {{ number_format($totalPotongan, 0, ',', '.') }}
+                        - Rp {{ number_format($totalPotongan, 2, ',', '.') }}
                       @else
                         <span class="text-muted">—</span>
                       @endif
                     </td>
                     <td class="text-right font-weight-bold" style="font-size: 13.5px; color: #059669; padding-right: 16px;">
-                      Rp {{ number_format($detail->hitungTHP(), 0, ',', '.') }}
+                      Rp {{ number_format($detail->hitungTHP(), 2, ',', '.') }}
                     </td>
                   </tr>
                   @endforeach
@@ -549,7 +549,7 @@
                   <tr>
                     <td colspan="5" class="text-right font-weight-bold" style="font-size: 12.5px; padding: 10px 16px;">Total Penggajian Outlet:</td>
                     <td class="text-right font-weight-bold" style="font-size: 14px; color: #059669; padding-right: 16px;">
-                      Rp {{ number_format($period->details->sum(fn($d) => $d->hitungTHP()), 0, ',', '.') }}
+                      Rp {{ number_format($period->details->sum(fn($d) => $d->hitungTHP()), 2, ',', '.') }}
                     </td>
                   </tr>
                 </tfoot>
@@ -576,7 +576,7 @@
     <form method="GET" action="{{ route('payroll-systems.index') }}" class="d-flex align-items-center" style="gap: 16px; flex-wrap: wrap;">
       <input type="hidden" name="tab" value="kunci">
       <div class="d-flex align-items-center" style="gap: 8px;">
-        <label class="text-muted mb-0" style="font-size: 12px; font-weight: 700; text-transform: uppercase;">Pertashop:</label>
+        <label class="text-muted mb-0 text-nowrap" style="font-size: 12px; font-weight: 700; text-transform: uppercase; white-space: nowrap;">Pertashop:</label>
         <select name="shop_id" class="form-control form-control-sm font-weight-bold" style="border-radius: 8px; min-width: 160px;" onchange="this.form.submit()">
           @foreach($shops as $shop)
             <option value="{{ $shop->id }}" {{ $selectedShopId == $shop->id ? 'selected' : '' }}>{{ $shop->nama }}</option>

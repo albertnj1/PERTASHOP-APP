@@ -19,6 +19,26 @@ class Incoming extends Model
         'is_pertamax' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        static::updated(function ($incoming) {
+            if (class_exists(\App\Models\AuditLog::class) && \Illuminate\Support\Facades\Schema::hasTable('audit_logs')) {
+                $dirty = $incoming->getDirty();
+                if (!empty($dirty)) {
+                    $original = array_intersect_key($incoming->getOriginal(), $dirty);
+                    \App\Models\AuditLog::log(
+                        action: 'UPDATE_INCOMING_PURCHASE',
+                        modelType: 'Incoming',
+                        modelId: $incoming->id,
+                        description: "Perubahan data penerimaan/pembelian BBM ID #{$incoming->id} (laporan {$incoming->daily_report_id})",
+                        oldValues: $original,
+                        newValues: $dirty
+                    );
+                }
+            }
+        });
+    }
+
     protected $appends = ['volume_aktual'];
 
     public function operator()

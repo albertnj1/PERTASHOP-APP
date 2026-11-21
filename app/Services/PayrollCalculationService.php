@@ -247,9 +247,10 @@ class PayrollCalculationService
 
                 // 1. Komisi per Liter (Gaji Variable)
                 // Berlaku untuk: 'komisi_murni' dan 'hibrid'
+                // Desimal murni — tidak ada round() di sini.
                 if (in_array($tipeSkema, ['komisi_murni', 'hibrid'])) {
                     $ratePerLiter = ($payrollSystem->ada_rate_per_liter ?? true) ? floatval($payrollSystem->rate_per_liter) : 0.0;
-                    $gajiVariable = round($literBagian * $ratePerLiter, 0);
+                    $gajiVariable = $literBagian * $ratePerLiter;
                 } else {
                     // Skema 'gaji_pokok_murni': Tanpa komisi liter
                     $ratePerLiter = 0.0;
@@ -258,14 +259,15 @@ class PayrollCalculationService
 
                 // 2. Gaji Pokok
                 // Berlaku untuk: 'gaji_pokok_murni' dan 'hibrid'
+                // Desimal murni — tidak ada round() di sini.
                 if (in_array($tipeSkema, ['gaji_pokok_murni', 'hibrid']) && ($payrollSystem->ada_gaji_pokok ?? true)) {
                     $nominalGajiPokok = floatval($payrollSystem->nominal_gaji_pokok ?? 0);
                     if ($payrollSystem->metode_split === 'flat_bulanan_prorata_hari') {
                         $standarHariKerja = $payrollSystem->standar_hari_kerja ?: 26;
                         $rateHarian       = $standarHariKerja > 0 ? ($nominalGajiPokok / $standarHariKerja) : 0.0;
-                        $gajiPokok        = round($rateHarian * $totals['hari'], 0);
+                        $gajiPokok        = $rateHarian * $totals['hari'];
                     } else {
-                        $gajiPokok        = round($nominalGajiPokok, 0);
+                        $gajiPokok        = $nominalGajiPokok;
                     }
                 } else {
                     // Skema 'komisi_murni': Tanpa gaji pokok
@@ -274,8 +276,9 @@ class PayrollCalculationService
 
                 // === Uang Transport ===
                 // Dihitung per hari kerja, TIDAK masuk basis prorata potongan alpha.
+                // Desimal murni.
                 $rateTransport = floatval($payrollSystem->rate_transport_per_hari ?? 0);
-                $uangTransport = round($totals['hari'] * $rateTransport, 0);
+                $uangTransport = $totals['hari'] * $rateTransport;
 
                 // === Potongan Alpha (Dinamis atau Nominal Tetap) ===
                 $recap = $attendanceRecaps->get($opId);
@@ -290,26 +293,26 @@ class PayrollCalculationService
                     $standarHariKerja  = $payrollSystem->standar_hari_kerja ?: 26;
                     $basisGaji         = $gajiPokok + $gajiVariable; // Tanpa transport
                     $rateHarianDinamis = $standarHariKerja > 0 ? ($basisGaji / $standarHariKerja) : 0.0;
-                    $potonganAlpha     = round($jumlahAlpha * $rateHarianDinamis, 0);
+                    $potonganAlpha     = $jumlahAlpha * $rateHarianDinamis;
                 } else {
                     // Potongan Alpha Nominal Tetap (default, backward-compatible)
-                    $potonganAlpha = round($jumlahAlpha * floatval($payrollSystem->potongan_per_hari_alpha), 0);
+                    $potonganAlpha = $jumlahAlpha * floatval($payrollSystem->potongan_per_hari_alpha);
                 }
 
-                // Auto-pull kurang setoran
-                $kurangSetoran = round($kurangSetoranPerOperator[$opId] ?? 0.0, 0);
+                // Auto-pull kurang setoran (nilai asli dari daily_reports, desimal murni)
+                $kurangSetoran = floatval($kurangSetoranPerOperator[$opId] ?? 0.0);
 
-                // Auto-pull tabungan setoran
-                $tabunganSetoran = $savingsTotals->get($opId) ? round(floatval($savingsTotals->get($opId)->total), 0) : 0.0;
+                // Auto-pull tabungan setoran (desimal murni)
+                $tabunganSetoran = $savingsTotals->get($opId) ? floatval($savingsTotals->get($opId)->total) : 0.0;
 
-                // Auto-pull potongan hutang / kasbon yang sudah APPROVED / ACTIVE
-                $potonganHutang  = round(floatval($loanTotals[$opId] ?? 0.0), 0);
+                // Auto-pull potongan hutang / kasbon yang sudah APPROVED / ACTIVE (desimal murni)
+                $potonganHutang  = floatval($loanTotals[$opId] ?? 0.0);
 
                 // THP = (Gaji_Pokok + Gaji_Variable + Uang_Transport) - Total_Potongan
-                // Uang transport masuk Total_Tambahan, TIDAK masuk basis prorata alpha
+                // Desimal murni — tidak ada round() di sini. Pembulatan hanya di tampilan.
                 $gajiKotor     = $gajiPokok + $gajiVariable + $uangTransport;
                 $totalPotongan = $potonganAlpha + $kurangSetoran + $tabunganSetoran + $potonganHutang;
-                $thp           = round($gajiKotor - $totalPotongan, 0);
+                $thp           = $gajiKotor - $totalPotongan;
                 $sisaKurangBayar = $thp < 0 ? abs($thp) : 0.0;
 
                 $detail = PayrollDetail::create([

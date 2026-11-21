@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 @section('title', 'Assign Operator ke Penggajian')
 
 @section('content')
@@ -55,7 +55,8 @@
         <h5 class="mb-0">Daftar Assignment Aktif</h5>
       </div>
       <div class="card-body p-0">
-        <table class="table table-hover mb-0">
+        <div class="table-responsive">
+<table class="table table-hover mb-0">
           <thead class="thead-light">
             <tr>
               <th>#</th>
@@ -106,6 +107,7 @@
             @endforelse
           </tbody>
         </table>
+</div>
       </div>
     </div>
 

@@ -25,13 +25,13 @@ class AttendanceRecap extends Model
         $totals = ShiftSchedule::where('operator_id', $operatorId)
             ->whereMonth('tanggal', $bulan)
             ->whereYear('tanggal', $tahun)
-            ->selectRaw('
-                SUM(CASE WHEN status != "libur" THEN 1 ELSE 0 END) as total_dijadwalkan,
-                SUM(CASE WHEN status = "hadir"  THEN 1 ELSE 0 END) as total_hadir,
-                SUM(CASE WHEN status = "alpha"  THEN 1 ELSE 0 END) as total_alpha,
-                SUM(CASE WHEN status = "izin"   THEN 1 ELSE 0 END) as total_izin,
-                SUM(CASE WHEN status = "sakit"  THEN 1 ELSE 0 END) as total_sakit
-            ')
+            ->selectRaw("
+                SUM(CASE WHEN status != 'libur' THEN 1 ELSE 0 END) as total_dijadwalkan,
+                SUM(CASE WHEN status = 'hadir'  THEN 1 ELSE 0 END) as total_hadir,
+                SUM(CASE WHEN status = 'alpha'  THEN 1 ELSE 0 END) as total_alpha,
+                SUM(CASE WHEN status = 'izin'   THEN 1 ELSE 0 END) as total_izin,
+                SUM(CASE WHEN status = 'sakit'  THEN 1 ELSE 0 END) as total_sakit
+            ")
             ->first();
 
         static::updateOrCreate(

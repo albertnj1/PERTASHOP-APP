@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'UPLOAD FILE BACKDATE — Arsip File Excel per Pertashop')
 
 @section('content')

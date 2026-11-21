@@ -58,6 +58,11 @@ class Shop extends Model
         return $this->hasMany(PayrollSystem::class);
     }
 
+    public function startingBalances()
+    {
+        return $this->hasMany(ShopStartingBalance::class);
+    }
+
     public function activePayrollSystem()
     {
         return $this->hasOne(PayrollSystem::class)->where('aktif', true)->latestOfMany();

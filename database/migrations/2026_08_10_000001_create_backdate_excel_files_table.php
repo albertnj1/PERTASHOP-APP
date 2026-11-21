@@ -22,6 +22,14 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
+
+        if (Schema::hasTable('daily_reports') && Schema::hasColumn('daily_reports', 'backdate_file_id')) {
+            Schema::table('daily_reports', function (Blueprint $table) {
+                try {
+                    $table->foreign('backdate_file_id')->references('id')->on('backdate_excel_files')->nullOnDelete();
+                } catch (\Throwable $e) {}
+            });
+        }
     }
 
     /**

@@ -60,6 +60,16 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('daily-reports/export-excel', [DailyReportController::class, 'exportExcel'])->name('daily-reports.export-excel');
     Route::get('daily-reports/export-pdf', [DailyReportController::class, 'exportPdf'])->name('daily-reports.export-pdf');
 
+    // ── Pemantauan Laporan Harian Super Admin (Template Rekap Harian Excel) ─────
+    Route::middleware('role:super-admin')->group(function () {
+        Route::get('/monitoring/daily-reports', [\App\Http\Controllers\DailyReportMonitoringController::class, 'index'])->name('monitoring.daily-reports');
+        Route::get('/monitoring/daily-reports/data', [\App\Http\Controllers\DailyReportMonitoringController::class, 'getData'])->name('monitoring.daily-reports.data');
+        Route::get('/monitoring/daily-reports/overview', [\App\Http\Controllers\DailyReportMonitoringController::class, 'getOverview'])->name('monitoring.daily-reports.overview');
+        Route::get('/monitoring/daily-reports/export-excel', [\App\Http\Controllers\DailyReportMonitoringController::class, 'exportExcel'])->name('monitoring.daily-reports.export-excel');
+        Route::post('/monitoring/daily-reports/validate-period', [\App\Http\Controllers\DailyReportMonitoringController::class, 'validatePeriod'])->name('monitoring.daily-reports.validate-period');
+        Route::get('/monitoring/daily-reports/export-pdf', [\App\Http\Controllers\DailyReportMonitoringController::class, 'exportPdf'])->name('monitoring.daily-reports.export-pdf');
+    });
+
     Route::resources([
         'incomings' => IncomingController::class,
         'test-pumps' => TestPumpController::class,
@@ -107,7 +117,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
             'shops' => ShopController::class,
             'operators' => OperatorController::class,
         ]);
-        
+
         Route::post('monthly-reports/generate', [\App\Http\Controllers\MonthlyReportController::class, 'generateFromDailyReports'])->name('monthly-reports.generate');
         Route::post('monthly-reports/recalculate-cascade/{shop}', [\App\Http\Controllers\MonthlyReportController::class, 'recalculateCascade'])->name('monthly-reports.recalculate-cascade');
         Route::get('monthly-reports/{id}/export-pdf', [\App\Http\Controllers\MonthlyReportController::class, 'exportPdf'])->name('monthly-reports.export-pdf');
@@ -119,24 +129,6 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::get('payroll-systems/by-shop/{shop}', [PayrollSystemController::class, 'byShop'])->name('payroll-systems.by-shop');
         Route::get('payroll-systems/defaults-by-shop/{shop}', [PayrollSystemController::class, 'defaultsByShop'])->name('payroll-systems.defaults-by-shop');
         Route::get('payroll/{payroll}/export-pdf', [PayrollController::class, 'exportPdf'])->name('payroll.export-pdf');
-
-        // Arsip Upload File Excel Backdate (per Pertashop Container) & Engine v2
-        Route::get('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'index'])->name('backdate-excel-files.index');
-        Route::post('backdate-excel-files', [\App\Http\Controllers\BackdateExcelFileController::class, 'store'])->name('backdate-excel-files.store');
-        Route::post('backdate-excel-files/upload-multi', [\App\Http\Controllers\BackdateExcelFileController::class, 'storeMulti'])->name('backdate-excel-files.upload-multi');
-        Route::get('backdate-excel-files/{backdateExcelFile}/download-pdf', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadPdf'])->name('backdate-excel-files.download-pdf');
-        Route::get('backdate-excel-files/{backdateExcelFile}/download-report-excel', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadReportExcel'])->name('backdate-excel-files.download-report-excel');
-        Route::delete('backdate-excel-files/delete-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'deleteAll'])->name('backdate-excel-files.delete-all');
-        Route::post('backdate-excel-files/restore-all', [\App\Http\Controllers\BackdateExcelFileController::class, 'restoreAll'])->name('backdate-excel-files.restore-all');
-        Route::delete('backdate-excel-files/empty-trash', [\App\Http\Controllers\BackdateExcelFileController::class, 'emptyTrash'])->name('backdate-excel-files.empty-trash');
-        Route::post('backdate-excel-files/{id}/restore', [\App\Http\Controllers\BackdateExcelFileController::class, 'restore'])->name('backdate-excel-files.restore');
-        Route::delete('backdate-excel-files/{id}/force-delete', [\App\Http\Controllers\BackdateExcelFileController::class, 'forceDelete'])->name('backdate-excel-files.force-delete');
-        Route::post('backdate-excel-files/{backdateExcelFile}/sync', [\App\Http\Controllers\BackdateExcelFileController::class, 'sync'])->name('backdate-excel-files.sync');
-        Route::get('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'show'])->name('backdate-excel-files.show');
-        Route::get('backdate-excel-files/{backdateExcelFile}/stream', [\App\Http\Controllers\BackdateExcelFileController::class, 'stream'])->name('backdate-excel-files.stream');
-        Route::get('backdate-excel-files/{backdateExcelFile}/download', [\App\Http\Controllers\BackdateExcelFileController::class, 'download'])->name('backdate-excel-files.download');
-        Route::get('backdate-excel-files/{fileId}/download-original', [\App\Http\Controllers\BackdateExcelFileController::class, 'downloadOriginalBackdateExcel'])->name('backdate-excel-files.download-original');
-        Route::delete('backdate-excel-files/{backdateExcelFile}', [\App\Http\Controllers\BackdateExcelFileController::class, 'destroy'])->name('backdate-excel-files.destroy');
 
         // Laporan Keuangan & Kasflow
         Route::get('finance/cashflow', [FinanceCashflowController::class, 'index'])->name('finance.cashflow');
@@ -229,56 +221,56 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::match(['post', 'patch'], '/corporations/{corporation}/toggle-status', [CorporationController::class, 'toggleStatus'])->name('corporations.toggle-status');
 
     // Generic API Status Toggle
-    Route::match(['post', 'patch'], '/api/toggle-status/{type}/{id}', function(Request $request, $type, $id) {
+    Route::match(['post', 'patch'], '/api/toggle-status/{type}/{id}', function (Request $request, $type, $id) {
         $isActive = $request->input('is_active');
         $model = null;
-        
+
         switch ($type) {
             case 'investors':
             case 'investor':
                 $model = \App\Models\Investor::findOrFail($id);
-                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->is_active = $isActive !== null ? (bool) $isActive : !$model->is_active;
                 $model->save();
                 if ($model->user) {
                     $model->user->is_active = $model->is_active;
                     $model->user->save();
                 }
                 break;
-                
+
             case 'shops':
             case 'pertashops':
             case 'shop':
                 $model = \App\Models\Shop::findOrFail($id);
-                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->is_active = $isActive !== null ? (bool) $isActive : !$model->is_active;
                 $model->save();
                 break;
-                
+
             case 'corporations':
             case 'badan_usaha':
             case 'corporation':
                 $model = \App\Models\Corporation::findOrFail($id);
-                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->is_active = $isActive !== null ? (bool) $isActive : !$model->is_active;
                 $model->save();
                 break;
-                
+
             case 'operators':
             case 'operator':
                 $model = \App\Models\Operator::findOrFail($id);
-                $model->is_active = $isActive !== null ? (bool)$isActive : !$model->is_active;
+                $model->is_active = $isActive !== null ? (bool) $isActive : !$model->is_active;
                 $model->save();
                 if ($model->user) {
                     $model->user->is_active = $model->is_active;
                     $model->user->save();
                 }
                 break;
-                
+
             default:
                 return response()->json(['error' => 'Invalid model type'], 400);
         }
-        
+
         return response()->json([
             'status' => 'success',
-            'is_active' => (bool)$model->is_active,
+            'is_active' => (bool) $model->is_active,
             'message' => 'Status berhasil diperbarui'
         ]);
     })->name('api.toggle-status');
@@ -299,15 +291,15 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($l) => [
-                'id'             => $l->id,
-                'user'           => $l->user?->name ?? '—',
-                'shop'           => $l->shop?->nama ?? 'Global',
-                'action'         => $l->action,
-                'harga_beli_lama'=> $l->harga_beli_lama,
-                'harga_jual_lama'=> $l->harga_jual_lama,
-                'harga_beli_baru'=> $l->harga_beli_baru,
-                'harga_jual_baru'=> $l->harga_jual_baru,
-                'created_at'     => $l->created_at,
+                'id' => $l->id,
+                'user' => $l->user?->name ?? '—',
+                'shop' => $l->shop?->nama ?? 'Global',
+                'action' => $l->action,
+                'harga_beli_lama' => $l->harga_beli_lama,
+                'harga_jual_lama' => $l->harga_jual_lama,
+                'harga_beli_baru' => $l->harga_beli_baru,
+                'harga_jual_baru' => $l->harga_jual_baru,
+                'created_at' => $l->created_at,
             ]);
         return response()->json($logs);
     })->name('price-audit-logs.index');
@@ -327,9 +319,9 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
                     ->first();
             }
             return [
-                'shop_id'    => $shop->id,
-                'shop_nama'  => $shop->nama,
-                'shop_kode'  => $shop->kode,
+                'shop_id' => $shop->id,
+                'shop_nama' => $shop->nama,
+                'shop_kode' => $shop->kode,
                 'harga_beli' => $active ? $active->harga_beli : 0,
                 'harga_jual' => $active ? $active->harga_jual : 0,
                 'effective_at' => $active ? $active->effective_at : null,
@@ -350,8 +342,10 @@ Route::get('/migrasi-server', function () {
 
     // 1. Auto-fix duplicate column migration jika kolom processing_status di backdate_excel_files sudah ada
     try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('backdate_excel_files') && 
-            \Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')) {
+        if (
+            \Illuminate\Support\Facades\Schema::hasTable('backdate_excel_files') &&
+            \Illuminate\Support\Facades\Schema::hasColumn('backdate_excel_files', 'processing_status')
+        ) {
             $migName = '2026_08_30_040000_add_processing_fields_to_backdate_excel_files_table';
             $exists = \Illuminate\Support\Facades\DB::table('migrations')->where('migration', $migName)->exists();
             if (!$exists) {

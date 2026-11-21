@@ -110,23 +110,9 @@ class DailyReportController extends Controller
                 ->addColumn('action', function ($row) use ($data) {
                     $button = '';
 
-                    // Jika merupakan data hasil upload Backdate Arsip
+                    // Jika merupakan data hasil arsip historis
                     if ($row->sumber_data === 'import_excel_arsip') {
-                        $button .= '<span class="badge badge-info mr-1" title="Data dari Import Arsip Backdate" style="font-size: 11px; padding: 4px 8px;"><i class="fa fa-history mr-1"></i>Backdate</span>';
-
-                        $backdateFile = $row->backdateFile;
-                        if (!$backdateFile && !empty($row->sumber_file_excel)) {
-                            $backdateFile = BackdateExcelFile::where('original_filename', $row->sumber_file_excel)
-                                ->orWhere('file_path', 'like', '%' . $row->sumber_file_excel . '%')
-                                ->first();
-                        }
-
-                        if ($backdateFile) {
-                            $button .= '<a href="' . route('backdate-excel-files.download', $backdateFile->id) . '" class="btn btn-sm btn-outline-success mr-1" title="Unduh File Acuan Excel (' . e($backdateFile->original_filename) . ')"><i class="fa fa-file-excel"></i></a>';
-                            $button .= '<a href="' . route('backdate-excel-files.download-pdf', $backdateFile->id) . '" target="_blank" class="btn btn-sm btn-outline-danger mr-1" title="Preview / Unduh PDF Acuan"><i class="fa fa-file-pdf"></i></a>';
-                        } elseif (!empty($row->sumber_file_excel)) {
-                            $button .= '<span class="badge badge-light border text-muted mr-1" title="File Acuan: ' . e($row->sumber_file_excel) . '"><i class="fa fa-file-excel text-success mr-1"></i>' . e(\Illuminate\Support\Str::limit($row->sumber_file_excel, 15)) . '</span>';
-                        }
+                        $button .= '<span class="badge badge-info mr-1" title="Data dari Arsip Historis" style="font-size: 11px; padding: 4px 8px;"><i class="fa fa-history mr-1"></i>Arsip</span>';
                     }
 
                     if (Auth::user()->role == 'operator') {

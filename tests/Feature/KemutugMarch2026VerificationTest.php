@@ -39,9 +39,9 @@ class KemutugMarch2026VerificationTest extends TestCase
     {
         parent::setUp();
 
-        // 1. Bersihkan database sqlite untuk isolasi test
+        // 1. Bersihkan database untuk isolasi test
         DailyReport::clearInternalCache();
-        DB::statement('PRAGMA foreign_keys = OFF');
+        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
         DB::table('spendings')->delete();
         DB::table('incomings')->delete();
         DB::table('test_pumps')->delete();
@@ -58,7 +58,7 @@ class KemutugMarch2026VerificationTest extends TestCase
         DB::table('shops')->delete();
         DB::table('corporations')->delete();
         DB::table('spending_categories')->delete();
-        DB::statement('PRAGMA foreign_keys = ON');
+        \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
 
         // 2. Seed business rules
         $this->seed(\Database\Seeders\BusinessRuleSeeder::class);
@@ -350,17 +350,17 @@ class KemutugMarch2026VerificationTest extends TestCase
         $this->assertNotNull($detailDendi);
         $this->assertNotNull($detailWawan);
 
-        // Dendi: 21046.648 L x 200 = 4.209.330
+        // Dendi: 21046.648 L x 200 = 4.209.329,60 (desimal murni)
         $this->assertEqualsWithDelta(21046.648, $detailDendi->liter_bagian, 0.01);
-        $this->assertEquals(4209330, $detailDendi->gaji_variable);
+        $this->assertEqualsWithDelta(4209329.60, floatval($detailDendi->gaji_variable), 0.01);
 
-        // Wawan: 2170.719 L x 200 = 434.144
+        // Wawan: 2170.719 L x 200 = 434.143,80 (desimal murni)
         $this->assertEqualsWithDelta(2170.719, $detailWawan->liter_bagian, 0.01);
-        $this->assertEquals(434144, $detailWawan->gaji_variable);
+        $this->assertEqualsWithDelta(434143.80, floatval($detailWawan->gaji_variable), 0.01);
 
-        // Total Gaji Operator = 4.209.330 + 434.144 = 4.643.474 (selisih 1 Rp akibat pembulatan per operator)
+        // Total Gaji Operator = 4.209.329,60 + 434.143,80 = 4.643.473,40 (sama persis dengan Excel)
         $totalGaji = $payrollPeriod->details->sum('gaji_variable');
-        $this->assertEqualsWithDelta(4643473, $totalGaji, 1.0, 'Total Gaji Operator');
+        $this->assertEqualsWithDelta(4643473.40, floatval($totalGaji), 0.01, 'Total Gaji Operator');
     }
 
     /**

@@ -1,5 +1,6 @@
 <div class="signature-section mt-5" style="page-break-inside: avoid; font-family: 'Times New Roman', Times, serif; font-size: 11px; margin-top: 30px;">
-    <table style="width: 100%; border: none;">
+    <div class="table-responsive">
+<table style="width: 100%; border: none;">
         <tr>
             <td style="text-align: center; vertical-align: top;">
                 <div>Disetujui Oleh,</div>
@@ -12,6 +13,7 @@
                         @endforeach
                     </tr>
                 </table>
+</div>
             </td>
             <td style="text-align: center; vertical-align: top; width: 25%;">
                 <div>Banyumas, {{ \Carbon\Carbon::parse($report->bulan_tahun)->endOfMonth()->isoFormat('D MMMM YYYY') }}</div>

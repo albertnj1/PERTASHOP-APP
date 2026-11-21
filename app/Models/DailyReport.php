@@ -8,6 +8,7 @@ use App\Models\Incoming;
 use App\Models\Operator;
 use App\Models\Spending;
 use App\Models\TestPump;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -29,6 +30,40 @@ class DailyReport extends Model
         static::saved(function ($report) {
             if ($report->sumber_data === 'import_excel_arsip') {
                 return; // Data arsip backdate, menghentikan seluruh proses operasional lanjutan
+            }
+        });
+
+        static::updated(function ($report) {
+            if ($report->wasChanged()) {
+                // Catat HANYA perubahan kolom input operator murni (Bagian 2 Spesifikasi),
+                // BUKAN kolom turunan hasil hitung ulang berantai (totalisator_awal, stok_awal, running_balance_setoran, dll).
+                $operatorInputColumns = [
+                    'totalisator_akhir',
+                    'stik_akhir',
+                    'test_pump_volume',
+                    'bbm_keluar_lain',
+                    'penerimaan_volume',
+                    'setor_tunai',
+                    'setor_qris',
+                    'setor_transfer',
+                    'disetorkan',
+                    'operator_id',
+                    'keterangan_lain_lain',
+                ];
+
+                $dirty = array_intersect_key($report->getDirty(), array_flip($operatorInputColumns));
+
+                if (!empty($dirty) && class_exists(\App\Models\AuditLog::class) && \Illuminate\Support\Facades\Schema::hasTable('audit_logs')) {
+                    $original = array_intersect_key($report->getOriginal(), $dirty);
+                    \App\Models\AuditLog::log(
+                        action: 'UPDATE_OPERATOR_INPUT',
+                        modelType: 'DailyReport',
+                        modelId: $report->id,
+                        description: "Perubahan input operator laporan harian tanggal " . ($report->report_date ? $report->report_date->toDateString() : $report->created_at),
+                        oldValues: $original,
+                        newValues: $dirty
+                    );
+                }
             }
         });
     }
@@ -312,10 +347,10 @@ class DailyReport extends Model
 
     public function getStokAkhirTeoritisAttribute()
     {
-        // Stok_Teoritis = Stok_Awal + Penerimaan_BBM - Volume_Penjualan_Aktual
-        // volume_penjualan_aktual sudah memperhitungkan pengurangan test_pump dan bbm_keluar_lain,
-        // sehingga TIDAK boleh mengurangi bbm_keluar_lain lagi di sini (menghindari double-deduction).
-        return round($this->stok_awal + $this->penerimaan - $this->volume_penjualan_aktual, 3);
+        // Stok_Teoritis = Stok_Awal + Penerimaan_BBM - BBM_Keluar_Lain - Volume_Penjualan_Aktual
+        // Rumus Excel: Q = N + P - J - L (Keluar tangki riil = L + J = F - H)
+        $bbmKeluarLain = floatval($this->bbm_keluar_lain ?? 0);
+        return round($this->stok_awal + $this->penerimaan - $bbmKeluarLain - $this->volume_penjualan_aktual, 3);
     }
 
     public function getOmsetPlusLossesAttribute()

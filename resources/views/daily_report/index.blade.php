@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @push('style')
 <style>
@@ -109,25 +109,25 @@
                     <!-- Filter Controls: Shop + Dates + Action Buttons -->
                     <div class="row align-items-end">
                         @if (Auth::user()->role == 'operator')
-                            <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="col-12 col-sm-6 col-lg-3 mb-2">
                                 <label class="small font-weight-bold text-muted mb-1">Cabang / Pertashop</label>
                                 <div class="form-control bg-light text-truncate font-weight-bold" style="border: 1px solid #ced4da;">
                                     <i class="fa fa-store-alt text-primary mr-1"></i>
-                                    {{ Auth::user()->operator->shop->kode . ' ' . Auth::user()->operator->shop->nama }}
+                                    {{ (Auth::user()->operator?->shop?->kode ?? '') . ' ' . (Auth::user()->operator?->shop?->nama ?? '') }}
                                 </div>
-                                <input type="hidden" id="filter_shop_id" value="{{ Auth::user()->operator->shop_id }}">
+                                <input type="hidden" id="filter_shop_id" value="{{ Auth::user()->operator?->shop_id ?? '' }}">
                             </div>
                         @elseif(Auth::user()->role == 'admin')
-                            <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="col-12 col-sm-6 col-lg-3 mb-2">
                                 <label class="small font-weight-bold text-muted mb-1">Cabang / Pertashop</label>
                                 <div class="form-control bg-light text-truncate font-weight-bold" style="border: 1px solid #ced4da;">
                                     <i class="fa fa-store-alt text-primary mr-1"></i>
-                                    {{ Auth::user()->admin->shop->kode . ' ' . Auth::user()->admin->shop->nama }}
+                                    {{ (Auth::user()->admin?->shop?->kode ?? '') . ' ' . (Auth::user()->admin?->shop?->nama ?? '') }}
                                 </div>
-                                <input type="hidden" id="filter_shop_id" value="{{ Auth::user()->admin->shop_id }}">
+                                <input type="hidden" id="filter_shop_id" value="{{ Auth::user()->admin?->shop_id ?? '' }}">
                             </div>
                         @else
-                            <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="col-12 col-sm-6 col-lg-3 mb-2">
                                 <label class="small font-weight-bold text-muted mb-1">Pilih Cabang / Pertashop</label>
                                 <select id="filter_shop_id" name="shop_id" class="form-control font-weight-bold" style="border: 1px solid #cbd5e1;">
                                     @foreach ($shops as $s)
@@ -139,7 +139,7 @@
                             </div>
                         @endif
 
-                        <div class="col-md-3 col-sm-6 mb-2">
+                        <div class="col-12 col-sm-6 col-lg-3 mb-2">
                             <label class="small font-weight-bold text-muted mb-1">Tanggal Mulai</label>
                             <div class="input-group">
                                 <div class="input-group-prepend">
@@ -149,7 +149,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3 col-sm-6 mb-2">
+                        <div class="col-12 col-sm-6 col-lg-3 mb-2">
                             <label class="small font-weight-bold text-muted mb-1">Tanggal Selesai</label>
                             <div class="input-group">
                                 <div class="input-group-prepend">
@@ -159,7 +159,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-3 col-sm-6 mb-2">
+                        <div class="col-12 col-sm-6 col-lg-3 mb-2">
                             <div class="d-flex">
                                 <button type="button" id="btn-filter" class="btn btn-primary font-weight-bold flex-fill mr-1 shadow-sm">
                                     <i class="fa fa-search mr-1"></i> Tampilkan

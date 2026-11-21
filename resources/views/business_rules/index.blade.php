@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Aturan Bisnis (Business Rules)')
 
 @section('content')

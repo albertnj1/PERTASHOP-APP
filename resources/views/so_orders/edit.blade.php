@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @section('content')
     <section class="content-header">
@@ -132,12 +132,14 @@
 
                                 <div class="alert mb-0 pb-2 pt-3 shadow-sm" style="background-color: #f0fdf4; border-left: 4px solid #22c55e;">
                                     <h6 class="font-weight-bold" style="color: #166534;"><i class="fas fa-chart-bar"></i> Preview</h6>
-                                    <table class="table table-sm table-borderless mb-0" style="font-size: 0.95rem;">
+                                    <div class="table-responsive">
+<table class="table table-sm table-borderless mb-0" style="font-size: 0.95rem;">
                                         <tr>
                                             <td class="py-1">Harga / Liter</td>
                                             <td class="text-right py-1 font-weight-bold" id="preview_harga_per_liter">Rp 0</td>
                                         </tr>
                                     </table>
+</div>
                                 </div>
                             </div>
                         </div>
@@ -153,7 +155,8 @@
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <table class="table table-bordered mb-0" id="trips-table">
+                        <div class="table-responsive">
+<table class="table table-bordered mb-0" id="trips-table">
                             <thead class="bg-light">
                                 <tr>
                                     <th class="text-center" style="width: 60px;">Trip #</th>
@@ -165,6 +168,7 @@
                             <tbody id="trips-body">
                             </tbody>
                         </table>
+</div>
                     </div>
                     <div class="card-footer">
                         <div id="volume-validation-msg" class="text-danger font-weight-bold" style="display: none;">

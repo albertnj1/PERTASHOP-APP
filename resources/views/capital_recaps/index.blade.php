@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 
 @section('title', 'Rekapitulasi Nilai Modal')
 
@@ -55,7 +55,7 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
             <form method="GET" action="{{ route('capital-recaps.index') }}" class="form-inline" style="display: flex; align-items: center; gap: 12px;">
-                <label style="margin: 0; font-weight: 600;">Pertashop:</label>
+                <label class="text-nowrap" style="margin: 0; font-weight: 600; white-space: nowrap;">Pertashop:</label>
                 <select name="shop_id" class="form-control" onchange="this.form.submit()" style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.15); outline: none; background: #fff; cursor: pointer;">
                     <option value="">-- Semua Pertashop --</option>
                     @foreach($shops as $shop)

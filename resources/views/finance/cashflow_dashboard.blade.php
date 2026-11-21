@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Dashboard Cash Flow & Analisis Keuangan')
 
 @section('content')
@@ -44,24 +44,24 @@
       @endif
     </div>
   </div>
-  <div class="row cols-1-1-1" style="grid-template-columns: repeat(4, 1fr);">
-    <div class="text-center py-2 border-right">
-      <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Penjualan Harian Rata-rata</div>
-      <div style="font-size: 18px; font-weight: 800; color: var(--ink);" class="mt-1">{{ number_format($stockPrediction['avg_daily_sales'], 1, ',', '.') }} L/hari</div>
+  <div class="row kpi-row text-center">
+    <div class="col-6 col-sm-6 col-lg-3 py-2 border-right mb-2 mb-lg-0 px-1">
+      <div class="text-muted" style="font-size: 10px; text-transform: uppercase;">Penjualan Rata-rata</div>
+      <div style="font-size: 15px; font-weight: 800; color: var(--ink);" class="mt-1">{{ number_format($stockPrediction['avg_daily_sales'], 1, ',', '.') }} L/hari</div>
     </div>
-    <div class="text-center py-2 border-right">
-      <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Stok Tangki Aktual</div>
-      <div style="font-size: 18px; font-weight: 800; color: var(--blue);" class="mt-1">{{ number_format($stockPrediction['current_stok'], 1, ',', '.') }} L</div>
+    <div class="col-6 col-sm-6 col-lg-3 py-2 border-right mb-2 mb-lg-0 px-1">
+      <div class="text-muted" style="font-size: 10px; text-transform: uppercase;">Stok Tangki</div>
+      <div style="font-size: 15px; font-weight: 800; color: var(--blue);" class="mt-1">{{ number_format($stockPrediction['current_stok'], 1, ',', '.') }} L</div>
     </div>
-    <div class="text-center py-2 border-right">
-      <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Estimasi Sisa Hari Stok</div>
-      <div style="font-size: 18px; font-weight: 800; color: {{ $stockPrediction['is_critical'] ? 'var(--red)' : 'var(--green)' }};" class="mt-1">
+    <div class="col-6 col-sm-6 col-lg-3 py-2 border-right mb-2 mb-lg-0 px-1">
+      <div class="text-muted" style="font-size: 10px; text-transform: uppercase;">Sisa Hari Stok</div>
+      <div style="font-size: 15px; font-weight: 800; color: {{ $stockPrediction['is_critical'] ? 'var(--red)' : 'var(--green)' }};" class="mt-1">
         {{ $stockPrediction['days_remaining'] }} Hari
       </div>
     </div>
-    <div class="text-center py-2">
-      <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Saran Tgl Order &amp; Volume SO</div>
-      <div style="font-size: 18px; font-weight: 800; color: var(--amber);" class="mt-1">
+    <div class="col-6 col-sm-6 col-lg-3 py-2 px-1">
+      <div class="text-muted" style="font-size: 10px; text-transform: uppercase;">Saran Order SO</div>
+      <div style="font-size: 15px; font-weight: 800; color: var(--amber);" class="mt-1">
         {{ $stockPrediction['recommended_order_date'] ?? '-' }} (±{{ number_format($stockPrediction['suggested_volume'], 0, ',', '.') }} L)
       </div>
     </div>
@@ -69,26 +69,34 @@
 </div>
 
 {{-- STATISTIK CASHFLOW BULANAN --}}
-<div class="summary-grid mb-4">
-  <div class="metric-card pos">
-    <div class="metric-label">Total Pendapatan Bersih</div>
-    <div class="metric-value pos">Rp {{ number_format($totalPendapatan, 0, ',', '.') }}</div>
-    <div class="metric-sub">Bulan berjalan</div>
+<div class="row kpi-row mb-3">
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card pos h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Pendapatan Bersih</div>
+      <div class="metric-value pos">Rp {{ number_format($totalPendapatan, 0, ',', '.') }}</div>
+      <div class="metric-sub" style="font-size: 9px;">Bulan berjalan</div>
+    </div>
   </div>
-  <div class="metric-card neutral">
-    <div class="metric-label">Total Cash Disetorkan</div>
-    <div class="metric-value" style="color: var(--blue);">Rp {{ number_format($totalDisetorkan, 0, ',', '.') }}</div>
-    <div class="metric-sub">Laporan harian</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card neutral h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Cash Disetor</div>
+      <div class="metric-value" style="color: var(--blue);">Rp {{ number_format($totalDisetorkan, 0, ',', '.') }}</div>
+      <div class="metric-sub" style="font-size: 9px;">Laporan harian</div>
+    </div>
   </div>
-  <div class="metric-card neg">
-    <div class="metric-label">Total Biaya Operasional</div>
-    <div class="metric-value neg">Rp {{ number_format($totalSpendings, 0, ',', '.') }}</div>
-    <div class="metric-sub">Pengeluaran terdistribusi</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card neg h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Biaya Ops</div>
+      <div class="metric-value neg">Rp {{ number_format($totalSpendings, 0, ',', '.') }}</div>
+      <div class="metric-sub" style="font-size: 9px;">Pengeluaran</div>
+    </div>
   </div>
-  <div class="metric-card neutral">
-    <div class="metric-label">Total Pembelian BBM (SO)</div>
-    <div class="metric-value" style="color: var(--amber);">Rp {{ number_format($totalPurchasesNominal, 0, ',', '.') }}</div>
-    <div class="metric-sub">Pembelian Pertamina</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card neutral h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Beli BBM (SO)</div>
+      <div class="metric-value" style="color: var(--amber);">Rp {{ number_format($totalPurchasesNominal, 0, ',', '.') }}</div>
+      <div class="metric-sub" style="font-size: 9px;">Pertamina</div>
+    </div>
   </div>
 </div>
 

@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @section('content')
     <section class="content-header">
@@ -97,7 +97,8 @@
                             <h3 class="card-title" style="font-weight: 600;"><i class="fas fa-store mr-2 text-muted"></i>Daftar Pertashop Investasi</h3>
                         </div>
                         <div class="card-body p-0">
-                            <table class="table table-striped table-valign-middle">
+                            <div class="table-responsive">
+<table class="table table-striped table-valign-middle">
                                 <thead>
                                     <tr>
                                         <th>Kode</th>
@@ -122,6 +123,7 @@
                                     @endif
                                 </tbody>
                             </table>
+</div>
                         </div>
                     </div>
                 </div>

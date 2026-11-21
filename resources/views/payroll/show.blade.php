@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Detail Penggajian — ' . $payroll->periode_label)
 
 @push('style')
@@ -172,7 +172,7 @@
               {{-- Gaji Pokok (readonly) --}}
               <td class="text-right">
                 @if(!$payroll->payrollSystem->isKomisiMurni() && $detail->gaji_pokok > 0)
-                  Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}
+                  Rp {{ number_format($detail->gaji_pokok, 2, ',', '.') }}
                 @else
                   <span class="text-muted">—</span>
                 @endif
@@ -181,7 +181,7 @@
               {{-- Gaji Variable (readonly) --}}
               <td class="text-right">
                 @if(!$payroll->payrollSystem->isGajiPokokMurni() && ($detail->gaji_variable > 0 || $payroll->payrollSystem->ada_rate_per_liter))
-                  <strong>Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</strong>
+                  <strong>Rp {{ number_format($detail->gaji_variable, 2, ',', '.') }}</strong>
                 @else
                   <span class="text-muted">—</span>
                 @endif
@@ -379,7 +379,7 @@
 
               {{-- THP --}}
               <td class="text-right thp-cell" id="thp-{{ $detail->id }}" style="background:#f0fff4;">
-                Rp {{ number_format($detail->take_home_pay, 0, ',', '.') }}
+                Rp {{ number_format($detail->take_home_pay, 2, ',', '.') }}
               </td>
             </tr>
             @endforeach
@@ -388,11 +388,11 @@
             <tr>
               <td colspan="4" class="text-right font-weight-bold">Total</td>
               <td class="text-right font-weight-bold">
-                Rp {{ number_format($payroll->details->sum('gaji_variable'), 0, ',', '.') }}
+                Rp {{ number_format($payroll->details->sum('gaji_variable'), 2, ',', '.') }}
               </td>
               <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
               <td class="text-right font-weight-bold" style="background:#f0fff4;">
-                Rp {{ number_format($payroll->details->sum('take_home_pay'), 0, ',', '.') }}
+                Rp {{ number_format($payroll->details->sum('take_home_pay'), 2, ',', '.') }}
               </td>
             </tr>
           </tfoot>
@@ -407,7 +407,8 @@
       </div>
       <div class="card-body p-0">
         <div style="max-height: 350px; overflow-y:auto;">
-          <table class="table table-sm table-bordered mb-0" style="font-size:0.78rem;">
+          <div class="table-responsive">
+<table class="table table-sm table-bordered mb-0" style="font-size:0.78rem;">
             <thead class="thead-light" style="position:sticky;top:0;z-index:1;">
               <tr>
                 <th>Tanggal</th>
@@ -441,6 +442,7 @@
               @endforeach
             </tbody>
           </table>
+</div>
         </div>
       </div>
     </div>

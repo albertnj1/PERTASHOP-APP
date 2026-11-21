@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 
 @section('content')
@@ -37,7 +37,9 @@
 
                 <div class="card-body">
 
-                    <table id="table" class="table table-bordered"></table>
+                    <div class="table-responsive">
+<table id="table" class="table table-bordered"></table>
+</div>
 
                 </div>
 

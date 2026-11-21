@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 
 @section('content')
@@ -571,19 +571,19 @@
             </div>
             <div class="card-body py-2" id="preview-body">
                 <div class="row text-center">
-                    <div class="col-6 col-md-3 mb-2">
+                    <div class="col-12 col-sm-6 col-lg-3 mb-2">
                         <div class="text-muted" style="font-size:0.7rem;">Volume Terjual</div>
                         <div class="font-weight-bold" id="prev-volume">—</div>
                     </div>
-                    <div class="col-6 col-md-3 mb-2">
+                    <div class="col-12 col-sm-6 col-lg-3 mb-2">
                         <div class="text-muted" style="font-size:0.7rem;">Pendapatan</div>
                         <div class="font-weight-bold text-success" id="prev-pendapatan">—</div>
                     </div>
-                    <div class="col-6 col-md-3 mb-2">
+                    <div class="col-12 col-sm-6 col-lg-3 mb-2">
                         <div class="text-muted" style="font-size:0.7rem;">Losses/Gain</div>
                         <div class="font-weight-bold" id="prev-losses">—</div>
                     </div>
-                    <div class="col-6 col-md-3 mb-2">
+                    <div class="col-12 col-sm-6 col-lg-3 mb-2">
                         <div class="text-muted" style="font-size:0.7rem;">Belum Disetor</div>
                         <div class="font-weight-bold text-danger" id="prev-belum-setor">—</div>
                     </div>

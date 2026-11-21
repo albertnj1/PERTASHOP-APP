@@ -25,19 +25,10 @@ return new class extends Migration
             if (!Schema::hasColumn('payroll_systems', 'rate_transport_per_hari')) {
                 $table->decimal('rate_transport_per_hari', 10, 2)->default(0)->after('standar_hari_kerja');
             }
-        });
-
-        // Tambah metode_potongan_alpha sebagai enum (MySQL)
-        try {
-            DB::statement("ALTER TABLE payroll_systems ADD COLUMN IF NOT EXISTS metode_potongan_alpha ENUM('nominal_tetap', 'prorata_gaji_pokok') NOT NULL DEFAULT 'nominal_tetap' AFTER rate_transport_per_hari");
-        } catch (\Throwable $e) {
-            // Fallback untuk SQLite atau database yang tidak support ADD COLUMN IF NOT EXISTS
             if (!Schema::hasColumn('payroll_systems', 'metode_potongan_alpha')) {
-                Schema::table('payroll_systems', function (Blueprint $table) {
-                    $table->string('metode_potongan_alpha', 30)->default('nominal_tetap')->after('rate_transport_per_hari');
-                });
+                $table->string('metode_potongan_alpha', 30)->default('nominal_tetap')->after('rate_transport_per_hari');
             }
-        }
+        });
     }
 
     public function down(): void

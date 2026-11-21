@@ -37,9 +37,8 @@ body{
 .content{ padding:24px 26px 50px; }
 h1.page-title{ font-size:21px; margin:0 0 20px; font-weight: 700; color: var(--ink); }
 
-/* ===== TOUCH TARGET ACCESSIBILITY & BUTTONS ===== */
+/* ===== BUTTONS ===== */
 .btn {
-  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -49,18 +48,15 @@ h1.page-title{ font-size:21px; margin:0 0 20px; font-weight: 700; color: var(--i
   transition: all 0.15s ease-in-out;
 }
 .btn-sm {
-  min-height: 38px;
   padding: 6px 12px;
   font-size: 0.85rem;
 }
 .btn-xs {
-  min-height: 32px;
   padding: 4px 10px;
   font-size: 0.78rem;
 }
 
 .form-control {
-  min-height: 44px;
   border-radius: 9px;
   border: 1px solid var(--border);
   padding: 8px 14px;
@@ -308,30 +304,30 @@ table.dataTable tbody td {
   }
 }
 
-@media (max-width: 767px){
+@media (max-width: 767.98px){
   /* Mobile Layout Spacing */
   .topbar { padding: 10px 14px; }
   .topbar .crumbs { font-size: 11px; }
-  .content { padding: 14px 12px 30px; }
+  .content { padding: 14px 10px 30px; }
   h1.page-title { font-size: 16px; margin-bottom: 10px; }
 
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
+  .summary-grid, .summary-grid.cols-6 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
   .summary-grid > *:last-child:nth-child(odd) {
-    grid-column: span 2;
+    grid-column: auto !important;
   }
-  .metric-card { padding: 10px 12px !important; border-radius: 12px !important; }
-  .metric-value { font-size: 15px !important; font-weight: 700 !important; margin: 2px 0 !important; }
-  .metric-label { font-size: 10px !important; text-transform: uppercase; }
-  .metric-sub { font-size: 9px !important; }
+  .metric-card { padding: 12px 14px !important; border-radius: 12px !important; }
+  .metric-value { font-size: 16px !important; font-weight: 700 !important; margin: 2px 0 !important; }
+  .metric-label { font-size: 11px !important; text-transform: uppercase; }
+  .metric-sub { font-size: 10px !important; }
   .badge-pill { font-size: 10px; padding: 4px 10px; }
 
   /* Compact Action Grid on Mobile */
   .action-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
   .action-grid > div {
     margin-bottom: 0 !important;
@@ -374,11 +370,11 @@ table.dataTable tbody td {
     padding: 6px 12px !important;
   }
   
-  /* Active Price Cards 2-Column Grid on Mobile */
+  /* Active Price Cards 1-Column Grid on Mobile */
   .outlet-price-grid, #active-price-row {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
     margin-bottom: 12px !important;
   }
   .outlet-price-card, #active-price-row > div {
@@ -460,3 +456,113 @@ table.dataTable tbody td {
     border-radius: 6px !important;
   }
 }
+
+/* ==========================================================================
+   GLOBAL RESPONSIVE TEXT WRAP, TABLES, & FORM RULES (Mobile & Laptop)
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* KUNCI KRITIS: Semua kolom grid Bootstrap & container HARUS min-width: 0 agar child table tidak meledakkan kolom */
+.row,
+.row > [class*="col-"],
+.col,
+.col-1, .col-2, .col-3, .col-4, .col-5, .col-6,
+.col-7, .col-8, .col-9, .col-10, .col-11, .col-12,
+[class*="col-sm-"],
+[class*="col-md-"],
+[class*="col-lg-"],
+[class*="col-xl-"] {
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.card,
+.panel,
+.app-content,
+.container-fluid,
+.content {
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Tabel Lebar Scroll di Dalam Card, Bukan Mendorong Halaman */
+.table-responsive,
+.table-responsive-sm,
+.table-responsive-md,
+.table-responsive-lg,
+.table-responsive-xl,
+.table-rekap-container {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  box-sizing: border-box !important;
+}
+
+/* DESKTOP & TABLET (>= 768px): Hapus word-break agresif dari elemen umum agar teks tidak patah */
+@media (min-width: 768px) {
+  label,
+  .badge,
+  .btn,
+  button,
+  h1, h2, h3, h4, h5, h6,
+  .h1, .h2, .h3, .h4, .h5, .h6,
+  .card-title,
+  .card-header,
+  .topbar-brand-badge,
+  .panel-title,
+  .metric-value,
+  .table th,
+  .table td,
+  .nav-link,
+  .card,
+  .alert,
+  p,
+  span {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+}
+
+/* MOBILE (< 768px): Cegah teks meluber ke kanan */
+@media (max-width: 767.98px) {
+  .card, .alert, .badge, .panel, .metric-card {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+  }
+}
+
+/* Rapikan Input File & Form Global di HP */
+.custom-file {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.custom-file-label {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  padding-right: 85px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.form-control, .custom-select, input, select, textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+

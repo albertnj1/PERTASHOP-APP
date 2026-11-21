@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @section('content')
     <section class="content-header">
@@ -61,7 +61,8 @@
                                     @endif
                                 </div>
                                 <div class="col-md-9">
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="30%">Penempatan Pertashop</th><td>: {{ $operator->shop?->kode ?? '' }} {{ $operator->shop?->nama ?? '' }}</td></tr>
                                         <tr><th>NIK</th><td>: {{ $operator->nik }}</td></tr>
                                         <tr><th>Nama Lengkap</th><td>: {{ $operator->user?->name ?? $operator->name ?? '-' }}</td></tr>
@@ -73,6 +74,7 @@
                                         <tr><th>Kewarganegaraan</th><td>: {{ $operator->kewarganegaraan }}</td></tr>
                                         <tr><th>Alamat Saat Ini Tinggal</th><td>: {{ $operator->alamat }}</td></tr>
                                     </table>
+</div>
                                 </div>
                             </div>
                         </div>
@@ -81,16 +83,20 @@
                         <div class="tab-pane fade" id="content-keluarga" role="tabpanel" aria-labelledby="tab-keluarga">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="40%">No. Kartu Keluarga</th><td>: {{ $operator->no_kk }}</td></tr>
                                         <tr><th>Status Hubungan</th><td>: {{ $operator->status_hubungan }}</td></tr>
                                     </table>
+</div>
                                 </div>
                                 <div class="col-md-6">
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="40%">Nama Ayah Kandung</th><td>: {{ $operator->nama_ayah }}</td></tr>
                                         <tr><th>Nama Ibu Kandung</th><td>: {{ $operator->nama_ibu }}</td></tr>
                                     </table>
+</div>
                                 </div>
                             </div>
                         </div>
@@ -117,15 +123,18 @@
                                         </div>
                                     </div>
 
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="40%">No. HP / Telepon</th><td>: {{ $operator->no_hp }}</td></tr>
                                         <tr><th>Email Pribadi</th><td>: {{ $operator->email_pribadi ?? '-' }}</td></tr>
                                         <tr><th>Akun Media Sosial</th><td>: {{ $operator->akun_medsos ?? '-' }}</td></tr>
                                     </table>
+</div>
                                 </div>
                                 <div class="col-md-6">
                                     <h6 class="text-primary font-weight-bold mb-3 border-bottom pb-2">Informasi Bank & Lainnya</h6>
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="40%">Nama Bank</th><td>: {{ $operator->nama_bank }}</td></tr>
                                         <tr><th>No. Rekening</th><td>: {{ $operator->no_rekening }}</td></tr>
                                         <tr><th>Atas Nama Rekening</th><td>: {{ $operator->atas_nama_rekening }}</td></tr>
@@ -133,6 +142,7 @@
                                         <tr><th>Asal Sekolah</th><td>: {{ $operator->asal_sekolah ?? '-' }}</td></tr>
                                         <tr><th>Golongan Darah</th><td>: {{ $operator->golongan_darah }}</td></tr>
                                     </table>
+</div>
                                 </div>
                             </div>
                         </div>
@@ -142,12 +152,14 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <h6 class="text-primary font-weight-bold mb-3 border-bottom pb-2">Nomor Dokumen Penting</h6>
-                                    <table class="table table-borderless table-sm">
+                                    <div class="table-responsive">
+<table class="table table-borderless table-sm">
                                         <tr><th width="40%">NPWP</th><td>: {{ $operator->nomor_npwp ?? '-' }}</td></tr>
                                         <tr><th>Paspor</th><td>: {{ $operator->nomor_paspor ?? '-' }}</td></tr>
                                         <tr><th>SIM ({{ $operator->jenis_sim ?? '-' }})</th><td>: {{ $operator->nomor_sim ?? '-' }}</td></tr>
                                         <tr><th>BPJS</th><td>: {{ $operator->nomor_bpjs ?? '-' }}</td></tr>
                                     </table>
+</div>
                                 </div>
                                 </div>
                             </div>

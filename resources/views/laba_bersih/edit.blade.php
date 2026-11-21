@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 
 @section('content')
@@ -118,7 +118,8 @@
 
                             </table>
                             <br>
-                            <table style="width: 100%">
+                            <div class="table-responsive">
+<table style="width: 100%">
                                 <tr class="font-weight-bold">
                                     <td class="text-right">Total Laba Kotor</td>
                                     <td width="20" class="px-2">=</td>
@@ -182,8 +183,10 @@
                                     <td width="20"></td>
                                 </tr>
                             </table>
+</div>
                             <br>
-                            <table style="min-width: 50%">
+                            <div class="table-responsive">
+<table style="min-width: 50%">
                                 <tr class="font-weight-bold">
                                     <td>Pembagian Laba Bersih</td>
                                 </tr>
@@ -229,8 +232,10 @@
                                     </td>
                                 </tr>
                             </table>
+</div>
                             <br>
-                            <table style="width: 100%">
+                            <div class="table-responsive">
+<table style="width: 100%">
                                 <tr class="font-weight-bold">
                                     <td>Catatan</td>
                                 </tr>
@@ -258,6 +263,7 @@
                                     </tr>
                                 @endforeach
                             </table>
+</div>
 
                         </div>
                         <br>

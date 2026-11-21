@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Executive Financial Dashboard — Investor Monitoring')
 
 @section('content')

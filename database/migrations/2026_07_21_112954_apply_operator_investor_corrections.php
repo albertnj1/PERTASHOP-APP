@@ -10,10 +10,6 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
-            return;
-        }
-
         Schema::table('operators', function (Blueprint $table) {
             if (!Schema::hasColumn('operators', 'pas_foto')) {
                 $table->string('pas_foto')->nullable();

@@ -18,12 +18,13 @@ return new class extends Migration
             }
         });
 
-        // Ubah enum metode_split agar menyertakan flat_bulanan_prorata_hari
-        try {
-            DB::statement("ALTER TABLE payroll_systems MODIFY COLUMN metode_split ENUM('per_hari_penuh', 'proporsional_jam_kerja', 'flat_bulanan_prorata_hari') NOT NULL DEFAULT 'per_hari_penuh'");
-        } catch (\Throwable $e) {
-            // Untuk database SQLite atau perlakuan khusus
+        // Ubah enum/string metode_split agar menyertakan flat_bulanan_prorata_hari
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE payroll_systems DROP CONSTRAINT IF EXISTS payroll_systems_metode_split_check');
         }
+        Schema::table('payroll_systems', function (Blueprint $table) {
+            $table->string('metode_split', 50)->default('per_hari_penuh')->change();
+        });
     }
 
     /**

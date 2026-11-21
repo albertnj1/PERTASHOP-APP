@@ -46,32 +46,63 @@ return new class extends Migration
         } catch (\Throwable $e) {}
 
         // Populate snapshot harga dari relasi prices
-        try {
-            DB::statement("
-                UPDATE daily_reports dr
-                JOIN prices p ON dr.price_id = p.id
-                SET dr.harga_jual_snapshot = p.harga_jual,
-                    dr.harga_beli_snapshot = p.harga_beli
-                WHERE dr.harga_jual_snapshot IS NULL
-            ");
-        } catch (\Throwable $e) {}
+        if (DB::getDriverName() === 'pgsql') {
+            try {
+                DB::statement("
+                    UPDATE daily_reports dr
+                    SET harga_jual_snapshot = p.harga_jual,
+                        harga_beli_snapshot = p.harga_beli
+                    FROM prices p
+                    WHERE dr.price_id = p.id
+                      AND dr.harga_jual_snapshot IS NULL
+                ");
+            } catch (\Throwable $e) {}
+        } else {
+            try {
+                DB::statement("
+                    UPDATE daily_reports dr
+                    JOIN prices p ON dr.price_id = p.id
+                    SET dr.harga_jual_snapshot = p.harga_jual,
+                        harga_beli_snapshot = p.harga_beli
+                    WHERE dr.harga_jual_snapshot IS NULL
+                ");
+            } catch (\Throwable $e) {}
+        }
 
         // Fallback untuk data lama yang price_id nya NULL: ambil dari harga aktif toko terkait atau harga terbaru
-        try {
-            DB::statement("
-                UPDATE daily_reports dr
-                JOIN prices p ON p.id = (
-                    SELECT p2.id FROM prices p2 
-                    WHERE (p2.shop_id = dr.shop_id OR p2.shop_id IS NULL)
-                    ORDER BY (p2.shop_id = dr.shop_id) DESC, p2.effective_at DESC, p2.id DESC
-                    LIMIT 1
-                )
-                SET dr.harga_jual_snapshot = p.harga_jual,
-                    dr.harga_beli_snapshot = p.harga_beli,
-                    dr.price_id = p.id
-                WHERE dr.harga_jual_snapshot IS NULL
-            ");
-        } catch (\Throwable $e) {}
+        if (DB::getDriverName() === 'pgsql') {
+            try {
+                DB::statement("
+                    UPDATE daily_reports dr
+                    SET harga_jual_snapshot = sub.harga_jual,
+                        harga_beli_snapshot = sub.harga_beli,
+                        price_id = sub.id
+                    FROM (
+                        SELECT id, harga_jual, harga_beli, shop_id
+                        FROM prices
+                    ) sub
+                    WHERE dr.price_id IS NULL
+                      AND dr.harga_jual_snapshot IS NULL
+                      AND (sub.shop_id = dr.shop_id OR sub.shop_id IS NULL)
+                ");
+            } catch (\Throwable $e) {}
+        } else {
+            try {
+                DB::statement("
+                    UPDATE daily_reports dr
+                    JOIN prices p ON p.id = (
+                        SELECT p2.id FROM prices p2 
+                        WHERE (p2.shop_id = dr.shop_id OR p2.shop_id IS NULL)
+                        ORDER BY (p2.shop_id = dr.shop_id) DESC, p2.effective_at DESC, p2.id DESC
+                        LIMIT 1
+                    )
+                    SET dr.harga_jual_snapshot = p.harga_jual,
+                        harga_beli_snapshot = p.harga_beli,
+                        dr.price_id = p.id
+                    WHERE dr.harga_jual_snapshot IS NULL
+                ");
+            } catch (\Throwable $e) {}
+        }
 
         // Setelah data terpopulasi, tambahkan index jika belum ada
         try {

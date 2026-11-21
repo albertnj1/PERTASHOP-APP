@@ -14,10 +14,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (DB::getDriverName() === 'sqlite') {
-            return;
-        }
-
         Schema::table('daily_reports', function (Blueprint $table) {
             // totalisator_akhir: was decimal(10,3), max 9,999,999.999
             // New: decimal(15,3), max 999,999,999,999.999

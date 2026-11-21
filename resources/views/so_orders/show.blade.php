@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @section('content')
     <section class="content-header">
@@ -34,7 +34,8 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <table class="table table-sm table-borderless">
+                            <div class="table-responsive">
+<table class="table table-sm table-borderless">
                                 <tr>
                                     <td class="text-muted" style="width: 160px;">Pertashop</td>
                                     <td class="font-weight-bold">{{ $soOrder->shop->kode ?? '' }} - {{ $soOrder->shop->nama ?? '-' }}</td>
@@ -52,9 +53,11 @@
                                     <td>{{ $soOrder->lo_number }}</td>
                                 </tr>
                             </table>
+</div>
                         </div>
                         <div class="col-md-6">
-                            <table class="table table-sm table-borderless">
+                            <div class="table-responsive">
+<table class="table table-sm table-borderless">
                                 <tr>
                                     <td class="text-muted" style="width: 160px;">Total Volume</td>
                                     <td class="font-weight-bold">{{ number_format($soOrder->total_quantity_liter, 0, ',', '.') }} Liter</td>
@@ -79,6 +82,7 @@
                                     <td>Rp {{ number_format($soOrder->total_quantity_liter > 0 ? $soOrder->total_amount / $soOrder->total_quantity_liter : 0, 2, ',', '.') }}</td>
                                 </tr>
                             </table>
+</div>
                         </div>
                     </div>
                 </div>
@@ -90,7 +94,8 @@
                     <h3 class="card-title"><i class="fas fa-shipping-fast"></i> Detail Trip Pengiriman</h3>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-bordered table-hover mb-0">
+                    <div class="table-responsive">
+<table class="table table-bordered table-hover mb-0">
                         <thead class="bg-light">
                             <tr>
                                 <th class="text-center" style="width: 70px;">Trip #</th>
@@ -134,6 +139,7 @@
                             @endforeach
                         </tbody>
                     </table>
+</div>
                 </div>
             </div>
 

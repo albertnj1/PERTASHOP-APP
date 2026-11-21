@@ -36,22 +36,18 @@ class DailyReportCalculationService
         }
 
         $shop = Shop::find($shopId);
-        $runningBalance = $initialStartingBalance ?? floatval($shop?->uang_belum_disetor_awal ?? 0);
-        $prevTotalisatorAkhir = $initialStartingTotalisator ?? floatval($shop?->totalisator_awal ?? 0);
-        $prevStokAkhir = $initialStartingStok ?? floatval($shop?->stok_awal ?? ($shop ? $shop->stik_awal * ($shop->skala ?: 21.49) : 0));
 
-        if ($initialStartingBalance === null && $allReports->isNotEmpty()) {
+        if ($initialStartingBalance === null && $shop && $allReports->isNotEmpty()) {
             $firstReport = $allReports->first();
             $firstDate = Carbon::parse($firstReport->report_date ?? $firstReport->created_at);
-            $prevMonthReport = DailyReport::where('shop_id', $shopId)
-                ->where('created_at', '<', $firstDate)
-                ->orderBy('created_at', 'desc')
-                ->first();
-            if ($prevMonthReport && $prevMonthReport->running_balance_setoran !== null) {
-                $runningBalance = floatval($prevMonthReport->running_balance_setoran);
-                $prevTotalisatorAkhir = floatval($prevMonthReport->totalisator_akhir);
-                $prevStokAkhir = floatval($prevMonthReport->stok_akhir_aktual);
-            }
+            $saldoAwal = PertashopDailyRecapService::resolveSaldoAwal($shop, $firstDate->copy()->startOfMonth());
+            $runningBalance = $saldoAwal['uang_belum_disetor_periode_lalu'];
+            $prevTotalisatorAkhir = $initialStartingTotalisator ?? $saldoAwal['totalisator_awal_hari_pertama'];
+            $prevStokAkhir = $initialStartingStok ?? $saldoAwal['stok_awal_hari_pertama'];
+        } else {
+            $runningBalance = $initialStartingBalance ?? floatval($shop?->uang_belum_disetor_awal ?? 0);
+            $prevTotalisatorAkhir = $initialStartingTotalisator ?? floatval($shop?->totalisator_awal ?? 0);
+            $prevStokAkhir = $initialStartingStok ?? floatval($shop?->stok_awal ?? ($shop ? $shop->stik_awal * ($shop->skala ?: 21.49) : 0));
         }
 
         $isFirst = true;

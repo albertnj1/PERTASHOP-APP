@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Tambah Sistem Penggajian')
 
 @push('style')

@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Presensi & Status Libur')
 
 @push('style')
@@ -180,31 +180,39 @@
 </div>
 
 {{-- ======== STATISTIK BULANAN ======== --}}
-<div class="summary-grid mb-4">
-  <div class="metric-card neutral">
-    <div class="metric-label">Jadwal Tugas Bulan Ini</div>
-    <div class="metric-value">{{ $recap->total_dijadwalkan ?? $monthSchedules->where('status', '!=', 'libur')->count() }} Hari</div>
-    <div class="metric-sub">Total hari kerja terjadwal</div>
-  </div>
-
-  <div class="metric-card pos">
-    <div class="metric-label">Kehadiran Masuk</div>
-    <div class="metric-value pos">{{ $recap->total_hadir ?? $monthSchedules->where('status', 'hadir')->count() }} Hari</div>
-    <div class="metric-sub">Tercatat masuk kerja</div>
-  </div>
-
-  <div class="metric-card neutral">
-    <div class="metric-label">Hari Libur Diberikan</div>
-    <div class="metric-value" style="color: #0284c7;">{{ $totalLiburBulanIni }} Hari</div>
-    <div class="metric-sub">Diliburkan oleh manajemen</div>
-  </div>
-
-  <div class="metric-card {{ ($recap->total_alpha ?? 0) > 0 ? 'neg' : 'neutral' }}">
-    <div class="metric-label">Izin / Sakit / Alpha</div>
-    <div class="metric-value {{ ($recap->total_alpha ?? 0) > 0 ? 'neg' : '' }}">
-      {{ ($recap->total_izin ?? 0) + ($recap->total_sakit ?? 0) }} / <span class="text-danger">{{ $recap->total_alpha ?? 0 }}</span>
+<div class="row kpi-row mb-3">
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card neutral h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Jadwal Tugas</div>
+      <div class="metric-value">{{ $recap->total_dijadwalkan ?? $monthSchedules->where('status', '!=', 'libur')->count() }} Hari</div>
+      <div class="metric-sub" style="font-size: 9px;">Terjadwal</div>
     </div>
-    <div class="metric-sub">Izin &amp; Sakit / Alpha</div>
+  </div>
+
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card pos h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Kehadiran</div>
+      <div class="metric-value pos">{{ $recap->total_hadir ?? $monthSchedules->where('status', 'hadir')->count() }} Hari</div>
+      <div class="metric-sub" style="font-size: 9px;">Masuk kerja</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card neutral h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Hari Libur</div>
+      <div class="metric-value" style="color: #0284c7;">{{ $totalLiburBulanIni }} Hari</div>
+      <div class="metric-sub" style="font-size: 9px;">Diliburkan</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="metric-card {{ ($recap->total_alpha ?? 0) > 0 ? 'neg' : 'neutral' }} h-100 p-2 p-sm-3">
+      <div class="metric-label" style="font-size: 10px;">Izin / Alpha</div>
+      <div class="metric-value {{ ($recap->total_alpha ?? 0) > 0 ? 'neg' : '' }}">
+        {{ ($recap->total_izin ?? 0) + ($recap->total_sakit ?? 0) }} / <span class="text-danger">{{ $recap->total_alpha ?? 0 }}</span>
+      </div>
+      <div class="metric-sub" style="font-size: 9px;">Izin &amp; Alpha</div>
+    </div>
   </div>
 </div>
 

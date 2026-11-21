@@ -102,23 +102,68 @@
   transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
-/* DESKTOP (> 1024px) */
-@media (min-width: 1025px) {
-  .sidebar.new-sidebar:not(.main-sidebar) {
-    position: sticky !important;
-    top: 0;
+/* DESKTOP (>= 1024px) */
+@media (min-width: 1024px) {
+  aside#mainSidebar.new-sidebar,
+  .sidebar.new-sidebar,
+  .main-sidebar.new-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 250px !important;
+    height: 100vh !important;
+    z-index: 1030 !important;
+    overflow-y: auto !important;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease !important;
   }
+
+  .layout-responsive .app-main,
+  .app-main,
+  .content-wrapper,
+  .main-content,
+  .main {
+    margin-left: 250px !important;
+    width: calc(100% - 250px) !important;
+    max-width: calc(100% - 250px) !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  body.sidebar-collapsed aside#mainSidebar.new-sidebar,
   body.sidebar-collapsed .sidebar.new-sidebar,
-  body.sidebar-collapsed aside.main-sidebar.new-sidebar {
+  body.sidebar-collapsed .main-sidebar.new-sidebar {
+    transform: translateX(-250px) !important;
     margin-left: -250px !important;
-    opacity: 0;
-    pointer-events: none;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  body.sidebar-collapsed .layout-responsive .app-main,
+  body.sidebar-collapsed .app-main,
+  body.sidebar-collapsed .content-wrapper,
+  body.sidebar-collapsed .main-content,
+  body.sidebar-collapsed .main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Pastikan semua card & container di laptop tidak melebar melebihi wadahnya */
+  .app-content, .container-fluid, .card, .panel {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
   }
 }
 
-/* TABLET & MOBILE (<= 1024px) CLEAN OFF-CANVAS DRAWER */
-@media (max-width: 1024px) {
-  .sidebar.new-sidebar, aside.main-sidebar.new-sidebar {
+/* TABLET & MOBILE (< 1024px) CLEAN OFF-CANVAS DRAWER */
+@media (max-width: 1023.98px) {
+  aside#mainSidebar.new-sidebar,
+  .sidebar.new-sidebar,
+  .main-sidebar.new-sidebar {
     position: fixed !important;
     top: 0 !important;
     bottom: 0 !important;
@@ -136,8 +181,9 @@
     margin: 0 !important;
   }
   
+  body.sidebar-open aside#mainSidebar.new-sidebar,
   body.sidebar-open .sidebar.new-sidebar,
-  body.sidebar-open aside.main-sidebar.new-sidebar {
+  body.sidebar-open .main-sidebar.new-sidebar {
     transform: translateX(0) !important;
     visibility: visible !important;
     pointer-events: auto !important;
@@ -148,5 +194,15 @@
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
+  }
+
+  .layout-responsive .app-main,
+  .app-main,
+  .content-wrapper,
+  .main-content,
+  .main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }

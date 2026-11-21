@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Kasbon & Pinjaman Karyawan')
 
 @section('content')

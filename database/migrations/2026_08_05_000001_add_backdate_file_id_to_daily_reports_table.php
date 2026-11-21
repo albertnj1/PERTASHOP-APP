@@ -10,11 +10,15 @@ return new class extends Migration
     {
         Schema::table('daily_reports', function (Blueprint $table) {
             if (!Schema::hasColumn('daily_reports', 'backdate_file_id')) {
-                $table->foreignId('backdate_file_id')
+                $table->unsignedBigInteger('backdate_file_id')
                     ->nullable()
-                    ->after('excel_upload_id')
-                    ->constrained('backdate_excel_files')
-                    ->nullOnDelete();
+                    ->after('excel_upload_id');
+                if (Schema::hasTable('backdate_excel_files')) {
+                    $table->foreign('backdate_file_id')
+                        ->references('id')
+                        ->on('backdate_excel_files')
+                        ->nullOnDelete();
+                }
             }
 
             if (!Schema::hasColumn('daily_reports', 'stik_awal')) {

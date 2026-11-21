@@ -38,8 +38,8 @@
   <a href="{{ route('daily-reports.index') }}" class="nav-item {{ request()->routeIs('daily-reports.*') ? 'active' : '' }}">
     LAPORAN HARIAN
   </a>
-  <a href="{{ route('backdate-excel-files.index') }}" class="nav-item {{ request()->routeIs('backdate-excel-files.*') ? 'active' : '' }}">
-    UPLOAD FILE BACKDATE
+  <a href="{{ route('monitoring.daily-reports') }}" class="nav-item {{ request()->routeIs('monitoring.daily-reports*') ? 'active' : '' }}">
+    PANTAUAN REKAP HARIAN
   </a>
   <a href="{{ route('so-orders.index') }}" class="nav-item {{ request()->routeIs('so-orders.*') ? 'active' : '' }}">
     ORDER SO
@@ -92,7 +92,6 @@
   <div class="nav-group-label">OUTLET SAYA</div>
   <a href="{{ route('investor.dashboard') }}" class="nav-item {{ request()->routeIs('investor.dashboard') ? 'active' : '' }}">PERFORMA OUTLET</a>
   <a href="{{ route('daily-reports.index') }}" class="nav-item {{ request()->routeIs('daily-reports.*') ? 'active' : '' }}">LAPORAN HARIAN</a>
-  <a href="{{ route('backdate-excel-files.index') }}" class="nav-item {{ request()->routeIs('backdate-excel-files.*') ? 'active' : '' }}">FILE BACKDATE</a>
   <a href="{{ route('incomings.index') }}" class="nav-item {{ request()->routeIs('incomings.*') ? 'active' : '' }}">PENERIMAAN</a>
   <a href="{{ route('spendings.index') }}" class="nav-item {{ request()->routeIs('spendings.*') ? 'active' : '' }}">PENGELUARAN</a>
 
@@ -120,6 +119,9 @@
   <div class="nav-group-label">OPERASIONAL</div>
   <a href="{{ route('daily-reports.index') }}" class="nav-item {{ request()->routeIs('daily-reports.*') ? 'active' : '' }}">
     LAPORAN HARIAN
+  </a>
+  <a href="{{ route('monitoring.daily-reports') }}" class="nav-item {{ request()->routeIs('monitoring.daily-reports*') ? 'active' : '' }}">
+    PANTAUAN REKAP HARIAN
   </a>
   <a href="{{ route('incomings.index') }}" class="nav-item {{ request()->routeIs('incomings.*') ? 'active' : '' }}">
     PENERIMAAN

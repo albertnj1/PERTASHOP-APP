@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Pratinjau File Excel — ' . $backdateExcelFile->original_filename)
 
 @push('style')
@@ -550,7 +550,8 @@
 
                 {{-- I. PEMBELIAN --}}
                 <div class="font-weight-bold mb-1" style="font-size: 12.5px;">I. PEMBELIAN {{ $sIdx + 1 }}</div>
-                <table class="table-formal-pv mb-2" style="max-width: 85%;">
+                <div class="table-responsive">
+<table class="table-formal-pv mb-2" style="max-width: 85%;">
                   <tr>
                     <td style="width: 140px;">Stok Awal</td>
                     <td style="width: 20px;">=</td>
@@ -581,10 +582,12 @@
                     <td class="text-right">Rp {{ number_format($seg['jumlah_pembelian_rp'], 0, ',', '.') }}</td>
                   </tr>
                 </table>
+</div>
 
                 {{-- II. PENJUALAN --}}
                 <div class="font-weight-bold mt-2 mb-1" style="font-size: 12.5px;">II. PENJUALAN {{ $sIdx + 1 }}</div>
-                <table class="table-formal-pv mb-2" style="max-width: 85%;">
+                <div class="table-responsive">
+<table class="table-formal-pv mb-2" style="max-width: 85%;">
                   <tr>
                     <td style="width: 230px;">a. Totalisator Akhir ({{ $seg['end_datetime_label'] ?? '-' }})</td>
                     <td style="width: 20px;">=</td>
@@ -656,6 +659,7 @@
                     <td class="text-right text-primary">Rp {{ number_format($seg['jumlah_penjualan_bersih'], 0, ',', '.') }}</td>
                   </tr>
                 </table>
+</div>
 
                 {{-- III. SISA STOK AKHIR --}}
                 <div class="font-weight-bold mt-2" style="font-size: 12.5px;">
@@ -673,7 +677,8 @@
               <div class="col-md-5 mb-3">
                 <div class="border p-2.5 rounded bg-light" style="font-size: 11.5px;">
                   <div class="font-weight-bold mb-2">IV. Sisa Stock DO Di Mees :</div>
-                  <table class="table table-sm table-bordered bg-white mb-0 text-center">
+                  <div class="table-responsive">
+<table class="table table-sm table-bordered bg-white mb-0 text-center">
                     <thead class="bg-light"><tr><th>PERTAMAX</th><th>KL</th></tr></thead>
                     <tbody>
                       <tr><td class="text-left">Stok Awal</td><td>{{ number_format($h1['sisa_do_mees']['stok_awal_kl'] ?? 0, 2) }} KL</td></tr>
@@ -684,6 +689,7 @@
                       <tr class="font-weight-bold bg-light"><td class="text-left">Sisa</td><td>- KL *)</td></tr>
                     </tbody>
                   </table>
+</div>
                 </div>
               </div>
 
@@ -745,7 +751,8 @@
 
             {{-- PENDAPATAN --}}
             <div class="font-weight-bold text-uppercase mb-1" style="font-size: 12.5px; text-decoration: underline;">PENDAPATAN</div>
-            <table class="table-formal-pv mb-3">
+            <div class="table-responsive">
+<table class="table-formal-pv mb-3">
               <tr>
                 <td style="width: 280px;">1. LABA KOTOR ........................................................................</td>
                 <td style="width: 20px;">=</td>
@@ -754,11 +761,13 @@
                 <td class="text-right font-weight-bold" style="width: 200px;">A. Total Laba Kotor = Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</td>
               </tr>
             </table>
+</div>
 
             {{-- PENGELUARAN --}}
             @php $pd = $h2['pengeluaran_details'] ?? []; @endphp
             <div class="font-weight-bold text-uppercase mb-1" style="font-size: 12.5px; text-decoration: underline;">PENGELUARAN</div>
-            <table class="table-formal-pv mb-2">
+            <div class="table-responsive">
+<table class="table-formal-pv mb-2">
               <tr><td>1. GAJI OPERATOR ...................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['gaji_operator'] ?? 0, 0, ',', '.') }}</td><td></td></tr>
               <tr><td>2. GAJI ADMIN ..........................................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['gaji_admin'] ?? 500000, 0, ',', '.') }}</td><td></td></tr>
               <tr><td>3. BIAYA CURAH / BONGKAR .................................................</td><td>=</td><td class="text-right">Rp {{ number_format($pd['biaya_curah'] ?? 50000, 0, ',', '.') }}</td><td></td></tr>
@@ -775,11 +784,13 @@
                 <td></td>
               </tr>
             </table>
+</div>
 
             {{-- Summary Laba Bersih & Alokasi --}}
             <div class="row justify-content-end mb-3">
               <div class="col-md-6">
-                <table class="table-formal-pv" style="font-size: 12.5px;">
+                <div class="table-responsive">
+<table class="table-formal-pv" style="font-size: 12.5px;">
                   <tr><td>A. Total Laba Kotor</td><td class="text-right font-weight-bold">Rp {{ number_format($h1['grand_total_laba_kotor'] ?? 0, 0, ',', '.') }}</td></tr>
                   <tr><td>B. Total Biaya</td><td class="text-right font-weight-bold text-danger">Rp {{ number_format($h2['total_biaya'] ?? 0, 0, ',', '.') }} -</td></tr>
                   <tr style="border-top: 1.5px solid #0f172a; font-weight: 800;">
@@ -803,12 +814,14 @@
                     <td class="text-right text-primary" style="font-size: 14px;">Rp {{ number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.') }}</td>
                   </tr>
                 </table>
+</div>
               </div>
             </div>
 
             {{-- Investor List & Transfer Accounts --}}
             <div class="font-weight-bold mt-3 mb-1" style="font-size: 12.5px;">Pembagian Laba Bersih :</div>
-            <table class="table-formal-pv mb-3" style="max-width: 60%;">
+            <div class="table-responsive">
+<table class="table-formal-pv mb-3" style="max-width: 60%;">
               @foreach($h2['investor_distributions'] ?? [] as $idx => $inv)
                 <tr>
                   <td style="width: 30px;">{{ $idx + 1 }}.</td>
@@ -823,10 +836,12 @@
                 <td class="text-right text-success">Rp {{ number_format($h2['total_saldo_laba_dibagi'] ?? 0, 0, ',', '.') }}</td>
               </tr>
             </table>
+</div>
 
             {{-- Catatan Rekening & Checklist Transfer --}}
             <div class="font-weight-bold mt-3 mb-1" style="font-size: 12.5px;">Catatan Transfer :</div>
-            <table class="table-formal-pv mb-3">
+            <div class="table-responsive">
+<table class="table-formal-pv mb-3">
               <thead>
                 <tr class="font-weight-bold" style="font-size: 11px; border-bottom: 1px solid #cbd5e1;">
                   <th>No</th>
@@ -850,6 +865,7 @@
                 @endforeach
               </tbody>
             </table>
+</div>
             <div class="text-muted italic" style="font-size: 11px;">*) Jika Laba Positif, Alokasi Modal 10% Untuk Penambahan Modal Dasar</div>
 
           </div>
@@ -869,7 +885,8 @@
               <span>Saldo Awal Modal Periode Bulan Sebelumnya : <strong class="text-primary">Rp {{ number_format($h3['saldo_awal_modal'] ?? 68019683, 0, ',', '.') }}</strong></span>
             </div>
 
-            <table class="table-formal-pv mb-3" style="font-size: 12.5px;">
+            <div class="table-responsive">
+<table class="table-formal-pv mb-3" style="font-size: 12.5px;">
               <tbody>
                 <tr>
                   <td style="width: 30px;">1.</td>
@@ -967,6 +984,7 @@
                 </tr>
               </tbody>
             </table>
+</div>
 
           </div>
         </div>
@@ -1047,7 +1065,8 @@
             {{-- Summary Footer --}}
             <div class="row justify-content-between align-items-center p-3 rounded bg-light border">
               <div class="col-md-6" style="font-size: 12px;">
-                <table class="table-formal-pv">
+                <div class="table-responsive">
+<table class="table-formal-pv">
                   <tr>
                     <td style="width: 140px;">Nilai Modal Dasar</td>
                     <td style="width: 20px;">=</td>
@@ -1067,6 +1086,7 @@
                     <td class="text-right text-primary" style="font-size: 13.5px;">{{ number_format($h4['persen_grand_total'] ?? 100, 2) }}%</td>
                   </tr>
                 </table>
+</div>
               </div>
               <div class="col-md-5 text-right">
                 <div class="p-2.5 bg-white border rounded shadow-xs">
@@ -1169,7 +1189,8 @@
                   <span class="badge badge-info px-2 py-1" style="font-size: 11px;">Total: {{ number_format($summary['test_pump']['total_volume'] ?? 0, 2, ',', '.') }} L</span>
                 </div>
                 <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
-                  <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
+                  <div class="table-responsive">
+<table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
                     <thead class="thead-light"><tr><th>No</th><th>Tanggal</th><th class="text-right">Volume</th><th class="text-right">Nominal</th></tr></thead>
                     <tbody>
                       @forelse($summary['test_pump']['details'] ?? [] as $idx => $tp)
@@ -1179,6 +1200,7 @@
                       @endforelse
                     </tbody>
                   </table>
+</div>
                 </div>
               </div>
             </div>
@@ -1191,7 +1213,8 @@
                   <span class="badge badge-success px-2 py-1" style="font-size: 11px;">Total: {{ number_format($summary['pembelian_bbm']['total_volume_kl'] ?? 0, 2, ',', '.') }} KL</span>
                 </div>
                 <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
-                  <table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
+                  <div class="table-responsive">
+<table class="table table-sm table-striped table-hover mb-0" style="font-size: 12px;">
                     <thead class="thead-light"><tr><th>No</th><th>Tanggal</th><th>Tipe</th><th class="text-right">Volume (L)</th><th class="text-right">Volume (KL)</th></tr></thead>
                     <tbody>
                       @forelse($summary['pembelian_bbm']['details'] ?? [] as $idx => $bbm)
@@ -1201,6 +1224,7 @@
                       @endforelse
                     </tbody>
                   </table>
+</div>
                 </div>
               </div>
             </div>

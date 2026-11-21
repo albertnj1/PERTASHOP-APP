@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 
 @section('content')
@@ -138,7 +138,8 @@
 
                                 <div class="alert alert-info mt-4 mb-0 pb-1 pt-3 shadow-sm" style="background-color: #f8f9fc; border-left: 4px solid #4e73df;">
                                     <h6 class="font-weight-bold text-primary"><i class="fas fa-calculator me-2"></i> Preview Kalkulasi Otomatis</h6>
-                                    <table class="table table-sm table-borderless text-dark mb-0" style="font-size: 0.95rem;">
+                                    <div class="table-responsive">
+<table class="table table-sm table-borderless text-dark mb-0" style="font-size: 0.95rem;">
                                         <tr><td class="py-1">Total Kotor (Base)</td><td class="text-right py-1 font-weight-bold" id="prev_kotor">Rp 0</td></tr>
                                         <tr><td class="py-1">Total Net</td><td class="text-right py-1" id="prev_net">Rp 0</td></tr>
                                         <tr><td class="py-1">PPN</td><td class="text-right py-1" id="prev_ppn">Rp 0</td></tr>
@@ -149,6 +150,7 @@
                                             <td class="text-right py-2 font-weight-bold text-primary" id="prev_harga">Rp 0</td>
                                         </tr>
                                     </table>
+</div>
                                 </div>
 
                             </div>

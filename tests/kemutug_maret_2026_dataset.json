@@ -1284,5 +1284,24 @@
             "total_uang_belum_disetor": -31613125.999999918,
             "operator": "Dendi"
         }
-    ]
+    ],
+    "monthly_summary": {
+        "F35_penjualan_teoritis_vol": 23594.93,
+        "G35_penjualan_teoritis_rp": 287858146,
+        "H35_test_pump_vol": 10.0,
+        "L35_penjualan_aktual_vol": 23584.93,
+        "M35_penjualan_aktual_rp": 287736146,
+        "T35_losses_gain_liter": -355.613,
+        "U35_losses_gain_rp": -4009920.6370400735,
+        "V35_status_losses_gain": "Losses",
+        "AG35_total_pengeluaran": 5388900,
+        "AL36_total_disetor": 276754938,
+        "AP35_total_uang_belum_disetor": -31613125.999999918,
+        "AV35_omset_plus_losses": 23217.367,
+        "F36_avg_liter": 786.164333333333,
+        "AJ36_selisih_disetor": -31613125.999999918,
+        "dendi_gaji": 4209329.60,
+        "wawan_gaji": 434143.80,
+        "total_gaji": 4643473.40
+    }
 }

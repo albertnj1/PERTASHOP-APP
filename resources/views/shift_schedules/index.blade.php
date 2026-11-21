@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Jadwal Shift Operator')
 
 @push('style')
@@ -15,6 +15,19 @@
     --shift-3-bg: #ede9fe;
     --shift-3-text: #6d28d9;
     --shift-3-border: #c4b5fd;
+  }
+
+  /* Sticky Left Column for Operator Name */
+  .sticky-left {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 10 !important;
+    background-color: #ffffff !important;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.06);
+  }
+  thead th.sticky-left {
+    z-index: 15 !important;
+    background-color: #f8fafc !important;
   }
 
   /* Weekend Styling (Sabtu & Minggu) */
@@ -245,7 +258,7 @@
   <form method="GET" action="{{ route('shift-schedules.index') }}" class="d-flex align-items-center justify-content-between flex-wrap" style="gap: 16px;">
     <div class="d-flex align-items-center flex-wrap" style="gap: 16px;">
       <div class="d-flex align-items-center">
-        <label class="text-muted mb-0 mr-2" style="font-size: 12px; font-weight: 700; text-transform: uppercase;">Pertashop:</label>
+        <label class="text-muted mb-0 mr-2 text-nowrap" style="font-size: 12px; font-weight: 700; text-transform: uppercase; white-space: nowrap;">Pertashop:</label>
         <select name="shop_id" class="form-control form-control-sm font-weight-bold" style="border-radius: 8px; min-width: 180px;" onchange="this.form.submit()">
           @foreach ($shops as $shop)
             <option value="{{ $shop->id }}" {{ $selectedShopId == $shop->id ? 'selected' : '' }}>
@@ -256,7 +269,7 @@
       </div>
 
       <div class="d-flex align-items-center">
-        <label class="text-muted mb-0 mr-2" style="font-size: 12px; font-weight: 700; text-transform: uppercase;">Bulan:</label>
+        <label class="text-muted mb-0 mr-2 text-nowrap" style="font-size: 12px; font-weight: 700; text-transform: uppercase; white-space: nowrap;">Bulan:</label>
         <input type="month" name="bulan" class="form-control form-control-sm font-weight-bold" style="border-radius: 8px;" value="{{ $selectedMonth }}" onchange="this.form.submit()">
       </div>
     </div>

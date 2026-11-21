@@ -22,30 +22,23 @@ return new class extends Migration
         });
 
         // Modify payroll_periods status column to allow 'archived'
-        if (\Illuminate\Support\Facades\DB::getDriverName() !== 'sqlite') {
-            try {
-                DB::statement("ALTER TABLE payroll_periods MODIFY COLUMN status ENUM('draft', 'final', 'archived') NOT NULL DEFAULT 'draft'");
-            } catch (\Throwable $e) {
-                if (Schema::hasColumn('payroll_periods', 'status')) {
-                    Schema::table('payroll_periods', function (Blueprint $table) {
-                        $table->string('status', 30)->default('draft')->change();
-                    });
-                }
-            }
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE payroll_periods DROP CONSTRAINT IF EXISTS payroll_periods_status_check');
+        }
+        if (Schema::hasColumn('payroll_periods', 'status')) {
+            Schema::table('payroll_periods', function (Blueprint $table) {
+                $table->string('status', 30)->default('draft')->change();
+            });
         }
 
         Schema::table('payroll_periods', function (Blueprint $table) {
             if (!Schema::hasColumn('payroll_periods', 'sumber_file_excel')) {
                 $table->string('sumber_file_excel')->nullable()->after('status');
             }
+            if (Schema::hasColumn('payroll_periods', 'payroll_system_id')) {
+                $table->unsignedBigInteger('payroll_system_id')->nullable()->change();
+            }
         });
-
-        // Make payroll_system_id nullable for archived periods if needed
-        try {
-            DB::statement("ALTER TABLE payroll_periods MODIFY COLUMN payroll_system_id BIGINT UNSIGNED NULL");
-        } catch (\Throwable $e) {
-            // Ignore if already nullable or not supported
-        }
     }
 
     public function down(): void

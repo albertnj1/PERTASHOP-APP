@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Dashboard')
 
 @push('style')
@@ -35,9 +35,9 @@
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767.98px) {
     .kpi-grid-6 {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
     }
   }
 
@@ -131,9 +131,9 @@
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 767.98px) {
     .outlet-grid-6 {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
     }
   }
 

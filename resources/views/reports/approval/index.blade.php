@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Persetujuan Laporan Harian')
 
 @section('content')
@@ -36,42 +36,42 @@
   </div>
 @endif
 
-<div class="row mb-4">
-  <div class="col-md-3">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <small class="text-muted font-weight-bold">STATUS PERIODE</small>
+<div class="row kpi-row mb-3">
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body p-2 p-sm-3">
+        <small class="text-muted font-weight-bold" style="font-size: 10px;">STATUS PERIODE</small>
         <div class="mt-2">
           @if($isLocked)
-            <span class="badge badge-danger p-2" style="font-size: 13px;"><i class="fa fa-lock mr-1"></i> DIKUNCI (LOCKED)</span>
+            <span class="badge badge-danger p-1 p-sm-2" style="font-size: 11px;"><i class="fa fa-lock mr-1"></i> DIKUNCI</span>
           @else
-            <span class="badge badge-success p-2" style="font-size: 13px;"><i class="fa fa-unlock mr-1"></i> TERBUKA (OPEN)</span>
+            <span class="badge badge-success p-1 p-sm-2" style="font-size: 11px;"><i class="fa fa-unlock mr-1"></i> TERBUKA</span>
           @endif
         </div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <small class="text-muted font-weight-bold">TOTAL LAPORAN</small>
-        <div class="h4 font-weight-bold mt-2 text-dark">{{ $reports->count() }} Hari</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body p-2 p-sm-3">
+        <small class="text-muted font-weight-bold" style="font-size: 10px;">TOTAL LAPORAN</small>
+        <div class="h5 font-weight-bold mt-2 text-dark">{{ $reports->count() }} Hari</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <small class="text-muted font-weight-bold">VOLUME PENJUALAN</small>
-        <div class="h4 font-weight-bold mt-2 text-primary">{{ number_format($totalVol, 2, ',', '.') }} L</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body p-2 p-sm-3">
+        <small class="text-muted font-weight-bold" style="font-size: 10px;">VOLUME JUAL</small>
+        <div class="h5 font-weight-bold mt-2 text-primary">{{ number_format($totalVol, 2, ',', '.') }} L</div>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <small class="text-muted font-weight-bold">TOTAL OMSET</small>
-        <div class="h4 font-weight-bold mt-2 text-success">Rp {{ number_format($totalRupiah, 0, ',', '.') }}</div>
+  <div class="col-6 col-sm-6 col-lg-3 mb-2 px-1 px-sm-2">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body p-2 p-sm-3">
+        <small class="text-muted font-weight-bold" style="font-size: 10px;">TOTAL OMSET</small>
+        <div class="h5 font-weight-bold mt-2 text-success">Rp {{ number_format($totalRupiah, 0, ',', '.') }}</div>
       </div>
     </div>
   </div>

@@ -27,9 +27,17 @@ class ShiftScheduleBranchRulesTest extends TestCase
 
     private function getOrCreateShop(string $nama): Shop
     {
+        $corp = \App\Models\Corporation::firstOrCreate(
+            ['nama' => 'Test Corp'],
+            ['telepon' => '08123456789', 'alamat' => 'Test Address']
+        );
+
         return Shop::firstOrCreate(
             ['nama' => $nama],
             [
+                'corporation_id' => $corp->id,
+                'kode'       => strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $nama), 0, 8)),
+                'alamat'     => 'Jl. Raya ' . $nama,
                 'lokasi'     => $nama . ' Location',
                 'modal_awal' => 500000000,
             ]

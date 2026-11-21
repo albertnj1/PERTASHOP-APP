@@ -11,12 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (\Illuminate\Support\Facades\DB::getDriverName() === 'sqlite') {
-            return;
-        }
-
         Schema::table('incomings', function (Blueprint $table) {
-            \Illuminate\Support\Facades\DB::statement('ALTER TABLE incomings MODIFY purchase_id bigint unsigned NULL');
+            $table->unsignedBigInteger('purchase_id')->nullable()->change();
         });
     }
 
@@ -26,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('incomings', function (Blueprint $table) {
-            \Illuminate\Support\Facades\DB::statement('ALTER TABLE incomings MODIFY purchase_id bigint unsigned NOT NULL');
+            $table->unsignedBigInteger('purchase_id')->nullable(false)->change();
         });
     }
 };

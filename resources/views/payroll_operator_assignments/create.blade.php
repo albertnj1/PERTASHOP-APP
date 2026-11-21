@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 @section('title', 'Assign Operator ke Penggajian')
 
 @section('content')

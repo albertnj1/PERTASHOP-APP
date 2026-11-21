@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 
 @section('content')
@@ -281,7 +281,8 @@
                                 @if ($reports->count() > 1)
                                     <div class="">
                                         @foreach ($reports as $i => $r)
-                                            <table class="mb-2">
+                                            <div class="table-responsive">
+<table class="mb-2">
                                                 <tr>
                                                     <td width="120" class="p-2 text-xl text-center"
                                                         style="border: 2px solid #000">
@@ -326,11 +327,13 @@
                                                                 <td></td>
                                                             </tr>
                                                         </table>
+</div>
                                                     </td>
                                                 </tr>
                                             </table>
                                         @endforeach
-                                        <table class="mb-2">
+                                        <div class="table-responsive">
+<table class="mb-2">
                                             <tr>
                                                 <td width="120" class="p-2 text-xl text-center"
                                                     style="border: 2px solid #000">
@@ -368,13 +371,15 @@
                                                             <td></td>
                                                         </tr>
                                                     </table>
+</div>
                                                 </td>
                                             </tr>
                                         </table>
                                     </div>
                                 @else
                                     <div class="">
-                                        <table class="mb-2">
+                                        <div class="table-responsive">
+<table class="mb-2">
                                             <tr>
                                                 <td width="120" class="p-2 text-lg text-center"
                                                     style="border: 2px solid #000">
@@ -412,6 +417,7 @@
                                                             <td></td>
                                                         </tr>
                                                     </table>
+</div>
                                                 </td>
                                             </tr>
                                         </table>

@@ -102,12 +102,17 @@ class BusinessRuleSeeder extends Seeder
                 ->exists();
 
             if ($exists) {
-                DB::statement("UPDATE business_rule_versions SET effective_from = '2026-01-01 00:00:00', effective_until = NULL, value_numeric = ?, value_string = ?, is_active = 1 WHERE business_rule_id = ? AND version_code = ?", [
-                    $valNumeric,
-                    $valString,
-                    $rule->id,
-                    $item['version']
-                ]);
+                DB::table('business_rule_versions')
+                    ->where('business_rule_id', $rule->id)
+                    ->where('version_code', $item['version'])
+                    ->update([
+                        'effective_from'  => '2026-01-01 00:00:00',
+                        'effective_until' => null,
+                        'value_numeric'   => $valNumeric,
+                        'value_string'    => $valString,
+                        'is_active'       => true,
+                        'updated_at'      => now(),
+                    ]);
             } else {
                 DB::table('business_rule_versions')->insert([
                     'business_rule_id' => $rule->id,
@@ -116,7 +121,7 @@ class BusinessRuleSeeder extends Seeder
                     'value_string'     => $valString,
                     'effective_from'   => '2026-01-01 00:00:00',
                     'effective_until'  => null,
-                    'is_active'        => 1,
+                    'is_active'        => true,
                     'created_by'       => $user->id,
                     'change_reason'    => 'Initial system default rule version seeding.',
                     'created_at'       => now(),

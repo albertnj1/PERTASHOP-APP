@@ -1,4 +1,4 @@
-@extends('layouts._new_admin')
+@extends('layouts.master')
 @section('title', 'Rekap Beban Penggajian')
 
 @push('style')
@@ -215,7 +215,7 @@
 
     {{-- Ringkasan Kartu KPI --}}
     <div class="row mb-4">
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-12 col-sm-6 col-lg-3 mb-3">
         <div class="kpi-card">
           <div class="kpi-icon-box" style="background: #ecfdf5; color: #059669;">
             <i class="fas fa-money-bill-wave"></i>
@@ -230,7 +230,7 @@
         </div>
       </div>
 
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-12 col-sm-6 col-lg-3 mb-3">
         <div class="kpi-card">
           <div class="kpi-icon-box" style="background: #eff6ff; color: #2563eb;">
             <i class="fas fa-users"></i>
@@ -245,7 +245,7 @@
         </div>
       </div>
 
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-12 col-sm-6 col-lg-3 mb-3">
         <div class="kpi-card">
           <div class="kpi-icon-box" style="background: #faf5ff; color: #9333ea;">
             <i class="fas fa-calendar-check"></i>
@@ -260,7 +260,7 @@
         </div>
       </div>
 
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-12 col-sm-6 col-lg-3 mb-3">
         <div class="kpi-card">
           <div class="kpi-icon-box" style="background: #f0fdf4; color: #16a34a;">
             <i class="fas fa-shield-alt"></i>
@@ -360,7 +360,7 @@
                     </td>
                     <td class="text-right">
                       <span class="font-weight-bold" style="font-size: 14px; color: #059669;">
-                        Rp {{ number_format($detail->hitungTHP(), 0, ',', '.') }}
+                        Rp {{ number_format($detail->hitungTHP(), 2, ',', '.') }}
                       </span>
                     </td>
                     <td class="text-center">
@@ -391,7 +391,7 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                   <span class="text-muted">Total Diterima (Take Home Pay):</span>
                                   <span class="font-weight-bold" style="font-size: 17px; color: #15803d;">
-                                    Rp {{ number_format($detail->hitungTHP(), 0, ',', '.') }}
+                                    Rp {{ number_format($detail->hitungTHP(), 2, ',', '.') }}
                                   </span>
                                 </div>
                               </div>
@@ -402,15 +402,15 @@
                               <div class="p-2 mb-3 bg-light rounded" style="font-size: 12.5px;">
                                 <div class="d-flex justify-content-between py-1 border-bottom">
                                   <span>Gaji Pokok</span>
-                                  <strong>Rp {{ number_format($detail->gaji_pokok, 0, ',', '.') }}</strong>
+                                  <strong>Rp {{ number_format($detail->gaji_pokok, 2, ',', '.') }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1 border-bottom">
                                   <span>Komisi Penjualan Liter ({{ number_format($detail->liter_bagian, 1, ',', '.') }} L)</span>
-                                  <strong>Rp {{ number_format($detail->gaji_variable, 0, ',', '.') }}</strong>
+                                  <strong>Rp {{ number_format($detail->gaji_variable, 2, ',', '.') }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1 border-bottom">
                                   <span>Uang Transport</span>
-                                  <strong>Rp {{ number_format($detail->uang_transport, 0, ',', '.') }}</strong>
+                                  <strong>Rp {{ number_format($detail->uang_transport, 2, ',', '.') }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between py-1 border-bottom">
                                   <span>Lembur &amp; Hari Raya</span>
@@ -475,7 +475,7 @@
                     Total Beban Gaji Outlet ({{ $period->periode_label }}):
                   </td>
                   <td class="text-right font-weight-bold" style="font-size: 15px; color: #059669;">
-                    Rp {{ number_format($period->details->sum(fn($d) => $d->hitungTHP()), 0, ',', '.') }}
+                    Rp {{ number_format($period->details->sum(fn($d) => $d->hitungTHP()), 2, ',', '.') }}
                   </td>
                   <td colspan="2"></td>
                 </tr>
